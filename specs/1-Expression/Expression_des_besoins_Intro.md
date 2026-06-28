@@ -22,10 +22,16 @@
 - [3. Acteurs](#3-acteurs)
     - [Visiteur](#visiteur)
     - [Rôle Administrateur (par défaut, immuable)](#rôle-administrateur-par-défaut-immuable)
+    - [Rôle Lecteur (template)](#rôle-lecteur-template)
     - [Rôle Concepteur (template)](#rôle-concepteur-template)
     - [Rôle Consommateur (template)](#rôle-consommateur-template)
     - [Rôle Manufactureur (template)](#rôle-manufactureur-template)
     - [Rôle Developpeur (template)](#rôle-developpeur-template)
+- [4. Diagramme de contexte global](#4-diagramme-de-contexte-global)
+- [5. Règles métier](#5-règles-métier)
+- [6. Exigences non-fonctionnelles](#6-exigences-non-fonctionnelles)
+- [7. Matrice de traçabilité](#7-matrice-de-traçabilité)
+- [wireframe](#wireframe)
 
 
 
@@ -106,8 +112,10 @@ Les interfaces d'un composant peuvent être définis de manière manuelle (utile
 
 Chaque interface est définie selon
 
-- un type (ex : Électrique, Mécanique, Hydraulique, Numérique)
+- une catégorie (ex : Électrique, Mécanique, Hydraulique, Numérique,...)
 - un sens (Entrée, sortie ou bidirectionnel)
+- un tag (Câble, connecteur, vis...)
+- un type (USB-C)
 - une valeur ou plage de valeur
 - une unité associée (Volt, Litre, baud…)
 
@@ -152,6 +160,12 @@ Représente les connexions possibles entre 2 interfaces de composants.
 Une liaison peut être :
 - **directe** : les deux interfaces se connectent sans intermédiaire
 - **via un asset d'accroche** : un composant tiers (vis, câble, connecteur…) sert d'intermédiaire et est référencé sur la liaison
+
+Exemple de liaison :
+- Cable RJ45
+- Vis
+- Cable USB
+- Tuyau
 
 Une liaison dont les interfaces deviennent incompatibles après sa création n'est pas supprimée automatiquement : elle passe en état incompatible (signalée visuellement en rouge).
 
@@ -216,7 +230,7 @@ Ces réseaux isolés sont créés par des organismes ou personnes desirant mettr
 
 L'utilisateur ira ainsi se connecter et travailler sur navigateur afin de ne pas se compliquer avec un logiciel local.
 
-myr est un developpement Open-Source sous **Apache 2.0**. Il est construit de cette façon de manière à permettre à toute personne de developper des logiciels autour de cet outils ou même de l'améliorer.
+myr est un developpement Open-Source sous **AGPL 3.0**. Il est construit de cette façon de manière à permettre à toute personne de developper des logiciels autour de cet outils ou même de l'améliorer.
 
 Cet outils doit permettre de :
 
@@ -242,7 +256,7 @@ La société actuelle est basée sur la surconsommation et l'obsolescence progra
 - **Immuabilité blockchain** : toute transaction soumise à la blockchain est définitive. Les données doivent être validées côté serveur avant toute soumission. Il n'existe pas d'opération de suppression.
 - **Vérification anti-plagiat** : tout asset de type `base` doit passer une vérification d'unicité (empreinte SHA-256 + similarité structurelle > 50 %) avant d'être accepté sur la blockchain.
 - **Compatibilité de licence** : tout asset dérivé d'un asset parent doit avoir une licence compatible avec celle du parent.
-- **Licence Open-Source Apache 2.0** : le code source de Myr est publié sous Apache 2.0. Toute contribution ou extension doit respecter les termes de cette licence.
+- **Licence Open-Source AGPL 3.0** : le code source de Myr est publié sous AGPL 3.0. Toute contribution ou extension doit respecter les termes de cette licence.
 - **Architecture hexagonale** : le domaine métier ne doit dépendre d'aucune technologie d'infrastructure (Fabric, Redis, SQLite…). Les technologies peuvent évoluer sans réécriture du domaine.
 - **Compatibilité multi-réseaux** : bien que HyperLedger Fabric soit le réseau de référence, l'architecture doit permettre à terme de brancher d'autres types de réseaux blockchain sans refonte majeure.
 - **Accès navigateur uniquement** : aucun logiciel local n'est requis pour l'utilisateur final. L'interface graphique est servie par le serveur Myr et consommée via navigateur web standard.
@@ -259,6 +273,7 @@ Les acteurs sont définis par des rôles définis par défaut ayant des accès p
 @startuml
 :Visiteur:
 :Administrateur:
+:Lecteur:
 :Concepteur:
 :Consommateur:
 :Manufactureur:
@@ -268,7 +283,7 @@ Les acteurs sont définis par des rôles définis par défaut ayant des accès p
 
 ### Visiteur
 
-Personne accédant au site d'un réseau sans compte. Le visiteur peut consulter les assets publics du réseau mais ne peut pas interagir avec la blockchain. Son premier acte est la création d'un compte (soumise à validation selon les règles du réseau).
+Personne accédant au site d'un réseau sans compte. Le visiteur peut consulter les assets publics du réseau mais ne peut pas interagir avec la blockchain. Son premier acte est la création d'un compte — automatiquement validé avec le rôle **Lecteur** par défaut (voir UCA01).
 
 ### Rôle Administrateur (par défaut, immuable)
 
@@ -276,17 +291,27 @@ Il est la personne (ou organisme) chargée de créer le réseau. Il est de l'adm
 
 Il possède les droits suivants:
 
-- Définir les règles associées au reséau
-  - l'accès au réseau est ouverte à tous ou sur demande?
-  - Quel rôle est attribué par défaut?
-  - l'évolution d'une piece est ouverte à tous ou sur demande?
+- Définir les règles associées au réseau
+  - Quels rôles peuvent être demandés par les utilisateurs ?
+  - Quel rôle est attribué automatiquement à la demande vs. soumis à validation admin ?
+  - L'évolution d'une pièce est ouverte à tous ou sur demande ?
 - Ajouter/supprimer organisme
-- Ajouter/Editer/Supprimer un rôle et ses règles d'accès
-- Attribuer/Retirer les rôles à un organisme
+- Ajouter/Éditer/Supprimer un rôle et ses règles d'accès
+- Attribuer/Retirer les rôles à un utilisateur
+
+### Rôle Lecteur (template)
+
+Rôle attribué **par défaut** à tout utilisateur à la création de son compte. Il permet la consultation du réseau en lecture seule — sans possibilité de créer ou soumettre des assets.
+
+Il possède les droits suivants :
+
+- Rechercher et consulter les assets du réseau
+- Consulter les modules et leurs liaisons
+- Demander un rôle supplémentaire depuis le profil (voir UCA08)
 
 ### Rôle Concepteur (template)
 
-Rôle par défaut attribué à un utilisateur après validation de son compte. Il peut créer et faire évoluer des assets sur le réseau.
+Rôle permettant de créer et faire évoluer des assets sur le réseau. Il est obtenu sur demande depuis le profil (attribution automatique ou validation admin selon la configuration du réseau).
 
 Il possède les droits suivants :
 
@@ -400,7 +425,7 @@ D --> UCDEV
 
 | Package | Domaine | Use Cases |
 |---------|---------|-----------|
-| UCA | Compte & Accès | UCA01 Création compte · UCA02 Connexion · UCA03 Déconnexion · UCA04 Vérification connexion · UCA05 Vérification accès · UCA06 Vérifier possessions · UCA07 Vérification rôle |
+| UCA | Compte & Accès | UCA01 Création compte · UCA02 Connexion · UCA03 Déconnexion · UCA04 Vérification connexion · UCA05 Vérification accès · UCA06 Vérifier possessions · UCA07 Vérification rôle · UCA08 Demander un rôle |
 | UCADM | Administration | UCADM01 Ajouter organisation · UCADM02 Créer réseau · UCADM03 Ajouter nœud |
 | UCCE | Composant — Écriture | UCCE01 Composant physique · UCCE02 Configurer composant · UCCE03 Composant numérique · UCCE04 Améliorer composant · UCCE05 Extension composant · UCCE06 Ajouter interface |
 | UCCL | Composant — Lecture | UCCL01 Recherche par filtre |
@@ -487,10 +512,10 @@ rectangle "WebView" as WebView {
 rectangle "Serveur" as Server {
     rectangle "myr-app" {
 
-        rectangle "SQLite" as SQL {
+        rectangle "Base de données" as SQL {
             rectangle "User_DB"
         }
-        rectangle "IPFS" as IPFS  {
+        rectangle "Dépôt distribué 3D" as IPFS  {
             rectangle "Asset_DB"
         }
         rectangle "BlockChain" as BC {

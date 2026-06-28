@@ -4,9 +4,8 @@ titre: "Créer une interface sur un composant"
 probabilite: 3
 impact: 5
 importance: 15
-etat: relire
+etat: relu
 ---
-
 # Créer une interface sur un composant
 
 ## Diagramme d'acteurs
@@ -21,7 +20,7 @@ rectangle "Application MYR" {
     usecase "Créer une interface (glisser-déposer)" as UC1
     usecase "Créer une interface (propriétés)" as UC2
     usecase "Définir les attributs de l'interface" as UC3
-    usecase "Enregistrer sur la blockchain" as UC4
+    usecase "Enregistrer dans l'atelier (draft)" as UC4
 }
 
 C --> UC1
@@ -46,7 +45,7 @@ L'utilisateur peut créer une interface de deux façons :
 
 - Être connecté au réseau
 - Avoir au moins un composant dans l'atelier
-- Avoir les droits d'édition sur le composant
+- Avoir les droits de création ou d'édition sur le composant (défini dans le rôle)
 
 ## Scénario
 
@@ -63,8 +62,8 @@ L'utilisateur peut créer une interface de deux façons :
 3. Une fenêtre s'ouvre avec les propriétés déduites pré-remplies (catégorie, sens, type, valeur, unité)
 4. Le champ **tag** est vide — l'utilisateur doit sélectionner un tag depuis la liste filtrée par type ou en créer un nouveau
 5. L'utilisateur valide (ou ajuste les valeurs avant de valider)
-6. La nouvelle interface est créée sur le composant source
-7. La liaison est enregistrée
+6. La nouvelle interface est créée sur le composant source dans l'atelier (état draft)
+7. La liaison est enregistrée localement dans l'atelier
 8. L'icône "nouvelle interface" est automatiquement recréée sur le composant (slot virtuel maintenu)
 
 ### Flux nominal B — Via le panneau propriétés
@@ -73,7 +72,7 @@ L'utilisateur peut créer une interface de deux façons :
 
 1. Un formulaire s'affiche (catégorie, sens, tag, type, valeur/plage, unité)
 2. L'utilisateur renseigne les attributs et valide
-3. L'interface est créée et enregistrée sur la blockchain
+3. L'interface est créée et enregistrée localement dans l'atelier (état draft)
 
 ### Flux alternatif A2 — Ajustement des valeurs déduites
 
@@ -105,8 +104,8 @@ if (Méthode de création?) then (glisser-déposer slot virtuel)
     :Ouvrir fenêtre avec propriétés pré-remplies;
     :Sélectionner un tag (liste filtrée par type) ou en créer un nouveau;
     :Valider (ajustements optionnels);
-    :Créer l'interface sur le composant source;
-    :Enregistrer la liaison;
+    :Créer l'interface sur le composant source (draft);
+    :Enregistrer la liaison localement;
     :Recréer automatiquement le slot virtuel;
     stop
   else (non)
@@ -118,7 +117,7 @@ else (panneau propriétés)
   :Cliquer "Ajouter une interface";
   :Renseigner les attributs (catégorie, sens, tag, type, valeur, unité);
   :Valider;
-  :Enregistrer l'interface sur la blockchain;
+  :Enregistrer l'interface dans l'atelier (draft);
   stop
 endif
 @enduml

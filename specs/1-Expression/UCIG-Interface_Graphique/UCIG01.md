@@ -32,13 +32,10 @@ Demarrage --> MurIdentite  : Aucune session active
 state "Mur d'identité" as MurIdentite {
   state "Connexion" as IW_Login
   state "Inscription" as IW_Register
-  state "Attente approbation admin" as IW_Wait
   IW_Login    --> IW_Register : "Créer un compte"
   IW_Register --> IW_Login    : "Connexion"
-  IW_Login    --> IW_Wait     : Accès sur demande
 }
 MurIdentite --> MainWindow     : Authentification réussie
-MurIdentite --> ModaleRequete  : Demander un compte
 
 ' ── MenuBar (persistante sur toutes les pages) ──────────────────────────────
 state "MenuBar [toutes les pages]" as MenuBar {
@@ -90,7 +87,7 @@ state "Configurer un slot virtuel"  as ModaleVC
 state "Créer une liaison"           as MadaleLiaison
 state "Choisir un asset d'accroche" as FastenerPicker
 state "Importer un fichier 3D"      as ModaleImport
-state "Demande de compte"           as ModaleRequete
+state "Demander un rôle"            as ModaleRole
 
 ' depuis Asset UI
 AssetUI --> ModaleAsset : Créer / Dériver un composant
@@ -104,8 +101,8 @@ Atelier --> ModaleImport     : Déposer un fichier 3D
 Atelier --> ModaleSubmit     : Soumettre le module
 MadaleLiaison --> FastenerPicker : Choisir un accroche
 
-' depuis MenuBar / profil
-MB_Profil --> ModaleRequete : Demander un compte
+' depuis Profil / Compte
+AccountUI --> ModaleRole : Demander un rôle
 
 ' retour des modales
 ModaleAsset    --> AssetUI   : Valider / Annuler
@@ -116,8 +113,7 @@ ModaleVC       --> Atelier   : Créer et lier / Annuler
 MadaleLiaison  --> Atelier   : Créer liaison / Annuler
 FastenerPicker --> Atelier   : Sélectionner / Ignorer
 ModaleImport   --> Atelier   : Importer / Annuler
-ModaleRequete  --> MainWindow  : Envoi réussi
-ModaleRequete  --> MurIdentite : Annuler (depuis le mur)
+ModaleRole     --> AccountUI : Confirmer / Annuler
 
 ' déconnexion
 MainWindow --> MurIdentite : Se déconnecter
@@ -136,7 +132,7 @@ MainWindow --> MurIdentite : Se déconnecter
 | Explorer UI | Liste des assets ajoutés depuis la recherche, point d'entrée vers Asset UI | UCCL01 |
 | Asset UI | Page dédiée à un asset — détail, sous-assets, interfaces, accès à l'Atelier | UCCL01 |
 | Atelier (embarqué dans Asset UI) | Composition et assemblage d'un module — liaisons entre interfaces | UCMOD01, UCMOD06, UCAM01–08 |
-| Profil / Compte | Informations du compte utilisateur | UCA03, UCA07 |
+| Profil / Compte | Informations du compte utilisateur et rôles attribués | UCA03, UCA07, UCA08 |
 | Créer / Éditer un composant | Formulaire de création ou d'édition d'un composant | UCCE01–06 |
 | Soumettre à la blockchain | Confirmation de l'ancrage blockchain d'un module | UCMOD06 |
 | Gérer une interface | Ajout ou édition d'une interface sur un asset | UCAM03 |
@@ -144,16 +140,17 @@ MainWindow --> MurIdentite : Se déconnecter
 | Créer une liaison | Création d'une liaison entre deux interfaces | UCAM01 |
 | Choisir un asset d'accroche | Sélection optionnelle d'un fastener pour une liaison | UCAM07 |
 | Importer un fichier 3D | Import d'un fichier de modélisation par glisser-déposer | UCAM04, UCAM06 |
-| Demande de compte | Formulaire de demande d'accès soumis à l'administrateur | UCA01 |
+| Demander un rôle | Formulaire de demande de rôle (attribution automatique ou validation admin) | UCA08 |
 
 ## Modes d'accès au démarrage
 
-Au démarrage de l'application, le mode d'accès est déterminé par la configuration du réseau :
-
 | Mode | Condition | Comportement |
 |---|---|---|
-| Accès sur demande | Compte en attente d'approbation | La demande est soumise à l'administrateur — accès bloqué jusqu'à validation |
-| Connexion email/mot de passe | Compte validé | L'utilisateur se connecte via JWT (email + mot de passe) — le provisionnement de l'identité blockchain est transparent |
+| Session active | Token JWT valide en mémoire | La MainWindow s'affiche directement |
+| Connexion | Compte existant, pas de session | L'utilisateur saisit email + mot de passe — provisionnement blockchain transparent à la première connexion |
+| Inscription | Aucun compte | L'utilisateur crée un compte — validé automatiquement avec le rôle **Lecteur** par défaut |
+
+> Un rôle supplémentaire peut être demandé depuis le profil (voir UCA08).
 
 ## Diagramme d'activités
 
@@ -163,27 +160,22 @@ skin rose
 title Schéma de navigation — démarrage et accès
 start
 :Ouvrir l'application MYR dans le navigateur;
-:Vérifier le mode d'accès au démarrage;
 if (Session active?) then (oui)
   :Afficher la MainWindow;
   stop
 else (non)
   :Afficher le Mur d'identité;
-  if (Compte validé?) then (oui)
+  if (Compte existant?) then (oui)
     :Se connecter (email + mot de passe);
     :Afficher la MainWindow;
     stop
   else (non)
-    if (Compte en attente?) then (oui)
-      :Afficher l'écran d'attente d'approbation admin;
-      stop
-    else (non)
-      :Cliquer "Créer un compte";
-      :Remplir le formulaire de demande;
-      :Soumettre la demande à l'administrateur;
-      :Attendre la validation;
-      stop
-    endif
+    :Cliquer "Créer un compte";
+    :Remplir le formulaire d'inscription;
+    :Compte créé — rôle Lecteur attribué par défaut;
+    :Se connecter automatiquement;
+    :Afficher la MainWindow;
+    stop
   endif
 endif
 @enduml

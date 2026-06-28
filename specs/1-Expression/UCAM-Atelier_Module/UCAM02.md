@@ -42,7 +42,7 @@ L'utilisateur peut visualiser les interfaces physiques (mécaniques, électrique
 
 ### Flux nominal — Affichage des interfaces physiques
 
-1. Les interfaces physiques du composant s'affichent (type, sens, valeur, unité)
+1. Les interfaces physiques du composant s'affichent (catégorie, sens, tag, type, valeur, unité)
 2. Les interfaces libres et celles déjà utilisées sont distinguées visuellement
 3. En survolant une interface, ses détails de configuration s'affichent
 
@@ -82,7 +82,7 @@ skin rose
 title Visualiser les interfaces physiques de composants
 start
 :Sélectionner un composant dans l'atelier;
-:Afficher les interfaces physiques (type, sens, valeur, unité);
+:Afficher les interfaces physiques (catégorie, sens, tag, type, valeur, unité);
 :Distinguer visuellement les interfaces libres et utilisées;
 if (Survol d'une interface?) then (oui)
   :Afficher les détails de configuration de l'interface;

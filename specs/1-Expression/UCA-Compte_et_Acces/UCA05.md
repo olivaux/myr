@@ -65,6 +65,7 @@ Vérifier que l'utilisateur peut réaliser les actions autorisées par son rôle
 ```plantuml
 @startuml
 :Administrateur:
+:Lecteur:
 :Concepteur:
 :Consommateur:
 :Manufactureur:

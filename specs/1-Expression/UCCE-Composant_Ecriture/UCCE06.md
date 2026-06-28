@@ -19,7 +19,7 @@ actor "Concepteur" as C
 
 rectangle "Application MYR" {
     usecase "Ajouter une interface à un composant" as UC1
-    usecase "Définir type, sens et valeur" as UC2
+    usecase "Définir catégorie, sens, tag, type et valeur" as UC2
     usecase "Mettre à jour sur la blockchain" as UC3
 }
 
@@ -47,11 +47,12 @@ Un utilisateur peut ajouter manuellement une interface à un composant qu'il a d
 ### Flux nominal — Interface ajoutée
 
 1. L'utilisateur clique sur "Ajouter une interface"
-2. Il définit le type (Électrique, Mécanique, Hydraulique...)
+2. Il définit la catégorie (Électrique, Mécanique, Hydraulique...)
 3. Il définit le sens (Entrée, Sortie, Bidirectionnel)
-4. Il renseigne la valeur ou plage de valeur et l'unité (Volt, mm...)
-5. Il valide l'ajout
-6. La transaction de mise à jour est soumise sur la blockchain
+4. Il renseigne le tag (Câble, connecteur, vis...) et le type (ex : USB-C)
+5. Il renseigne la valeur ou plage de valeur et l'unité (Volt, mm...)
+6. Il valide l'ajout
+7. La transaction de mise à jour est soumise sur la blockchain
 
 ## Post-conditions
 
@@ -67,8 +68,9 @@ title Ajouter une interface à un Composant déjà créé
 start
 :Sélectionner le composant et accéder à la gestion des interfaces;
 :Cliquer sur "Ajouter une interface";
-:Définir le type (Électrique, Mécanique, Hydraulique...);
+:Définir la catégorie (Électrique, Mécanique, Hydraulique...);
 :Définir le sens (Entrée, Sortie, Bidirectionnel);
+:Renseigner le tag (Câble, connecteur, vis...) et le type (ex : USB-C);
 :Renseigner la valeur ou plage de valeur et l'unité;
 :Valider l'ajout;
 :Soumettre la transaction de mise à jour sur la blockchain;

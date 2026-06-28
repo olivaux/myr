@@ -39,8 +39,8 @@ Chaque composant affiché dans l'atelier porte une **icône "nouvelle interface"
 
 L'utilisateur peut créer une interface de deux façons :
 
-- **Glisser-déposer** : faire glisser l'icône "nouvelle interface" d'un composant vers une interface existante d'un autre composant. L'interface est définie par la cible (type, direction, unité).
-- **Propriétés** : ouvrir le panneau de propriétés de l'asset et renseigner manuellement les attributs de la nouvelle interface.
+- **Glisser-déposer** : faire glisser l'icône "nouvelle interface" (slot virtuel) d'un composant vers une interface existante d'un autre composant. Le système déduit les propriétés de la nouvelle interface à partir de la cible et ouvre une fenêtre de confirmation pré-remplie. Le tag doit être sélectionné par l'utilisateur depuis une liste filtrée ou créé.
+- **Propriétés** : ouvrir le panneau de propriétés de l'asset et renseigner manuellement tous les attributs de la nouvelle interface.
 
 ## Pré-conditions
 
@@ -50,28 +50,40 @@ L'utilisateur peut créer une interface de deux façons :
 
 ## Scénario
 
-### Flux nominal A — Glisser-déposer depuis l'icône
+### Flux nominal A — Glisser-déposer depuis le slot virtuel
 
-**Étape initiale :** L'utilisateur fait glisser l'icône "nouvelle interface" d'un composant vers une interface physique d'un autre composant
+**Étape initiale :** L'utilisateur fait glisser l'icône "nouvelle interface" (slot `Virtual=true`) d'un composant vers une interface physique d'un autre composant
 
-1. Le système détecte le glisser-déposer vers une interface cible
-2. Il vérifie la compatibilité (catégorie, direction)
-3. Si compatible : la nouvelle interface est créée sur le composant source avec les attributs miroir de la cible
-4. La liaison entre les deux interfaces est enregistrée sur la blockchain
-5. L'icône "nouvelle interface" est automatiquement recréée sur le composant (slot virtuel maintenu)
+1. Le système détecte le dépôt sur une interface cible existante
+2. Il déduit les propriétés de la nouvelle interface à partir de la cible :
+   - **catégorie** : identique à la cible
+   - **sens** : inversé (sortie → entrée ; entrée → sortie ; bidirectionnel → bidirectionnel)
+   - **type** : identique à la cible
+   - **valeur/unité** : inférée depuis la cible (ex : cible sortie 3–6 V → nouvelle interface entrée 3,3 V)
+3. Une fenêtre s'ouvre avec les propriétés déduites pré-remplies (catégorie, sens, type, valeur, unité)
+4. Le champ **tag** est vide — l'utilisateur doit sélectionner un tag depuis la liste filtrée par type ou en créer un nouveau
+5. L'utilisateur valide (ou ajuste les valeurs avant de valider)
+6. La nouvelle interface est créée sur le composant source
+7. La liaison est enregistrée
+8. L'icône "nouvelle interface" est automatiquement recréée sur le composant (slot virtuel maintenu)
 
 ### Flux nominal B — Via le panneau propriétés
 
 **Étape initiale :** L'utilisateur ouvre le panneau de propriétés d'un composant et clique "Ajouter une interface"
 
-1. Un formulaire s'affiche (catégorie, type, direction, valeur/plage, unité)
+1. Un formulaire s'affiche (catégorie, sens, tag, type, valeur/plage, unité)
 2. L'utilisateur renseigne les attributs et valide
 3. L'interface est créée et enregistrée sur la blockchain
 
+### Flux alternatif A2 — Ajustement des valeurs déduites
+
+1. L'utilisateur modifie une ou plusieurs valeurs pré-remplies dans la fenêtre (ex : affiner la plage de valeur)
+2. La validation crée l'interface avec les valeurs ajustées
+
 ### Flux erreur — Incompatibilité au glisser-déposer
 
-1. Le système détecte une incompatibilité (catégories différentes, directions incompatibles)
-2. Le dépôt est refusé, un message d'erreur s'affiche
+1. Le système détecte une incompatibilité (catégories différentes)
+2. Le dépôt est refusé visuellement (l'interface cible reste grisée, pas de fenêtre)
 
 ## Post-conditions
 
@@ -86,23 +98,25 @@ L'utilisateur peut créer une interface de deux façons :
 skin rose
 title Créer une interface sur un composant
 start
-if (Méthode de création?) then (glisser-déposer)
-  :Faire glisser l'icône "nouvelle interface" vers une interface cible;
-  :Vérifier la compatibilité (catégorie, direction);
-  if (Compatible?) then (oui)
-    :Créer l'interface avec les attributs miroir de la cible;
-    :Enregistrer la liaison sur la blockchain;
-    :Recréer automatiquement le slot virtuel sur le composant;
+if (Méthode de création?) then (glisser-déposer slot virtuel)
+  :Faire glisser le slot virtuel vers une interface cible;
+  if (Catégorie compatible?) then (oui)
+    :Déduire catégorie, sens inversé, type, valeur/unité;
+    :Ouvrir fenêtre avec propriétés pré-remplies;
+    :Sélectionner un tag (liste filtrée par type) ou en créer un nouveau;
+    :Valider (ajustements optionnels);
+    :Créer l'interface sur le composant source;
+    :Enregistrer la liaison;
+    :Recréer automatiquement le slot virtuel;
     stop
   else (non)
-    :Refuser le dépôt;
-    :Afficher un message d'erreur d'incompatibilité;
+    :Refuser le dépôt (cible reste grisée);
     stop
   endif
 else (panneau propriétés)
   :Ouvrir le panneau de propriétés du composant;
   :Cliquer "Ajouter une interface";
-  :Renseigner les attributs (catégorie, type, direction, valeur, unité);
+  :Renseigner les attributs (catégorie, sens, tag, type, valeur, unité);
   :Valider;
   :Enregistrer l'interface sur la blockchain;
   stop

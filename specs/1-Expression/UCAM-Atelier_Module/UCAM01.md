@@ -40,7 +40,7 @@ Une liaison peut être **directe** (les interfaces se connectent sans intermédi
 
 - Être connecté au réseau
 - Avoir au moins deux composants avec des interfaces dans l'atelier
-- Les interfaces à relier doivent être compatibles (type, sens, valeur)
+- Les interfaces à relier doivent être compatibles (catégorie, sens, tag, type, valeur)
 
 ## Scénario
 

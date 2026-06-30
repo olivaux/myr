@@ -22,6 +22,8 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | EF07                                             | Créer un réseau blockchain indépendant                               | UCADM02                   |
 | EF08                                             | Gérer les organisations membres d'un réseau (ajout, mise à jour)     | UCADM01                   |
 | EF09                                             | Étendre un réseau avec de nouveaux nœuds (peer ou orderer)           | UCADM03                   |
+| EF57                                             | Retirer administrativement un nœud d'un réseau existant               | UCADM04                   |
+| EF58                                             | Démanteler un réseau de test (CLI uniquement — jamais via REST)        | UCADM05                   |
 | **Composants — Création et édition**          |                                                                         |                           |
 | EF10                                             | Enregistrer un composant physique sur la blockchain                     | UCCE01                    |
 | EF11                                             | Enregistrer un composant numérique sur la blockchain                   | UCCE03                    |
@@ -80,4 +82,5 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | **Développement autour de MYR**                 |                                                                         |                           |
 | EF55                                             | Exposer une API REST pour les intégrations tierces                     | UCDEV01                   |
 | EF56                                             | Proposer un CLI d'administration serveur                                | UCDEV02                   |
+| EF59                                             | Modifier le prix d'un asset (effet commandes futures uniquement)        | UCPI11                    |
 

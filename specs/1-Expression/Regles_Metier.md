@@ -80,10 +80,24 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 | RM24 | **Répartition proportionnelle multi-auteurs** | Module commandé avec plusieurs auteurs | Plusieurs concepteurs impliqués dans le module | Chaque auteur reçoit une commission proportionnelle à son apport. Les transactions sont indépendantes par auteur | UCPI02 |
 | RM25 | **Transfert de propriété définitif** | Transfert accepté par le destinataire | Toujours | La propriété est transférée de manière immuable. L'ancien propriétaire perd immédiatement les droits d'édition | UCPI07 |
 | RM26 | **Traçabilité du clonage inter-réseaux** | Clonage d'un asset sur un réseau externe | Toujours | Le clone conserve l'UUID et les métadonnées originales. La transaction de clonage est enregistrée sur les deux réseaux pour assurer la traçabilité de l'origine | UCPI08, UCPI09 |
+| RM29 | **Taux de commission défini par le réseau** | Calcul des commissions à la livraison (RM23) | Toujours | Le taux de commission (`commission_rate`) est une propriété du réseau, définie par l'administrateur (défaut : 10 %). Il s'applique uniformément à tous les assets du réseau. Un auteur ne peut pas définir son propre taux — il accepte le taux du réseau en publiant sur celui-ci | UCPI02, UCADM02 |
+| RM30 | **Calcul automatique du prix d'un module** | Commande d'un module (UCPI01) | Le module n'a pas de prix défini par l'auteur | Si l'auteur n'a pas défini de prix via UCPI05, le prix du module est calculé automatiquement comme la somme des prix unitaires de ses composants constitutifs. Si un composant est lui-même sans prix, il est compté à 0 | UCPI01, UCPI05 |
+| RM31 | **Modification de prix — effet sur les commandes futures uniquement** | Mise à jour du prix d'un asset (UCPI11) | Toujours | La modification d'un prix ne s'applique qu'aux commandes passées après la mise à jour. Les commandes en cours ou livrées conservent le prix enregistré à leur création (`OrderItem.UnitPrice`). Le prix n'est pas stocké sur la blockchain Fabric — il est local et mutable | UCPI11, UCPI04, UCPI05 |
+| RM32 | **Asset à prix nul — librement disponible** | Commande ou utilisation d'un asset dont `AssetPrice.Price = 0` ou sans `AssetPrice` défini | Toujours | L'asset est disponible sans frais. Aucune commission n'est générée pour ses auteurs. La liberté d'accès n'est pas liée à la licence AGPL du code Myr — un asset physique peut être libre de droits commerciaux tout en étant documenté sur le réseau | UCPI04, UCPI02 |
+| RM33 | **Devise unique par réseau** | Définition ou comparaison de prix entre assets d'un même réseau | Toujours | Tous les prix et commissions d'un réseau sont exprimés dans la devise définie par l'administrateur à la création du réseau. Aucune conversion de devise n'est effectuée par le système. Un asset cloné sur un réseau étranger (UCPI08/09) adopte la devise du réseau cible | UCPI04, UCPI05, UCADM02 |
 
 ---
 
-## 8. Résumé — index des règles
+## 8. Administration réseau
+
+| ID | Règle | Déclencheur | Condition | Conséquence | UC |
+|----|-------|------------|-----------|-------------|-----|
+| RM27 | **Nombre minimum de nœuds actifs** | Demande de retrait d'un nœud du canal (UCADM04) | Le retrait provoquerait un passage sous 3 nœuds actifs sur le canal | L'opération est refusée ; aucune transaction n'est soumise. Message d'erreur explicite indiquant le nombre de nœuds actifs courant | UCADM04 |
+| RM28 | **Démantèlement réseau : opération d'infrastructure locale** | Commande `myr network destroy` (UCADM05) | Toujours | L'opération est purement locale (arrêt de processus OS, suppression de fichiers). Aucune transaction Fabric n'est soumise. RM06 et RM08 ne s'appliquent pas — la blockchain n'est pas impliquée. Confirmation explicite (`--confirm`) obligatoire. Refusée sur tout réseau marqué `IsProduction: true`. | UCADM05 |
+
+---
+
+## 9. Résumé — index des règles
 
 | ID | Règle (résumé) | Domaine |
 |----|---------------|---------|
@@ -113,3 +127,10 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 | RM24 | Répartition proportionnelle par auteur | PI |
 | RM25 | Transfert de propriété définitif et immuable | PI |
 | RM26 | Traçabilité UUID préservée lors du clonage inter-réseaux | PI |
+| RM27 | Retrait d'un nœud refusé si le canal passerait sous 3 nœuds actifs | Administration réseau |
+| RM28 | Démantèlement réseau = infrastructure locale uniquement, hors blockchain, confirmation obligatoire | Administration réseau |
+| RM29 | Taux de commission défini par le réseau (défaut 10 %), uniforme pour tous les assets | PI |
+| RM30 | Prix module = somme des composants si non défini par l'auteur | PI |
+| RM31 | Modification de prix applicable aux commandes futures uniquement | PI |
+| RM32 | Asset à prix nul → libre accès, aucune commission | PI |
+| RM33 | Devise unique par réseau, définie par l'admin, non modifiable par l'auteur | PI |

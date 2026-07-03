@@ -94,6 +94,10 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 |----|-------|------------|-----------|-------------|-----|
 | RM27 | **Nombre minimum de nœuds actifs** | Demande de retrait d'un nœud du canal (UCADM04) | Le retrait provoquerait un passage sous 3 nœuds actifs sur le canal | L'opération est refusée ; aucune transaction n'est soumise. Message d'erreur explicite indiquant le nombre de nœuds actifs courant | UCADM04 |
 | RM28 | **Démantèlement réseau : opération d'infrastructure locale** | Commande `myr network destroy` (UCADM05) | Toujours | L'opération est purement locale (arrêt de processus OS, suppression de fichiers). Aucune transaction Fabric n'est soumise. RM06 et RM08 ne s'appliquent pas — la blockchain n'est pas impliquée. Confirmation explicite (`--confirm`) obligatoire. Refusée sur tout réseau marqué `IsProduction: true`. | UCADM05 |
+| RM34 | **Rôle admin protégé** | Tentative d'édition ou de suppression du rôle `admin` | ID du rôle = `"admin"` | L'opération est refusée par le service domaine. Le rôle `admin` ne peut pas non plus être attribué à une organisation tierce via UCADM06. | UCADM06, UCADM07 |
+| RM35 | **Révocation en cascade à la suppression d'un rôle** | Suppression d'un rôle (UCADM07) | Toujours | Toutes les liaisons organisation ↔ rôle référençant ce rôle sont supprimées automatiquement avant la suppression du rôle. Les droits correspondants sont révoqués immédiatement pour les organisations concernées. | UCADM07 |
+| RM36 | **Nom de rôle unique** | Création d'un rôle (UCADM07) | Un rôle avec le même nom existe déjà | La création est refusée. Le nom d'un rôle est unique dans le système (insensible à la casse). | UCADM07 |
+| RM37 | **Multi-rôles par organisation** | Attribution d'un rôle à une organisation (UCADM06) | L'organisation possède déjà un ou plusieurs rôles | L'organisation peut posséder plusieurs rôles simultanément. Ses droits effectifs sont l'union des droits de tous ses rôles actifs. | UCADM06 |
 
 ---
 
@@ -129,6 +133,10 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 | RM26 | Traçabilité UUID préservée lors du clonage inter-réseaux | PI |
 | RM27 | Retrait d'un nœud refusé si le canal passerait sous 3 nœuds actifs | Administration réseau |
 | RM28 | Démantèlement réseau = infrastructure locale uniquement, hors blockchain, confirmation obligatoire | Administration réseau |
+| RM34 | Rôle `admin` protégé — ni modifiable, ni supprimable, ni attribuable à une organisation tierce | Administration réseau |
+| RM35 | Suppression d'un rôle → révocation automatique sur toutes les organisations | Administration réseau |
+| RM36 | Nom de rôle unique dans le système (insensible à la casse) | Administration réseau |
+| RM37 | Une organisation peut avoir plusieurs rôles — droits effectifs = union de tous ses rôles | Administration réseau |
 | RM29 | Taux de commission défini par le réseau (défaut 10 %), uniforme pour tous les assets | PI |
 | RM30 | Prix module = somme des composants si non défini par l'auteur | PI |
 | RM31 | Modification de prix applicable aux commandes futures uniquement | PI |

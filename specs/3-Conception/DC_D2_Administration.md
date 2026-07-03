@@ -1,6 +1,6 @@
 # DC — D2 : Administration réseau
 
-> Phase 3 — Arrington | Use cases : UCADM01–UCADM05 | Domaine : `network`, `channel`, `identity`
+> Phase 3 — Arrington | Use cases : UCADM01–UCADM07 | Domaine : `network`, `channel`, `identity`
 
 ---
 
@@ -78,6 +78,41 @@ package "domain/channel" {
     Myr les liste en lecture seule
     depuis le profil de connexion.
   end note
+
+  class Organization {
+    + OrgID : string <<identifiant unique sur le réseau>>
+    + Name : string
+    + RootCert : string <<PEM>>
+    + TLSCert : string <<PEM>>
+  }
+
+  note right of Organization
+    OrgID = MSP ID pour Fabric.
+    Format Fabric : [a-zA-Z0-9_.-]{1,128}.
+    La validation est déléguée à l'adapter out.
+  end note
+
+  class Role {
+    + ID : string <<uuid ou "admin">>
+    + Name : string <<unique, insensible casse>>
+    + Description : string
+    + Rights : []string
+  }
+
+  note right of Role
+    ID = "admin" pour le rôle natif protégé.
+    Rights : liste de droits nommés (ex. "read", "write").
+    Stocké localement — hors blockchain.
+  end note
+
+  class OrgRole {
+    + OrgID : string
+    + RoleName : string
+  }
+
+  Organization "1" --> "0..*" OrgRole : possède
+  OrgRole "0..*" --> "1" Role : référence
+
 }
 
 ' Relations inter-domaines
@@ -123,12 +158,31 @@ NetworkProfile "1" --> "0..*" Channel : FabricChannel\n(default channel)
 |-------|------|-------------------|-------------|
 | `IsProduction` | `bool` | `false` | Protège le réseau contre le démantèlement accidentel (UCADM05). `true` = refus de `myr network destroy`. |
 
+### Role (domain/channel)
+
+- **Rôle :** Ensemble de droits d'accès nommés, attribuable à des organisations. Entité locale — pas de représentation blockchain.
+- **Invariants :**
+  - `ID = "admin"` est réservé au rôle natif — protégé par le service (RM34).
+  - `Name` est unique dans le système, insensible à la casse (RM36).
+  - `Rights` est une liste de chaînes nommant les droits accordés (ex. `"read"`, `"write"`, `"submit"`).
+- **Cycle de vie :** Créé via `myr role create`, édité via `myr role edit`, supprimé via `myr role delete` (RM35). Le rôle `admin` est initialisé par le service au démarrage.
+
+### OrgRole (domain/channel)
+
+- **Rôle :** Table de liaison entre une organisation et un rôle. Représente l'attribution d'un rôle à une organisation (UCADM06).
+- **Invariants :**
+  - `(OrgID, RoleName)` est la clé composite — une même paire ne peut exister qu'une fois.
+  - Le rôle `admin` ne peut pas apparaître dans une liaison `OrgRole` (RM34).
+- **Droits effectifs :** L'union des `Rights` de tous les `Role` référencés par les `OrgRole` d'une organisation (RM37).
+
 ### Entités à concevoir (non présentes dans le code)
 
 | Entité | Champs proposés | UC déclencheur |
 |--------|----------------|----------------|
-| `Organization` | id (= MSPID), name, peer_endpoint, admin_cert_path | UCADM01, UCADM02 |
-| `Peer` | id, endpoint, org_id, status (active\|dead), tls_cert_path | UCADM03, UCADM04 |
+| `Organization` | `OrgID` (identifiant réseau), `Name`, `RootCert`, `TLSCert` | UCADM01, UCADM02 |
+| `Peer` | `id`, `endpoint`, `org_id`, `status` (active\|dead), `tls_cert_path` | UCADM03, UCADM04 |
+| `Role` | `ID`, `Name`, `Description`, `Rights []string` | UCADM06, UCADM07 |
+| `OrgRole` | `OrgID`, `RoleName` | UCADM06 |
 
 ---
 
@@ -185,9 +239,34 @@ interface ChannelService {
 @enduml
 ```
 
-> `AddOrganisation` — UCADM01 : soumet une channel config update Fabric pour ajouter l'organisation. Valide le MSP ID avant soumission (RM07).
+> `AddOrganisation` — UCADM01 : soumet une channel config update Fabric pour ajouter l'organisation. Valide l'identifiant avant soumission (RM07).
 > `AddNode` — UCADM03 : soumet une channel config update Fabric pour ajouter le nœud (peer ou orderer).
 > `RemoveNode` — UCADM04 : soumet une channel config update Fabric pour retirer le peer. Vérifie le seuil RM27 avant soumission.
+
+### Port entrant — RoleService
+
+```plantuml
+@startuml
+skinparam classAttributeIconSize 0
+interface RoleService {
+  + CreateRole(name, description string, rights []string) : (*Role, error)
+  + UpdateRole(id string, patch RolePatch) : (*Role, error)
+  + DeleteRole(id string) : (nOrgsImpacted int, error)
+  + ListRoles() : ([]*Role, error)
+  + GetRole(id string) : (*Role, error)
+  + AssignRole(orgID, roleName string) : error
+  + RemoveRole(orgID, roleName string) : error
+  + GetOrgRoles(orgID string) : ([]*Role, error)
+}
+note right of RoleService
+  UpdateRole et DeleteRole retournent ErrAdminRoleProtected
+  si id = "admin" (RM34).
+  AssignRole retourne ErrAdminRoleProtected si roleName = "admin".
+  DeleteRole supprime en cascade les OrgRole (RM35).
+  CreateRole retourne ErrRoleNameConflict si nom déjà pris (RM36).
+end note
+@enduml
+```
 
 ### Ports sortants
 
@@ -207,6 +286,23 @@ interface NetworkStore {
 interface ChannelPort {
   + ListChannels() : ([]string, error)
 }
+
+interface RoleStore {
+  + SaveRole(r *Role) : error
+  + GetRole(id string) : (*Role, error)
+  + GetRoleByName(name string) : (*Role, error)
+  + ListRoles() : ([]*Role, error)
+  + DeleteRole(id string) : error
+  + SaveOrgRole(orgID, roleName string) : error
+  + DeleteOrgRole(orgID, roleName string) : error
+  + DeleteOrgRolesByRole(roleName string) : (int, error)
+  + GetOrgRoles(orgID string) : ([]*Role, error)
+}
+note right of RoleStore
+  Implémenté par adapters/out/localstorage/role_store.go.
+  Persistance JSON dans data/roles.json et data/org_roles.json.
+  Pas de stockage blockchain — entité locale mutable.
+end note
 @enduml
 ```
 
@@ -239,6 +335,9 @@ Annuaire des peers : déclaré dans `configtx.yaml`, distribué sur le ledger. C
 | DC-D2-04 | Politique d'accès dans `NetworkProfile` | L'admin configure `AllowAutoGuest` et `AllowAutoRegister` au niveau du réseau — pas au niveau de l'application. Permet des réseaux publics ou privés selon le contexte. |
 | DC-D2-05 | Démantèlement réseau dans le CLI Handler, pas dans le domaine | Les opérations OS (arrêt processus, suppression fichiers) violent ENF18 si placées dans `domain/network/`. Elles restent dans `adapters/in/cli/`. Le domaine ne fait que `NetworkService.Delete(id)`. |
 | DC-D2-06 | `IsProduction` dans `NetworkProfile` pour protéger les réseaux réels | `myr network destroy` refuse d'agir sur `IsProduction: true`. Évite un démantèlement accidentel d'un réseau de production par une commande de test. |
+| DC-D2-07 | `RoleService` dans `domain/channel/` plutôt qu'un domaine séparé | Les rôles sont directement liés à la gestion des organisations, déjà dans `domain/channel/`. Créer un `domain/role/` séparé serait prématuré — les rôles n'ont pas d'existence indépendante du canal. |
+| DC-D2-08 | Droits d'accès stockés localement (hors blockchain) | Les droits sont applicatifs, non contractuels. Les stocker sur blockchain les rendrait immuables et complexes à gérer. Le stockage JSON local permet la modification et la révocation instantanée (RM35). |
+| DC-D2-09 | `Organization.OrgID` abstrait le `MSPID` Fabric | Le domaine `channel` utilise `OrgID` générique. La validation du format spécifique au backend (ex. `[a-zA-Z0-9_.-]{1,128}` pour Fabric) est déléguée à `ChannelConfigPort` dans l'adapter out. Le domaine n'importe jamais de contrainte Fabric (ENF18). |
 
 ---
 
@@ -251,6 +350,11 @@ Annuaire des peers : déclaré dans `configtx.yaml`, distribué sur le ledger. C
 | E-D2-03 | `ChannelConfigPort` (out-port Fabric config) absent | Port sortant UCADM01/03/04 à définir dans `domain/channel/ports.go` |
 | E-D2-04 | Entités `Organization`, `NodeType`, `NodeCerts` absentes | À ajouter dans `domain/channel/entity.go` |
 | E-D2-05 | `IsProduction bool` absent de `NetworkProfile` | À ajouter dans `domain/network/entity.go` — protège `myr network destroy` |
+| E-D2-06 | `Role`, `OrgRole` absents de `domain/channel/entity.go` | Entités UCADM06/07 à ajouter |
+| E-D2-07 | `RoleService` absent de `domain/channel/port_in.go` | Port entrant UCADM06/07 à définir et implémenter |
+| E-D2-08 | `RoleStore` absent de `domain/channel/ports.go` | Port sortant UCADM06/07 à définir |
+| E-D2-09 | `adapters/out/localstorage/role_store.go` absent | Implémentation JSON de `RoleStore` à créer |
+| E-D2-10 | `Organization.OrgID` renommé depuis `MSPID` dans `domain/channel/entity.go` | Abstraction terminologique — `MSPID` devient `OrgID` dans le domaine, reste `MSPID` dans l'adapter Fabric |
 
 ---
 

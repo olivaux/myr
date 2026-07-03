@@ -14,6 +14,46 @@ L'architecture hexagonale (Ports & Adapters) garantit que la logique métier (`d
 Adapter IN  →  Port IN  →  Service Domaine  →  Port OUT  →  Adapter OUT  →  Infrastructure
 ```
 
+### 1.1 Vocabulaire blockchain-agnostique dans le domaine
+
+Le domaine utilise un **vocabulaire neutre** — ni les noms de champs, ni les noms d'erreurs, ni les commentaires ne doivent nommer une technologie concrète (Fabric, Ethereum, etc.). La traduction vers la terminologie propre à chaque blockchain appartient **exclusivement** à son adapter `adapters/out/<blockchain>/`.
+
+| Concept métier (domaine) | Traduction Fabric (adapter) | À ne PAS écrire dans le domaine |
+|---|---|---|
+| `Organization.ID` | MSP ID | `MSPID` |
+| `Organization.RootCert` | Root CA PEM | — (OK, assez générique) |
+| `NodeRole{"validator","sequencer"}` | `"peer"`, `"orderer"` | `NodeTypePeer`, `NodeTypeOrderer` |
+| `NetworkProfile.ChannelName` | Fabric channel name | `FabricChannel` |
+| `ErrBlockchainUnavailable` | gateway non configuré | `ErrFabricUnavailable` |
+| `NetworkProfile.NodeEndpoint` | peer endpoint host:port | `PeerEndpoint`, `GatewayPeer` |
+| `NetworkProfile.ContractName` | chaincode name | `ChaincodeName` |
+
+### 1.2 Adapters remplaçables par configuration
+
+L'architecture hexagonale a une conséquence directe et intentionnelle : **chaque adapter sortant est remplaçable sans toucher au domaine ni aux adapters entrants.** Ce n'est pas un détail d'implémentation — c'est l'objectif principal du pattern.
+
+Cela vaut pour toutes les couches d'infrastructure :
+
+| Port sortant | Implémentation(s) | Ce que l'admin choisit |
+|---|---|---|
+| `BlockchainPort` | Fabric, JSON local, *(futur : Ethereum, Substrate…)* | Backend blockchain du réseau |
+| `FileStoragePort` | IPFS, stockage local, *(futur : S3, Filecoin…)* | Stockage des fichiers 3D |
+| `UserStore` / `WalletStore` | SQLite, *(futur : PostgreSQL)* | Base de données locale |
+| `SessionService` | Fichier local, Redis | Sessions (mono vs multi-instances) |
+
+**Règle de sélection :** le choix de l'implémentation concrète se fait **uniquement dans `cmd/`** (point d'assemblage), à partir de la configuration active (profil réseau, variables d'environnement). Le domaine reçoit des interfaces déjà instanciées — il ne sait pas quelle implémentation est derrière.
+
+```
+// cmd/api/main.go — seul endroit qui connaît les implémentations concrètes
+blockchain := selectBlockchain(activeProfile)   // lit BlockchainType du profil réseau
+fileStore  := selectFileStorage(env)            // lit FILE_STORAGE_TYPE ou IPFS_URL
+model.NewService(blockchain, fileStore, ...)
+```
+
+**Conséquence pratique :** ajouter un nouveau backend = créer `adapters/out/<technologie>/` qui implémente les ports concernés + enregistrer le cas dans `cmd/`. Aucun fichier dans `domain/`, `adapters/in/` ni dans les autres adapters `out` n'a besoin de changer.
+
+Le CLI admin expose la sélection du backend blockchain via `myr network add --blockchain <type>` (cf. [DC_CLI_Admin.md](DC_CLI_Admin.md)). Les autres couches sont configurables via variables d'environnement (`IPFS_URL`, `REDIS_URL`, etc.).
+
 ---
 
 ## 2. Diagramme d'architecture global

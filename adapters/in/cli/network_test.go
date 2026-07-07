@@ -26,6 +26,7 @@ type mockNetworkSvc struct {
 	delete       func(id string) error
 	testConn     func(id string) error
 	addPeer      func(networkID string, req network.AddPeerRequest) (*network.PeerCredentials, error)
+	create       func(req network.CreateNetworkRequest) (*network.NetworkProfile, error)
 }
 
 func (m *mockNetworkSvc) List() ([]*network.NetworkProfile, error) {
@@ -82,6 +83,13 @@ func (m *mockNetworkSvc) AddPeer(networkID string, req network.AddPeerRequest) (
 		return m.addPeer(networkID, req)
 	}
 	return nil, fmt.Errorf("not implemented")
+}
+
+func (m *mockNetworkSvc) Create(req network.CreateNetworkRequest) (*network.NetworkProfile, error) {
+	if m.create != nil {
+		return m.create(req)
+	}
+	return &network.NetworkProfile{ID: "net-test", Name: req.Name}, nil
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

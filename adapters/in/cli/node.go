@@ -80,7 +80,7 @@ func runNodeAdd(w io.Writer, chSvc channel.ChannelService, netSvc network.Networ
 
 var nodeAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Add a node to the network (UCADM03)",
+	Short: "Add a node to an existing network",
 	Long: `Register a node in the active channel configuration.
 Validates the host:port format of the address before submission.
 
@@ -127,7 +127,7 @@ func runNodeRemove(w io.Writer, chSvc channel.ChannelService, netSvc network.Net
 
 var nodeRemoveCmd = &cobra.Command{
 	Use:   "remove",
-	Short: "Remove a node from the network (UCADM04)",
+	Short: "Remove a node from the network",
 	Long: `Remove a node from the active channel configuration.
 Enforces the minimum threshold of 3 active nodes (RM27) before proceeding.
 

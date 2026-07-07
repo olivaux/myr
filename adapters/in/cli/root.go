@@ -7,16 +7,20 @@ import (
 
 	"github.com/spf13/cobra"
 	"myr/domain/channel"
+	"myr/domain/identity"
 	"myr/domain/model"
 	"myr/domain/network"
 	"myr/domain/payment"
+	"myr/domain/role"
 )
 
 var (
-	modelSvc   model.ModelService
-	channelSvc channel.ChannelService
-	paymentSvc payment.PaymentService
-	networkSvc network.NetworkService
+	modelSvc    model.ModelService
+	channelSvc  channel.ChannelService
+	paymentSvc  payment.PaymentService
+	networkSvc  network.NetworkService
+	roleSvc     role.RoleService
+	identitySvc identity.IdentityService
 )
 
 var rootCmd = &cobra.Command{
@@ -37,18 +41,20 @@ Run 'myr man [command]' to read the full manual for any command.`,
 // CommandTree returns rootCmd with all subcommands registered.
 // Used by man page generation (no services required).
 func CommandTree() *cobra.Command {
-	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, manCmd)
+	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, manCmd)
 	return rootCmd
 }
 
 // Execute injects services and starts the CLI.
-func Execute(ms model.ModelService, cs channel.ChannelService, ps payment.PaymentService, ns network.NetworkService) {
+func Execute(ms model.ModelService, cs channel.ChannelService, ps payment.PaymentService, ns network.NetworkService, rs role.RoleService, is identity.IdentityService) {
 	modelSvc = ms
 	channelSvc = cs
 	paymentSvc = ps
 	networkSvc = ns
+	roleSvc = rs
+	identitySvc = is
 
-	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, manCmd)
+	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, manCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

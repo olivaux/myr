@@ -101,7 +101,7 @@ func runOrgAdd(w io.Writer, chSvc channel.ChannelService, netSvc network.Network
 
 var orgAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Add an organisation to the network channel (UCADM01)",
+	Short: "Add an organisation to the network channel",
 	Long: `Add an organisation to the active channel or to the channel
 specified with --channel. Validates the organisation identifier format before submission.
 

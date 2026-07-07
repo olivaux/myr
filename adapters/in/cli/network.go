@@ -20,18 +20,34 @@ import (
 
 var networkCmd = &cobra.Command{
 	Use:   "network",
-	Short: "Manage blockchain network profiles",
-	Long: `Commands to configure and manage blockchain network profiles.
+	Short: "Create, configure and manage blockchain networks",
+	Long: `Commands to create and manage blockchain networks.
 
-A network profile holds the connection details for a blockchain node
-(endpoint, organisation ID, certificates, certificate authority). Myr connects
-to a single node per organisation — the network synchronises the rest.
+A "network profile" is the local configuration myr uses to connect to a
+blockchain node (endpoint, organisation ID, certificates, certificate
+authority, channel). Myr's own connection to the network is always through a
+single node per organisation — the underlying blockchain synchronises the
+rest between nodes.
+
+There are three different ways to end up with a network profile, depending
+on whether the underlying infrastructure already exists:
+
+  - create : nothing exists yet — bootstraps a brand new blockchain network
+             on this machine (starts the certificate authority, generates
+             identities, starts the nodes) and registers the resulting
+             profile. Use this to start from a blank server.
+  - add    : the infrastructure already exists (a node is already running
+             somewhere) — just registers a profile pointing at it. Does not
+             start or configure anything.
+  - import : same as add, but reads the connection details from a file
+             instead of typing them as flags.
 
 Examples:
-  myr network list
+  myr network create --name diy-network --org-id Org1MSP --org-name "Org 1" --domain diy-network.com --channel sandbox
   myr network add --name sandbox --node 203.0.113.10:7051 --org-id Org1MSP
-  myr network activate net-1700000000000
-  myr network import --profile connection-org1.json`,
+  myr network import --profile connection-org1.json
+  myr network list
+  myr network activate net-1700000000000`,
 }
 
 // ── list ──────────────────────────────────────────────────────────────────────
@@ -152,9 +168,12 @@ func runNetworkAdd(w io.Writer, svc network.NetworkService, name, node, gateway,
 
 var networkAddCmd = &cobra.Command{
 	Use:   "add",
-	Short: "Create a new network profile",
-	Long: `Create a new network profile and persist it in data/networks.json.
-The network is not activated automatically after creation.
+	Short: "Register a profile for an already-running network",
+	Long: `Register a network profile pointing at a node that is already running
+(started elsewhere, e.g. by another organisation, or manually) and persist
+it in data/networks.json. Does not start or configure anything — for that,
+use "myr network create" instead. The network is not activated automatically
+after being added.
 
 Examples:
   # Minimal (required flags only)
@@ -727,7 +746,7 @@ var (
 
 var networkDestroyCmd = &cobra.Command{
 	Use:   "destroy <id>",
-	Short: "Dismantle a dev/test network (UCADM05, irreversible)",
+	Short: "Dismantle a dev/test network (irreversible)",
 	Long: `Stop blockchain processes, delete local ledger data and cryptographic
 artefacts, then remove the network profile. This operation is irreversible.
 

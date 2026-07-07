@@ -33,21 +33,19 @@ L'administrateur peut ajouter une organisation (fabricant, vendeur, association�
 
 ## Scénario
 
-**Étape initiale :** L'administrateur accède à la gestion des organisations
+**Étape initiale :** Sur le serveur (SSH), l'administrateur exécute `myr org add --id <orgID> --name <nom>` (équivalent `POST /api/networks/orgs`)
 
 ### Flux nominal — Organisation ajoutée
 
-1. Il clique sur "Ajouter une organisation"
-2. Il renseigne les informations : nom, identifiant d'organisation
-3. Il valide : la configuration du réseau est mise à jour
-4. L'organisation peut désormais gérer ses propres utilisateurs
+1. L'identifiant et le nom de l'organisation sont transmis
+2. La configuration du réseau est mise à jour
+3. L'organisation peut désormais gérer ses propres utilisateurs
 
 ### Flux alternatif — Organisation déjà membre du réseau
 
-1. L'administrateur saisit un identifiant d'organisation déjà enregistré sur le réseau
-2. Le système détecte que l'organisation existe et propose de mettre à jour ses informations (nom)
-3. L'administrateur modifie les informations souhaitées et valide
-4. La configuration du réseau est mise à jour sans recréation de l'organisation
+1. L'identifiant d'organisation transmis est déjà enregistré sur le réseau
+2. Le système détecte que l'organisation existe et met à jour ses informations (nom) plutôt que de la recréer
+3. La configuration du réseau est mise à jour sans recréation de l'organisation
 
 ## Post-conditions
 
@@ -62,18 +60,12 @@ L'administrateur peut ajouter une organisation (fabricant, vendeur, association�
 skin rose
 title Ajouter une organisation au réseau
 start
-:Accéder à la gestion des organisations;
-:Cliquer sur "Ajouter une organisation";
-:Renseigner les informations (nom, identifiant d'organisation);
+:Transmettre nom et identifiant d'organisation (myr org add);
 if (Identifiant d'organisation déjà membre du réseau?) then (oui)
-  :Proposer la mise à jour des informations existantes;
-  :Modifier le nom;
-  :Valider la mise à jour;
-  :Mettre à jour la configuration du réseau;
+  :Mettre à jour les informations existantes (nom);
   stop
 else (non)
-  :Valider la configuration;
-  :Mettre à jour la configuration du réseau;
+  :Créer l'organisation et mettre à jour la configuration du réseau;
   stop
 endif
 @enduml

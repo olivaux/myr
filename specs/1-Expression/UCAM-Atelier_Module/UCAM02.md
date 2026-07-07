@@ -29,22 +29,21 @@ CL --> UC1
 
 ## Contexte
 
-L'utilisateur peut visualiser les interfaces physiques (mécaniques, électriques, hydrauliques, etc.) d'un composant dans l'atelier.
+Un client peut lister les interfaces physiques (mécaniques, électriques, hydrauliques, etc.) d'un composant ou d'un module.
 
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir au moins un composant sélectionné dans l'atelier
+- Connaître l'identifiant du composant ou du module (asset ou module)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant dans l'atelier
+**Étape initiale :** `myr model interface list <assetID>` est exécutée (le composant peut aussi être un module, via la même commande) — même effet via l'API REST équivalente
 
 ### Flux nominal — Affichage des interfaces physiques
 
-1. Les interfaces physiques du composant s'affichent (catégorie, sens, tag, type, valeur, unité)
-2. Les interfaces libres et celles déjà utilisées sont distinguées visuellement
-3. En survolant une interface, ses détails de configuration s'affichent
+1. Les interfaces physiques du composant ou du module sont listées
+2. Chaque ligne du résultat détaille : identifiant, catégorie, type, sens, valeur/plage, unité, et statut (virtuelle/utilisée)
 
 ## Post-conditions
 
@@ -81,14 +80,8 @@ Les interfaces L2♂ (sur C1) et L2♀ (sur C2) sont compatibles et peuvent êtr
 skin rose
 title Visualiser les interfaces physiques de composants
 start
-:Sélectionner un composant dans l'atelier;
-:Afficher les interfaces physiques (catégorie, sens, tag, type, valeur, unité);
-:Distinguer visuellement les interfaces libres et utilisées;
-if (Survol d'une interface?) then (oui)
-  :Afficher les détails de configuration de l'interface;
-  stop
-else (non)
-  stop
-endif
+:Transmettre l'identifiant du composant ou du module (myr model interface list);
+:Lister les interfaces (catégorie, sens, tag, type, valeur, unité, statut);
+stop
 @enduml
 ```

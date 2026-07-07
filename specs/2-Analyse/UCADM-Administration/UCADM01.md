@@ -44,15 +44,15 @@ Les services domaine concernés (`domain/channel/`, `domain/network/`) existent 
 
 ## Pré-conditions
 
-- L'administrateur est authentifié avec le rôle `admin` (JWT valide).
-- Un réseau existe et est opérationnel (UCADM02 réalisé).
-- L'identifiant d'organisation est connu et unique sur ce réseau.
-- Les certificats CA de l'organisation sont disponibles (pour les backends qui les requièrent).
-- Le wallet de l'administrateur est provisionné (identité valide sur le backend actif).
+- L'administrateur dispose d'un accès SSH au serveur et exécute la commande CLI localement (`myr org add`) — pas d'authentification REST pour cette opération.
+- Un réseau (canal Fabric) existe et est opérationnel (UCADM02 réalisé).
+- Le MSP ID de la nouvelle organisation est connu et unique sur ce réseau.
+- Les certificats CA de l'organisation (rootCert, tlsRootCert) sont disponibles.
+- Le wallet Fabric de l'administrateur est provisonné (identité Fabric CA active).
 
 ## Scénario
 
-**Étape initiale :** L'administrateur exécute la commande d'ajout via le CLI admin (`myr.exe`).
+**Étape initiale :** L'administrateur exécute la commande d'ajout via le CLI admin (`myr`).
 
 ### Flux nominal — Organisation ajoutée avec succès
 
@@ -98,7 +98,7 @@ Les services domaine concernés (`domain/channel/`, `domain/network/`) existent 
 
 ```plantuml
 @startuml
-participant "CLI Admin\n(myr.exe)" as CLI
+participant "CLI Admin\n(myr)" as CLI
 participant "CLI Handler\n(adapters/in/cli/)" as CLIHandler
 participant "Channel Service\n(domain/channel/)" as ChanSvc
 participant "Network Service\n(domain/network/)" as NetSvc

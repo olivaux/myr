@@ -1,4 +1,4 @@
-﻿---
+---
 categorie: Compte et Accès
 titre: "Se Connecter"
 probabilite: 5
@@ -15,81 +15,77 @@ etat: relire
 @startuml
 left to right direction
 
-actor "Utilisateur" as U
+actor "Identité enregistrée\n(secret CA connu)" as U
+actor "Visiteur" as V
 actor "Serveur MYR" as SRV
 
 rectangle "Application MYR" {
-    usecase "Se connecter" as UC1
-    usecase "Provisionner identité blockchain" as UC2
+    usecase "Se connecter avec un secret" as UC1
+    usecase "Obtenir un accès invité" as UC2
     usecase "Afficher erreur identifiants" as UC3
     usecase "Afficher erreur réseau" as UC4
 }
 
 U --> UC1
+V --> UC2
 UC1 --> SRV
-UC1 ..> UC2 : <<include>>
 UC1 .> UC3 : <<extend>>
 UC1 .> UC4 : <<extend>>
+UC2 .> UC4 : <<extend>>
 
 @enduml
 ```
 
 ## Contexte
 
-L'utilisateur se connecte via un formulaire email / mot de passe. Le serveur valide les identifiants en base de données et retourne un token de session (JWT).
+Il n'y a pas de formulaire email / mot de passe. « Se connecter » consiste à fournir le **secret d'enrôlement** délivré par un administrateur (voir UCA01) : le serveur enrôle (ou ré-enrôle) l'identité auprès de la Fabric CA du réseau, puis ouvre une session identifiée par un **token opaque** (pas un JWT).
 
-À chaque connexion, le serveur vérifie si l'utilisateur possède déjà une identité sur le réseau blockchain configuré. Si ce n'est pas le cas (première connexion ou réseau nouvellement rattaché), le serveur provisionne automatiquement cette identité à partir du compte en base de données — sans action supplémentaire de l'utilisateur. Le provisionnement est abstrait du type de blockchain utilisé (architecture hexagonale).
+Il n'y a pas d'étape de « provisionnement de l'identité blockchain » distincte de la connexion : enrôler l'identité auprès de la CA *est* l'action de connexion elle-même. Il n'existe donc pas de flux séparé « première connexion » vs « connexion standard » — le même appel (`POST /api/identity/session`) couvre les deux cas.
 
-**Mécanisme de provisionnement Fabric CA :** Le backend Myr détient une identité "registrar" (provisionnée une seule fois lors de la création du réseau par un administrateur). Pour chaque nouvel utilisateur, le backend appelle l'API REST de Fabric CA (`register` puis `enroll`) afin d'émettre un certificat X.509. Aucune intervention manuelle d'un administrateur n'est requise pour chaque utilisateur. Les rôles par défaut (attributs chaincode) sont assignés lors de l'enrôlement selon la configuration du réseau. Cette architecture est compatible avec le principe de décentralisation d'HyperLedger Fabric : la DB comptes gère la couche session/auth web (JWT), tandis que Fabric CA gère la couche identité blockchain.
+Un second mode existe pour un réseau public : l'**accès invité**, qui ne requiert aucun secret ni identité préalable (si le réseau l'autorise) et attribue directement un rôle Lecteur.
 
 ## Pré-conditions
 
-- Avoir un compte créé (voir UCA01)
-- Réseau MYR disponible et accessible
+- Pour une connexion avec secret : une identité a été enregistrée auprès de la CA (UCA01), et son secret d'enrôlement est connu
+- Pour un accès invité : le réseau MYR visé existe et est accessible
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur ouvre la page de connexion du réseau MYR souhaité
+**Étape initiale :** Un client transmet le secret reçu de l'administrateur via `POST /api/identity/session` (ou demande un accès invité via `POST /api/identity/guest`)
 
-### Flux nominal — Connexion standard
+### Flux nominal — Connexion avec secret
 
-1. L'utilisateur saisit son email et son mot de passe
-2. Le serveur valide les identifiants en base de données
-3. Le serveur vérifie que l'identité blockchain de l'utilisateur est active
-4. Un token JWT est retourné et la session est ouverte
-5. L'utilisateur est redirigé vers le tableau de bord
+1. Le pseudo, le secret d'enrôlement et l'organisation sont transmis (`POST /api/identity/session`)
+2. Le serveur (ré-)enrôle l'identité auprès de la Fabric CA du réseau
+3. Un token de session est retourné dans la réponse, associé au rôle courant de l'identité
+4. Le client inclut ce token dans l'en-tête `X-Myr-Token` pour les requêtes suivantes
 
-### Flux nominal — Première connexion (provisionnement de l'identité blockchain)
+### Flux nominal — Accès invité (réseau public)
 
-1. L'utilisateur saisit son email et son mot de passe
-2. Le serveur valide les identifiants en base de données
-3. Aucune identité blockchain n'existe pour cet utilisateur : le serveur déclenche le provisionnement
-4. Le provisionnement est synchrone : l'identité est créée immédiatement
-5. Un token JWT est retourné et la session est ouverte
+1. Un accès invité est demandé (`POST /api/identity/guest`), sans secret ni identité
+2. Le réseau autorise l'accès automatique
+3. Un token de session avec rôle Lecteur est délivré immédiatement — aucun enrôlement CA n'a lieu
 
-### Flux nominal — Provisionnement en attente (asynchrone)
+### Flux alternatif — Accès invité refusé (réseau privé)
 
-1. Les étapes 1 à 3 sont identiques au flux précédent
-2. Le provisionnement de l'identité blockchain est asynchrone (réponse 202)
-3. La session est ouverte avec accès limité — l'utilisateur est informé que son identité est en cours de création
-4. Une fois le provisionnement terminé, l'accès complet est accordé sans reconnexion
+1. Le réseau n'autorise pas l'accès automatique (`403 Forbidden`)
+2. Une demande d'accès peut être soumise (voir UCA01), mais la connexion directe est refusée
 
-### Flux erreur — Identifiants invalides
+### Flux erreur — Secret invalide
 
-1. Le serveur retourne une erreur d'authentification
-2. Message d'erreur : "Email ou mot de passe incorrect"
-3. Le formulaire reste accessible pour une nouvelle tentative
+1. Le serveur retourne une erreur d'enrôlement (`401 Unauthorized`)
+2. Message d'erreur : « Secret d'enrôlement invalide »
+3. Une nouvelle tentative peut être soumise avec un secret corrigé
 
 ### Flux erreur — Serveur inaccessible
 
 1. La requête échoue (timeout ou erreur réseau)
-2. Message d'erreur : "Impossible de contacter le serveur, veuillez réessayer"
+2. Le client reçoit une erreur de connexion et doit réessayer
 
 ## Post-conditions
 
-- L'utilisateur est connecté, session JWT active
-- L'identité blockchain de l'utilisateur est active sur le réseau
-- L'accès aux fonctionnalités est accordé selon le rôle attribué
+- L'utilisateur dispose d'un token de session valide (7 jours) associé à un rôle
+- L'accès aux fonctionnalités est accordé selon ce rôle
 
 ## Diagramme d'activités
 
@@ -98,36 +94,22 @@ L'utilisateur se connecte via un formulaire email / mot de passe. Le serveur val
 skin rose
 title Se Connecter
 start
-:Ouvrir la page de connexion;
-:Saisir email et mot de passe;
-if (Credentials valides?) then (oui)
-  if (Identité blockchain existante?) then (oui)
-    :Générer token JWT;
-    :Ouvrir la session;
-    :Rediriger vers le tableau de bord;
+:Transmettre un secret d'enrôlement (ou demander un accès invité);
+if (Secret fourni ?) then (oui)
+  if (Secret valide ?) then (oui)
+    :Enrôler l'identité auprès de la Fabric CA;
+    :Retourner un token de session (rôle courant);
     stop
   else (non)
-    if (Provisionnement synchrone?) then (oui)
-      :Provisionner identité blockchain (register + enroll Fabric CA);
-      :Générer token JWT;
-      :Ouvrir la session;
-      :Rediriger vers le tableau de bord;
-      stop
-    else (non)
-      :Déclencher provisionnement asynchrone (202);
-      :Générer token JWT;
-      :Ouvrir session avec accès limité;
-      :Informer l'utilisateur que l'identité est en cours de création;
-      :Accorder accès complet dès provisionnement terminé;
-      stop
-    endif
+    :Retourner l'erreur "Secret d'enrôlement invalide" (401);
+    stop
   endif
-else (non)
-  if (Erreur réseau?) then (oui)
-    :Afficher "Impossible de contacter le serveur, veuillez réessayer";
+else (non — accès invité)
+  if (Réseau public (AllowAutoGuest) ?) then (oui)
+    :Retourner un token de session (rôle Lecteur);
     stop
   else (non)
-    :Afficher "Email ou mot de passe incorrect";
+    :Retourner 403 — proposer une demande d'accès (UCA01);
     stop
   endif
 endif

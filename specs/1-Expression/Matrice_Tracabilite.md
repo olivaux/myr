@@ -13,7 +13,7 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | ------------------------------------------------ | ----------------------------------------------------------------------- | ------------------------- |
 | **Compte et Accès**                             |                                                                         |                           |
 | EF01                                             | Permettre à un visiteur de créer un compte sur un réseau             | UCA01                     |
-| EF02                                             | Authentifier un utilisateur (email/password + JWT)                      | UCA02                     |
+| EF02                                             | Authentifier une identité (enrôlement CA + token de session opaque)   | UCA02                     |
 | EF03                                             | Déconnecter un utilisateur et invalider sa session                     | UCA03                     |
 | EF04                                             | Vérifier la validité d'une session active                             | UCA04                     |
 | EF05                                             | Contrôler les accès selon le rôle attribué                          | UCA05, UCA07              |
@@ -34,19 +34,19 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | EF16                                             | Vérifier la compatibilité de licence lors d'une dérivation           | UCCE04, UCMOD06           |
 | **Composants — Lecture**                        |                                                                         |                           |
 | EF17                                             | Rechercher et filtrer les composants disponibles sur le réseau         | UCCL01                    |
-| **Atelier (Workspace)**                          |                                                                         |                           |
+| **Composition (instances)**                       |                                                                         |                           |
 | EF18                                             | Créer des liaisons entre interfaces compatibles de composants          | UCAM01                    |
 | EF19                                             | Visualiser les interfaces physiques d'un composant                      | UCAM02                    |
-| EF20                                             | Définir une interface sur un composant dans l'atelier                  | UCAM03                    |
-| EF21                                             | Ajouter plusieurs composants simultanément à l'atelier                | UCAM04                    |
+| EF20                                             | Définir une interface sur un composant                                 | UCAM03                    |
+| EF21                                             | *(retiré)* — sélection multiple/jauge de progression pour l'ajout d'instances : ergonomie 100 % frontend, sans logique domaine propre (le placement unitaire `AddAssetToWorkspace` reste couvert par EF26/UCMOD01 et UCAM05) | —                         |
 | EF22                                             | Transformer un composant en module (découpage en sous-systèmes)       | UCAM05                    |
 | EF23                                             | Choisir un asset d'accroche (fastener) pour une liaison                 | UCAM07                    |
-| EF24                                             | Retirer un composant de l'atelier (avec cascade des connexions)         | UCAM08                    |
-| EF25                                             | Garantir un slot virtuel disponible sur chaque asset de l'atelier       | UCAM06                    |
+| EF24                                             | Retirer une instance de composant d'un module (avec cascade des connexions) | UCAM08                    |
+| EF25                                             | Garantir un slot virtuel disponible sur chaque asset                    | UCAM03                    |
 | **Modules**                                      |                                                                         |                           |
 | EF26                                             | Assembler plusieurs composants en module (état draft)                  | UCMOD01                   |
 | EF27                                             | Soumettre un module à la blockchain (ModuleVersion immuable)           | UCMOD06                   |
-| EF28                                             | Ajouter un module existant à l'espace de travail                       | UCMOD02, UCMOD03, UCMOD05 |
+| EF28                                             | Ajouter un module existant comme instance d'un module hôte             | UCMOD02, UCMOD03          |
 | EF29                                             | Visualiser la composition d'un module                                   | UCMOD04                   |
 | **Propriété Intellectuelle et Rémunération** |                                                                         |                           |
 | EF30                                             | Commander un module complet (fabrication ou achat en stock)             | UCPI01                    |
@@ -69,16 +69,7 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | EF45                                             | Automatiser la commande en ligne d'un asset                             | UCAUT02                   |
 | EF46                                             | Intégrer un modèle 3D depuis un logiciel CAO (plugin)                 | UCAUT03                   |
 | EF47                                             | Gérer les versions SCM d'un modèle 3D                                 | UCAUT04                   |
-| **Interface Graphique**                          |                                                                         |                           |
-| EF48                                             | Proposer une navigation UI cohérente (MenuBar, Explorer, Atelier)      | UCIG01                    |
-| EF49                                             | Gérer les erreurs de manière explicite côté UI                      | UCIG02                    |
-| **Paramètres**                                  |                                                                         |                           |
-| EF50                                             | Configurer la langue de l'interface (Anglais)                           | UCPAR01                   |
-| EF51                                             | Configurer la langue de l'interface (Chinois)                           | UCPAR02                   |
-| **Documentation**                                |                                                                         |                           |
-| EF52                                             | Accéder à la documentation du système                                | UCDOC01                   |
-| EF53                                             | Consulter la FAQ                                                        | UCDOC02                   |
-| EF54                                             | Comprendre la documentation technique                                   | UCDOC03                   |
+| **Interface Graphique, Paramètres, Documentation** | EF48–EF54 : retirés — use cases 100 % frontend (UCIG, UCPAR, UCDOC), sans contrat REST propre à `myr`, désormais spécifiés dans le dépôt GUI externe (voir `CLAUDE.md` § Séparation des dépôts) | —                         |
 | **Développement autour de MYR**                 |                                                                         |                           |
 | EF55                                             | Exposer une API REST pour les intégrations tierces                     | UCDEV01                   |
 | EF56                                             | Proposer un CLI d'administration serveur                                | UCDEV02                   |

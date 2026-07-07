@@ -44,34 +44,32 @@ Ajout d'une création de l'utilisateur sous forme de composant physique (pièce 
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur clique sur le bouton **New Asset** de la MenuBar — une Asset UI vide s'ouvre
+**Étape initiale :** `myr model add roue.stl --name "Roue avant" --channel greenchannel --category base` est exécutée (ou l'appel API équivalent), pour le compte du Concepteur
 
 ### Flux nominal — Composant nouveau
 
-1. L'utilisateur importe son fichier 3D
+1. Le fichier 3D est importé
 2. Le système vérifie le hash du fichier : aucun doublon détecté
 3. L'analyse SCM de similarité est effectuée (seuil 50%)
-4. L'utilisateur renseigne les métadonnées (nom, licence, auteur)
+4. Les métadonnées sont renseignées (nom, licence, auteur)
 5. La transaction "fromScratch" est soumise sur la blockchain
 6. Un UUID est créé et attribué au composant
 
 ### Flux alternatif — Import depuis un format CAO non natif (STL, STEP, OBJ)
 
-1. L'utilisateur importe un fichier dans un format de CAO non natif (STL, STEP, OBJ…)
+1. Le fichier est fourni dans un format de CAO non natif (STL, STEP, OBJ…)
 2. Le système accepte le fichier et calcule son hash normalement
 3. Les métadonnées géométriques (dimensions, volume) sont extraites automatiquement selon le format
-4. L'utilisateur complète les métadonnées non extractibles automatiquement (description, licence)
+4. Les métadonnées non extractibles automatiquement (description, licence) sont renseignées explicitement
 5. La transaction est soumise normalement
 
 ### Flux erreur — Hash déjà existant
 
-1. Erreur : "Composant déjà existant - risque de plagiat"
-2. Redirection vers le contact de l'administration
+1. Erreur métier : "Composant déjà existant - risque de plagiat" — invite à contacter l'administration
 
 ### Flux erreur — Similarité supérieure à 50%
 
-1. Erreur : "Similarité trop élevée avec un composant existant"
-2. Redirection vers le contact de l'administration
+1. Erreur métier : "Similarité trop élevée avec un composant existant" — invite à contacter l'administration
 
 ## Post-conditions
 
@@ -88,7 +86,7 @@ Ajout d'une création de l'utilisateur sous forme de composant physique (pièce 
 skin rose
 title Ajout d'un asset sur BASE
 start
-:Clique droit asset > Ajouter > {type};
+:Transmettre la demande d'ajout d'asset {type} (myr model add);
 if(droits Utilisateur OK?) then (oui)
   :Lecture uuid;
     if (uuid existant?) then (oui)

@@ -38,24 +38,30 @@ Exporter une "Bill Of Material" (liste des matériaux) d'un Module, listant tous
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir un module sélectionné
+- Avoir un identifiant de module
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un module et choisit "Exporter BOM"
+**Étape initiale :** `myr module bom export <id> --format csv|xml|pdf` est exécutée (ou l'appel API équivalent)
 
 ### Flux nominal — BOM exportée
 
-1. L'utilisateur choisit le format d'export (CSV, XML, PDF...)
-2. Le système génère la BOM avec tous les composants et leurs quantités
-3. Le fichier BOM est téléchargé
+1. Le format d'export est transmis (CSV, XML, PDF...)
+2. La BOM est générée avec tous les composants et leurs quantités
+3. Le fichier BOM est retourné
 
 ### Flux alternatif — Composants avec données IPFS indisponibles
 
 1. La BOM contient des composants dont les fichiers IPFS ne sont pas accessibles (nœud hors ligne ou données non pinnées)
-2. Le système génère la BOM avec un placeholder pour chaque composant concerné (`fichier: "indisponible"`)
-3. Un avertissement est affiché : "X composant(s) sans fichier accessible — BOM partielle"
+2. La BOM est générée avec un placeholder pour chaque composant concerné (`fichier: "indisponible"`)
+3. Un avertissement est retourné : "X composant(s) sans fichier accessible — BOM partielle"
 4. L'export est proposé avec les données disponibles
+
+### Flux alternatif — Reconstitution manuelle
+
+1. Les instances du module sont listées (`myr module get <id>`)
+2. Pour chaque instance, les informations du composant sont récupérées (`myr model get <assetID>` — nom, catégorie, hash), en parcourant récursivement les sous-modules
+3. Cette reconstitution manuelle ne fournit pas d'agrégation automatique des quantités (RM15)
 
 ## Post-conditions
 
@@ -68,15 +74,14 @@ Exporter une "Bill Of Material" (liste des matériaux) d'un Module, listant tous
 skin rose
 title Exporter BOM Module
 start
-:Sélectionner un module et choisir "Exporter BOM";
-:Choisir le format d'export (CSV, XML, PDF...);
+:Transmettre le format d'export (myr module bom export);
 :Générer la BOM avec tous les composants et leurs quantités;
 if (Données IPFS partiellement indisponibles?) then (oui)
   :Générer la BOM avec placeholders pour les composants inaccessibles;
-  :Afficher "BOM partielle — X composant(s) sans fichier accessible";
+  :Retourner "BOM partielle — X composant(s) sans fichier accessible";
   stop
 else (non)
-  :Télécharger le fichier BOM complet;
+  :Retourner le fichier BOM complet;
   stop
 endif
 @enduml

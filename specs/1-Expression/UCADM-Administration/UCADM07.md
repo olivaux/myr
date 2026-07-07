@@ -37,29 +37,28 @@ Le rôle administrateur est natif au système : il ne peut pas être modifié ni
 
 ## Scénario
 
-**Étape initiale :** L'administrateur accède à la gestion des rôles
+**Étape initiale :** Sur le serveur (SSH), l'administrateur exécute une commande `myr role` (équivalent REST via le service domaine `role`)
 
 ### Flux nominal — Rôle créé
 
-1. Il clique sur "Créer un rôle"
-2. Il renseigne : nom, description, liste des droits accordés
-3. Il valide : le rôle est disponible pour attribution aux organisations (UCADM06)
+1. `myr role create --name <nom> --description <texte> --permissions <droits>` est exécutée
+2. Le rôle est créé avec le nom, la description et la liste des droits accordés
+3. Le rôle est disponible pour attribution aux organisations (UCADM06)
 
 ### Flux nominal — Rôle édité
 
-1. Il sélectionne un rôle existant (autre que le rôle administrateur)
-2. Il modifie le nom, la description ou les droits accordés
-3. Il valide : les organisations possédant ce rôle bénéficient immédiatement des droits mis à jour
+1. `myr role update <nom> --permissions <droits>` est exécutée sur un rôle existant (autre que le rôle administrateur)
+2. Le nom, la description ou les droits accordés sont mis à jour
+3. Les organisations possédant ce rôle bénéficient immédiatement des droits mis à jour
 
 ### Flux nominal — Rôle supprimé
 
-1. Il sélectionne un rôle existant (autre que le rôle administrateur)
-2. Il confirme la suppression
-3. Le rôle est retiré de toutes les organisations qui le possédaient, puis supprimé du système
+1. `myr role delete <nom>` est exécutée sur un rôle existant (autre que le rôle administrateur)
+2. Le rôle est retiré de toutes les organisations qui le possédaient, puis supprimé du système
 
 ### Flux erreur — Tentative de modification du rôle administrateur
 
-1. L'administrateur tente d'éditer ou de supprimer le rôle administrateur
+1. Une commande d'édition ou de suppression cible le rôle administrateur
 2. Le système refuse l'opération
 3. Message : `Le rôle administrateur est protégé et ne peut pas être modifié ni supprimé.`
 
@@ -76,32 +75,26 @@ Le rôle administrateur est natif au système : il ne peut pas être modifié ni
 skin rose
 title Gérer les rôles
 start
-:Accéder à la gestion des rôles;
 if (Action?) then (créer)
-  :Renseigner nom, description, droits accordés;
-  :Valider;
+  :myr role create --name --description --permissions;
   :Créer le rôle;
   stop
 else if (Action?) then (éditer)
-  :Sélectionner un rôle;
   if (Rôle administrateur?) then (oui)
     :Erreur : rôle protégé, modification refusée;
     stop
   else (non)
-    :Modifier nom, description ou droits;
-    :Valider;
+    :myr role update <nom> --permissions;
     :Mettre à jour le rôle et les droits des organisations;
     stop
   endif
 else (supprimer)
-  :Sélectionner un rôle;
   if (Rôle administrateur?) then (oui)
     :Erreur : rôle protégé, suppression refusée;
     stop
   else (non)
-    :Confirmer la suppression;
-    :Retirer le rôle de toutes les organisations;
-    :Supprimer le rôle;
+    :myr role delete <nom>;
+    :Retirer le rôle de toutes les organisations, puis le supprimer;
     stop
   endif
 endif

@@ -38,6 +38,8 @@ UC1 ..> UC3 : <<include>>
 
 Commande en ligne d'un asset via l'interface MYR ou une boutique partenaire avec récupération du prix via l'API.
 
+Conformément au principe de parité CLI/REST (CLAUDE.md), une commande passée par une boutique partenaire via l'API doit pouvoir être reproduite en CLI pour le compte d'un consommateur, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -46,12 +48,12 @@ Commande en ligne d'un asset via l'interface MYR ou une boutique partenaire avec
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un asset et choisit "Commander en ligne"
+**Étape initiale :** Un client (boutique partenaire, script, interface graphique tierce...) appelle l'API pour commander un asset
 
 ### Flux nominal — Commande passée
 
-1. Le système récupère le prix via l'API et l'affiche à l'utilisateur
-2. L'utilisateur confirme la commande
+1. Le prix de l'asset est récupéré via l'API
+2. La commande est confirmée par le client
 3. La transaction est enregistrée sur la blockchain
 4. La commande est transmise à la boutique ou au manufactureur
 
@@ -67,12 +69,11 @@ Commande en ligne d'un asset via l'interface MYR ou une boutique partenaire avec
 skin rose
 title Commande en ligne de Asset
 start
-:Sélectionner un asset et choisir "Commander en ligne";
-:Récupérer le prix via l'API et l'afficher;
+:Récupérer le prix de l'asset via l'API;
 :Confirmer la commande;
 :Enregistrer la transaction sur la blockchain;
 :Transmettre la commande à la boutique ou au manufactureur;
-:Envoyer une confirmation à l'utilisateur;
+:Retourner une confirmation au client;
 stop
 @enduml
 ```

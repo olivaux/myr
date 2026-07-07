@@ -37,6 +37,8 @@ UC1 .> UC3 : <<extend>>
 
 Commande d'un module complet via le réseau MYR, impliquant soit l'achat sur une boutique existante, soit la fabrication par un manufactureur agréé.
 
+Conformément au principe de parité CLI/REST (CLAUDE.md — « le CLI n'est pas un citoyen de seconde zone par rapport à l'API »), une commande de ce type doit pouvoir être reproduite en CLI pour le compte d'un consommateur, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -45,19 +47,19 @@ Commande d'un module complet via le réseau MYR, impliquant soit l'achat sur une
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un module et choisit "Commander"
+**Étape initiale :** Une commande de module est transmise (`myr order create <moduleID>` ou `POST /api/orders`)
 
 ### Flux nominal — Produit en stock
 
 1. Le système identifie la boutique partenaire disposant du produit
 2. La commande est transmise à la boutique
-3. L'utilisateur reçoit une confirmation de commande
+3. Une confirmation de commande est retournée
 
 ### Flux nominal — Fabrication nécessaire
 
 1. Le système identifie un manufactureur agréé disponible
 2. La commande de fabrication est transmise via la blockchain
-3. L'utilisateur reçoit une confirmation avec délai de fabrication
+3. Une confirmation avec délai de fabrication est retournée
 
 ## Post-conditions
 
@@ -76,7 +78,7 @@ skin rose
 @enduml
 ```
 
-### Flux complet — commande via site ou interface MYR
+### Flux complet — commande via boutique partenaire ou API MYR
 
 ```plantuml
 @startuml
@@ -100,16 +102,16 @@ title fonctionnement de l'échange
 skin rose
 title Commander un Module complet
 start
-:Sélectionner un module et choisir "Commander";
+:Transmettre la commande (myr order create);
 if (Produit en stock dans une boutique partenaire?) then (oui)
   :Identifier la boutique partenaire disposant du produit;
   :Transmettre la commande à la boutique;
-  :Envoyer une confirmation à l'utilisateur;
+  :Retourner une confirmation;
   stop
 else (non)
   :Identifier un manufactureur agréé disponible;
   :Transmettre la commande de fabrication via la blockchain;
-  :Envoyer une confirmation avec délai de fabrication;
+  :Retourner une confirmation avec délai de fabrication;
   stop
 endif
 @enduml

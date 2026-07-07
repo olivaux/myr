@@ -41,19 +41,19 @@ Ajout d'un élément numérique (logiciel, firmware, driver...) comme composant 
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur accède à la création de composant
+**Étape initiale :** `myr model add firmware.bin --name "Firmware v2" --channel greenchannel --category base` est exécutée (ou l'appel API équivalent), pour le compte du Concepteur
 
 ### Flux nominal — Composant numérique nouveau
 
-1. L'utilisateur sélectionne le type "Numérique" (Software)
-2. Il importe son fichier numérique
+1. Le type "Numérique" (Software) est désigné
+2. Le fichier numérique est importé
 3. Le système vérifie le hash du fichier
-4. L'utilisateur renseigne les métadonnées (nom, licence, version, auteur)
+4. Les métadonnées sont renseignées (nom, licence, version, auteur)
 5. La transaction est soumise sur la blockchain
 
 ### Flux erreur — Doublon détecté
 
-1. Erreur : "Composant numérique déjà enregistré"
+1. Erreur métier : "Composant numérique déjà enregistré" (RM01)
 
 ## Post-conditions
 
@@ -67,15 +67,12 @@ Ajout d'un élément numérique (logiciel, firmware, driver...) comme composant 
 skin rose
 title Ajout d'un composant Numérique
 start
-:Accéder à la création de composant;
-:Sélectionner le type "Numérique" (Software);
-:Importer le fichier numérique;
+:Transmettre le fichier numérique et les métadonnées (myr model add);
 :Vérifier le hash du fichier;
 if (Doublon détecté?) then (oui)
-  :Afficher "Composant numérique déjà enregistré";
+  :Retourner l'erreur "Composant numérique déjà enregistré";
   stop
 else (non)
-  :Renseigner les métadonnées (nom, licence, version, auteur);
   :Soumettre la transaction sur la blockchain;
   stop
 endif

@@ -39,42 +39,35 @@ Une liaison peut être **directe** (les interfaces se connectent sans intermédi
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir au moins deux composants avec des interfaces dans l'atelier
+- Avoir au moins deux composants avec des interfaces existants
 - Les interfaces à relier doivent être compatibles (catégorie, sens, tag, type, valeur)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne une interface d'un composant dans l'atelier
+**Étape initiale :** Sur le serveur (SSH), l'administrateur exécute `myr model link add --from <ifaceID_source> --to <ifaceID_cible> [--fastener <assetID>]` pour le compte du Concepteur — même effet via l'API REST équivalente (identifiants d'interfaces obtenus via `myr model interface list`, voir UCAM02)
 
 ### Flux nominal — Liaison directe
 
-1. L'utilisateur glisse l'interface vers une interface compatible d'un autre composant
-2. Les interfaces non compatibles se grisent pour guider l'utilisateur
-3. Le système vérifie la compatibilité de la paire d'interfaces
-4. Le système propose optionnellement de choisir un asset d'accroche (voir UCAM07) — l'utilisateur peut ignorer
-5. La liaison est enregistrée sans asset d'accroche (`FastenerAssetID` vide)
-6. La liaison est représentée par un trait entre les deux interfaces
-7. Les interfaces du composant résultant sont créées et conservées
+1. Les identifiants des interfaces source et cible sont transmis
+2. Le service vérifie la compatibilité de la paire d'interfaces (catégorie, sens, tag, type, valeur — RM10/RM11)
+3. Aucun asset d'accroche n'est précisé : la liaison est enregistrée directement (`FastenerAssetID` vide)
+4. Les interfaces du composant résultant sont créées et conservées
 
 ### Flux nominal — Liaison via asset d'accroche
 
-1. Étapes 1 à 3 identiques au flux nominal précédent
-2. L'utilisateur choisit de sélectionner un asset d'accroche (voir UCAM07)
+1. Étapes 1 à 2 identiques au flux nominal précédent
+2. Un asset d'accroche est précisé (`--fastener <assetID>`, voir UCAM07)
 3. La liaison est enregistrée avec le `FastenerAssetID` de l'asset choisi
-4. La liaison est représentée par un trait incluant l'asset d'accroche
 
-### Comportement à la sélection — Interfaces non compatibles
+### Flux erreur — Interfaces incompatibles
 
-Les interfaces incompatibles ne constituent pas un flux d'erreur à la création : l'interface graphique les prévient en amont.
-
-1. Dès que l'utilisateur sélectionne une interface source, toutes les interfaces incompatibles se grisent automatiquement
-2. Seules les interfaces compatibles restent cliquables
-3. Il est donc impossible de créer une liaison incompatible via l'interface graphique
+1. La paire d'interfaces transmise ne respecte pas les critères de compatibilité (RM10/RM11)
+2. Le service refuse la création de la liaison — message d'erreur métier explicite
 
 ### Flux erreur — Interface déjà utilisée
 
-1. Si l'interface cible est déjà engagée dans une liaison existante, elle est grisée
-2. En cas de tentative forcée, le système affiche : "Cette interface est déjà utilisée dans une liaison"
+1. L'interface cible est déjà engagée dans une liaison existante (RM09)
+2. Le service refuse la création : "Cette interface est déjà utilisée dans une liaison"
 
 ### Flux — Liaison devenue incompatible après modification
 
@@ -83,14 +76,14 @@ Ce scénario survient lorsqu'un asset impliqué dans une liaison est remplacé p
 1. La modification de l'asset est enregistrée
 2. Le système détecte que la liaison existante n'est plus compatible avec les nouvelles interfaces
 3. La liaison n'est **pas supprimée** — elle passe en état `incompatible`
-4. Elle reste visible dans l'atelier, représentée en rouge
-5. L'utilisateur peut choisir de la supprimer manuellement ou d'adapter les assets
+4. Elle reste consultable, marquée `Incompatible: true`
+5. Elle peut être supprimée manuellement, ou les assets peuvent être adaptés
 
 ## Post-conditions
 
 - La liaison est enregistrée entre les deux composants
 - Les interfaces libres du composant résultant sont visibles
-- Une liaison devenue incompatible après modification reste présente, marquée en rouge (`Incompatible: true`) — elle n'est jamais supprimée automatiquement
+- Une liaison devenue incompatible après modification reste présente, marquée `Incompatible: true` — elle n'est jamais supprimée automatiquement
 
 ## Diagrammes
 
@@ -183,23 +176,23 @@ PC --> PCAM : ELEC
 skin rose
 title Liaison entre interfaces
 start
-:Sélectionner une interface source d'un composant dans l'atelier;
-:Les interfaces incompatibles se grisent automatiquement;
+:Transmettre les identifiants des interfaces source et cible (myr model link add);
 if (Interface cible déjà utilisée?) then (oui)
-  :Afficher "Cette interface est déjà utilisée dans une liaison";
+  :Refuser — "Cette interface est déjà utilisée dans une liaison";
   stop
 else (non)
-  :Glisser vers une interface compatible d'un autre composant;
-  :Vérifier la compatibilité de la paire d'interfaces;
-  if (Choisir un asset d'accroche?) then (oui)
-    :Sélectionner un asset d'accroche (voir UCAM07);
-    :Enregistrer la liaison avec FastenerAssetID;
-    :Représenter la liaison avec l'asset d'accroche;
+  :Vérifier la compatibilité de la paire d'interfaces (RM10/RM11);
+  if (Compatible?) then (non)
+    :Refuser la création de la liaison;
     stop
-  else (non)
-    :Enregistrer la liaison sans asset d'accroche;
-    :Représenter la liaison par un trait;
-    stop
+  else (oui)
+    if (Asset d'accroche précisé (--fastener)?) then (oui)
+      :Enregistrer la liaison avec FastenerAssetID;
+      stop
+    else (non)
+      :Enregistrer la liaison directe;
+      stop
+    endif
   endif
 endif
 @enduml

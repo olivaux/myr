@@ -39,6 +39,8 @@ C --> UC4
 
 Passage par un fabricant externe agréé par le réseau qui se chargera de créer et livrer le(s) composant(s) à l'adresse définie.
 
+Conformément au principe de parité CLI/REST (CLAUDE.md), la confirmation de livraison par un manufactureur (et la distribution automatique des commissions qui s'ensuit) doit être déclenchable en CLI pour son compte, au même titre que via l'interface graphique ou l'API REST.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -79,7 +81,7 @@ Passage par un fabricant externe agréé par le réseau qui se chargera de crée
 
 ## Diagrammes
 
-### Flux de commande — site partenaire ou interface MYR vers manufactureur
+### Flux de commande — boutique partenaire ou API MYR vers manufactureur
 
 ```plantuml
 @startuml

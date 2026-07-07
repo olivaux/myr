@@ -34,17 +34,17 @@ Un Module est composé de composants visualisables. L'utilisateur peut explorer 
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir un module sélectionné
+- Avoir un identifiant de module
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un module dans l'atelier ou la bibliothèque
+**Étape initiale :** `myr module get <id>` est exécutée (ou l'appel API équivalent), en lecture seule
 
-### Flux nominal — Vue composants affichée
+### Flux nominal — Composition retournée
 
-1. L'utilisateur accède à "Voir les composants"
-2. La liste des composants constitutifs est affichée avec leurs liaisons
-3. L'utilisateur peut naviguer dans la hiérarchie (sous-modules éventuels)
+1. La composition du module (composants constitutifs, liaisons internes) est retournée
+2. `myr module interfaces <id>` complète la vue avec les interfaces exposées
+3. Les sous-modules éventuels peuvent être explorés récursivement (`myr module get <sousModuleID>`)
 
 ## Post-conditions
 
@@ -57,11 +57,10 @@ Un Module est composé de composants visualisables. L'utilisateur peut explorer 
 skin rose
 title Visualiser les composants d'un Module
 start
-:Sélectionner un module dans l'atelier ou la bibliothèque;
-:Accéder à "Voir les composants";
-:Afficher la liste des composants constitutifs avec leurs liaisons;
+:Transmettre l'identifiant du module (myr module get);
+:Retourner la composition (composants, liaisons internes);
 if (Sous-modules à explorer?) then (oui)
-  :Naviguer dans la hiérarchie des sous-modules;
+  :Explorer récursivement les sous-modules;
   stop
 else (non)
   stop

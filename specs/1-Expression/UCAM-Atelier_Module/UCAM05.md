@@ -42,21 +42,20 @@ Un composant existant peut être converti en module s'il est redécoupé en sous
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant existant
+**Étape initiale :** Sur le serveur (SSH), l'administrateur exécute `myr model to-module <assetID> --name <nom>` pour le compte du Concepteur (ou l'appel API équivalent)
 
 ### Flux nominal — Conversion réussie
 
-1. L'utilisateur choisit "Convertir en module"
-2. Il définit les sous-composants constitutifs
-3. Il configure les liaisons entre les sous-composants
-4. La transaction "découpage" est soumise sur la blockchain
+1. Les sous-composants constitutifs sont désignés
+2. Les liaisons entre les sous-composants sont configurées (voir UCAM01)
+3. La transaction "découpage" est soumise sur la blockchain
 
 ### Flux alternatif — Composant sans interfaces définies
 
-1. Le composant sélectionné ne possède aucune interface définie
-2. Le système avertit : "Ce composant n'a pas d'interfaces — le module résultant ne pourra pas être lié à d'autres composants"
-3. L'utilisateur choisit de définir les interfaces avant de poursuivre (voir UCAM03)
-4. Une fois les interfaces définies, la transformation en module est relancée normalement
+1. Le composant ciblé ne possède aucune interface définie
+2. Le service avertit : "Ce composant n'a pas d'interfaces — le module résultant ne pourra pas être lié à d'autres composants"
+3. Les interfaces doivent être définies avant de poursuivre (voir UCAM03)
+4. Une fois les interfaces définies, la transformation en module peut être relancée normalement
 
 ## Post-conditions
 
@@ -70,15 +69,13 @@ Un composant existant peut être converti en module s'il est redécoupé en sous
 skin rose
 title Transformation d'un composant en module
 start
-:Sélectionner un composant existant;
-:Choisir "Convertir en module";
+:Transmettre l'identifiant du composant à convertir (myr model to-module);
 if (Composant sans interfaces définies?) then (oui)
   :Avertir "Le module résultant ne pourra pas être lié à d'autres composants";
-  :Rediriger vers la définition d'interfaces (UCAM03);
-  :Définir les interfaces manquantes;
+  :Définir les interfaces manquantes (UCAM03);
   :Relancer la transformation;
 else (non)
-  :Définir les sous-composants constitutifs;
+  :Désigner les sous-composants constitutifs;
   :Configurer les liaisons entre les sous-composants;
   :Soumettre la transaction "découpage" sur la blockchain;
   stop

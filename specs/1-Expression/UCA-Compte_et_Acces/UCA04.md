@@ -30,29 +30,29 @@ UC1 .> UC2 : <<extend>>
 
 ## Contexte
 
-Visualisation de l'état de connexion par un voyant Vert sur l'interface avec détail de la connexion en le survolant. Le voyant est rouge si déconnecté.
+L'état de connexion (connecté / déconnecté, réseau, organisation, peer) est consultable à tout moment via l'API ou le CLI.
 
 ## Pré-conditions
 
-- Application ouverte
+- Disposer d'un token de session (le cas échéant)
 
 ## Scénario
 
-**Étape initiale :** L'application affiche en permanence un voyant de statut de connexion
+**Étape initiale :** L'état de connexion est interrogé (`myr identity status` ou l'appel API équivalent)
 
 ### Flux nominal — Connecté
 
-1. Le voyant est affiché en vert
-2. En survolant le voyant, les détails de connexion s'affichent (réseau, organisation, peer)
+1. La session est active
+2. Le statut retourné inclut les détails de connexion (réseau, organisation, peer)
 
 ### Flux nominal — Déconnecté
 
-1. Le voyant est affiché en rouge
-2. En survolant, un message indique la raison de la déconnexion
+1. La session est absente ou invalide
+2. Le statut retourné indique la raison de la déconnexion
 
 ## Post-conditions
 
-- L'utilisateur connaît à tout moment l'état de sa connexion
+- L'état de connexion est consultable à tout moment via l'API ou le CLI
 
 ## Diagramme d'activités
 
@@ -61,23 +61,13 @@ Visualisation de l'état de connexion par un voyant Vert sur l'interface avec d�
 skin rose
 title Vérification de la connexion
 start
-:Afficher le voyant de statut de connexion;
+:Interroger l'état de connexion (myr identity status);
 if (Connecté?) then (oui)
-  :Afficher le voyant en vert;
-  if (Survol du voyant?) then (oui)
-    :Afficher les détails (réseau, organisation, peer);
-    stop
-  else (non)
-    stop
-  endif
+  :Retourner les détails (réseau, organisation, peer);
+  stop
 else (non)
-  :Afficher le voyant en rouge;
-  if (Survol du voyant?) then (oui)
-    :Afficher la raison de la déconnexion;
-    stop
-  else (non)
-    stop
-  endif
+  :Retourner la raison de la déconnexion;
+  stop
 endif
 @enduml
 ```

@@ -37,21 +37,22 @@ UC1 ..> UC2 : <<include>>
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir un composant sélectionné
+- Avoir un identifiant de composant source
+- Recherche approximative uniquement — sans application de l'algorithme de compatibilité (voir flux nominal)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant et accède à "Composants compatibles"
+**Étape initiale :** Les interfaces libres du composant source sont listées (`myr model interface list <assetID>`, ou l'appel API équivalent)
 
-### Flux nominal — Compatibles trouvés
+### Flux nominal — Compatibles trouvés (recherche approximative)
 
-1. Le système analyse les interfaces libres du composant sélectionné
-2. Il interroge la blockchain pour trouver les composants ayant des interfaces correspondantes
-3. La liste des composants compatibles est affichée
+1. Les interfaces libres du composant source sont récupérées
+2. Les composants candidats du réseau sont parcourus (`myr model list [--channel <id>]`) et leurs interfaces comparées (`myr model interface list <candidateID>`)
+3. La liste des composants compatibles est retournée — cette comparaison manuelle n'applique pas l'algorithme de compatibilité (RM10/RM11)
 
 ### Flux nominal — Aucun compatible
 
-1. Un message indique qu'aucun composant compatible n'a été trouvé
+1. La réponse indique qu'aucun composant compatible n'a été trouvé
 
 ## Post-conditions
 
@@ -64,14 +65,13 @@ UC1 ..> UC2 : <<include>>
 skin rose
 title Rechercher les Composants compatibles
 start
-:Sélectionner un composant et accéder à "Composants compatibles";
-:Analyser les interfaces libres du composant sélectionné;
-:Interroger la blockchain pour trouver les composants ayant des interfaces correspondantes;
+:Lister les interfaces libres du composant source (myr model interface list);
+:Parcourir les composants candidats et comparer leurs interfaces;
 if (Composants compatibles trouvés?) then (oui)
-  :Afficher la liste des composants compatibles;
+  :Retourner la liste des composants compatibles;
   stop
 else (non)
-  :Afficher "Aucun composant compatible n'a été trouvé";
+  :Retourner "Aucun composant compatible n'a été trouvé";
   stop
 endif
 @enduml

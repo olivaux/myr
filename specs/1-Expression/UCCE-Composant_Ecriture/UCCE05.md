@@ -42,14 +42,14 @@ Création d'une pièce complémentaire à un composant existant. Il s'agit d'une
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant de base et choisit "Créer une extension"
+**Étape initiale :** `myr model add support.stl --name "Support complémentaire" --channel greenchannel --category extension --parent <id-composant-base> --license <id-licence>` est exécutée (ou l'appel API équivalent), pour le compte du Concepteur
 
 ### Flux nominal — Extension créée
 
 1. Le type EXTENSION est attribué
 2. Les interfaces du composant de base sont copiées comme référence
-3. L'utilisateur définit les interfaces complémentaires de l'extension
-4. La transaction est soumise avec référence au composant de base
+3. Les interfaces complémentaires de l'extension sont définies
+4. La transaction est soumise avec référence au composant de base — la compatibilité de licence est vérifiée
 
 ## Post-conditions
 
@@ -63,11 +63,9 @@ Création d'une pièce complémentaire à un composant existant. Il s'agit d'une
 skin rose
 title Créer une extension de Composant
 start
-:Sélectionner un composant de base;
-:Choisir "Créer une extension";
+:Transmettre le fichier et la référence au composant de base (myr model add);
 :Attribuer le type EXTENSION;
 :Copier les interfaces du composant de base comme référence;
-:Définir les interfaces complémentaires de l'extension;
 :Soumettre la transaction avec référence au composant de base;
 stop
 @enduml

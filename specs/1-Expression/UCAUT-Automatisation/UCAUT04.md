@@ -30,7 +30,9 @@ UC1 ..> UC2 : <<include>>
 
 ## Contexte
 
-L'utilisateur peut enregistrer par un format XML les modifications liées à un travail sur un modèle 3D (Source Control Management).
+L'utilisateur peut enregistrer par un format XML les modifications liées à un travail sur un modèle 3D (Source Control Management), indépendamment des soumissions blockchain.
+
+Conformément au principe de parité CLI/REST (CLAUDE.md), l'enregistrement et la consultation de versions SCM doivent être exposables en CLI au même titre que via l'interface graphique.
 
 ## Pré-conditions
 
@@ -39,14 +41,13 @@ L'utilisateur peut enregistrer par un format XML les modifications liées à un 
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur travaille sur un modèle 3D
+**Étape initiale :** `myr model version save <id> --comment <texte>` est exécutée (ou l'appel API équivalent), pendant l'édition d'un modèle 3D
 
 ### Flux nominal — Version enregistrée
 
-1. L'utilisateur déclenche un enregistrement de version
-2. Le système exporte les modifications en format XML
-3. La version est enregistrée avec un commentaire et un horodatage
-4. L'historique des versions est consultable
+1. Les modifications du modèle sont exportées en format XML
+2. La version est enregistrée avec le commentaire fourni et un horodatage
+3. L'historique des versions est consultable (`myr model version list <id>`)
 
 ## Post-conditions
 
@@ -60,11 +61,9 @@ L'utilisateur peut enregistrer par un format XML les modifications liées à un 
 skin rose
 title Gestion SCM d'un modèle 3D
 start
-:Travailler sur un modèle 3D;
-:Déclencher un enregistrement de version;
+:Transmettre la demande de version (myr model version save);
 :Exporter les modifications en format XML;
 :Enregistrer la version avec commentaire et horodatage;
-:Rendre l'historique des versions consultable;
 stop
 @enduml
 ```

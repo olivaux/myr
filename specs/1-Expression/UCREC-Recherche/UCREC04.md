@@ -34,20 +34,22 @@ CL --> UC1
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir un composant sélectionné
+- Avoir un identifiant de composant
+- Recherche par inspection individuelle des modules — sans filtre serveur dédié (voir flux nominal)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant et accède à "Modules utilisant ce composant"
+**Étape initiale :** `myr module list` est exécutée pour obtenir tous les modules du canal (ou l'appel API équivalent)
 
-### Flux nominal — Modules trouvés
+### Flux nominal — Modules trouvés (parité limitée)
 
-1. Le système interroge la blockchain pour trouver les modules contenant ce composant
-2. La liste des modules est affichée avec leurs informations
+1. Tous les modules du canal sont listés
+2. Chaque module candidat est inspecté individuellement (`myr module get <id>` — composition, liste des instances) pour vérifier la présence du composant recherché
+3. La liste des modules correspondants est retournée
 
 ### Flux nominal — Aucun module
 
-1. Un message indique qu'aucun module n'utilise ce composant
+1. La réponse indique qu'aucun module n'utilise ce composant
 
 ## Post-conditions
 
@@ -60,13 +62,13 @@ CL --> UC1
 skin rose
 title Rechercher les Modules qui utilisent un Composant
 start
-:Sélectionner un composant et accéder à "Modules utilisant ce composant";
-:Interroger la blockchain pour trouver les modules contenant ce composant;
+:Lister tous les modules du canal (myr module list);
+:Inspecter chaque module candidat (myr module get);
 if (Modules trouvés?) then (oui)
-  :Afficher la liste des modules avec leurs informations;
+  :Retourner la liste des modules correspondants;
   stop
 else (non)
-  :Afficher "Aucun module n'utilise ce composant";
+  :Retourner "Aucun module n'utilise ce composant";
   stop
 endif
 @enduml

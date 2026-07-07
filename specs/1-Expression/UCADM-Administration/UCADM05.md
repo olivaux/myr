@@ -42,7 +42,7 @@ Cette opération est **hors périmètre blockchain** : elle arrête des processu
 
 - Être administrateur avec accès à l'infrastructure locale
 - Le réseau cible n'est pas marqué comme réseau de production (`IsProduction: false`)
-- Commande exécutée via le CLI admin (`myr.exe`)
+- Commande exécutée via le CLI admin (`myr`)
 - Flag `--confirm` explicitement fourni
 
 ## Scénario

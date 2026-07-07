@@ -43,24 +43,23 @@ L'identifiant de cet asset (`FastenerAssetID`) est enregistré sur la `Connectio
 
 ## Scénario
 
-**Étape initiale :** Le système affiche le sélecteur d'accroche après validation de la compatibilité des interfaces
+**Étape initiale :** Lors de l'exécution de `myr model link add` (UCAM01), l'asset d'accroche est optionnellement précisé via le flag `--fastener <assetID>` — il n'existe pas de commande séparée, c'est un paramètre optionnel de la même commande
 
-### Flux nominal — Asset d'accroche sélectionné
+### Flux nominal — Asset d'accroche précisé
 
-1. Le système affiche la liste des composants utilisables comme accroche (filtrée par compatibilité de type d'interface)
-2. L'utilisateur sélectionne le composant d'accroche (ex : vis M3, câble USB-C)
-3. Le `FastenerAssetID` est enregistré sur la `Connection`
-4. La liaison est créée avec l'asset d'accroche référencé
+1. Le flag `--fastener <assetID>` désigne un composant existant sur le réseau, compatible par type d'interface (ex : vis M3, câble USB-C)
+2. Le `FastenerAssetID` est enregistré sur la `Connection`
+3. La liaison est créée avec l'asset d'accroche référencé
 
-### Flux nominal — Liaison directe (accroche ignorée)
+### Flux nominal — Liaison directe (accroche omise)
 
-1. L'utilisateur clique "Ignorer" ou ferme le sélecteur
+1. Le flag `--fastener` est omis
 2. La liaison est créée sans asset d'accroche (`FastenerAssetID` vide)
 
 ## Post-conditions
 
 - La `Connection` est enregistrée avec ou sans `FastenerAssetID`
-- Si un fastener est sélectionné, il apparaît visuellement sur la liaison dans l'atelier
+- Si un fastener est précisé, il est associé à la liaison et consultable via `myr model get`
 
 ## Diagrammes
 
@@ -91,15 +90,11 @@ skin rose
 title Choisir un asset d'accroche (Fastener)
 start
 :Valider la compatibilité des interfaces (depuis UCAM01);
-:Afficher le sélecteur d'accroche;
-if (Utilisateur sélectionne un asset d'accroche?) then (oui)
-  :Afficher la liste des composants compatibles (filtrée par type d'interface);
-  :Sélectionner le composant d'accroche;
+if (Flag --fastener précisé?) then (oui)
   :Enregistrer le FastenerAssetID sur la Connection;
   :Créer la liaison avec l'asset d'accroche référencé;
   stop
 else (non)
-  :Cliquer "Ignorer" ou fermer le sélecteur;
   :Créer la liaison sans asset d'accroche (FastenerAssetID vide);
   stop
 endif

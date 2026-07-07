@@ -1,12 +1,12 @@
 # DC — CLI Admin : Référence des commandes administrateur
 
-> Phase 3 — Arrington | Use cases : UCADM01–UCADM05, UCDEV02 | Outil : `myr-cli` (`bin/myr.exe`)
+> Phase 3 — Arrington | Use cases : UCADM01–UCADM05, UCDEV02 | Outil : `myr` (`bin/myr-linux`, installé dans `~/.local/bin/myr` sur le serveur)
 
 ---
 
 ## 1. Objectif
 
-Ce document définit le **contrat d'interface du CLI administrateur** (`myr.exe`). Il précise, pour chaque commande, la syntaxe complète, les drapeaux, les messages de sortie, les codes d'erreur, et le service domaine appelé.
+Ce document définit le **contrat d'interface du CLI administrateur** (`myr`). Il précise, pour chaque commande, la syntaxe complète, les drapeaux, les messages de sortie, les codes d'erreur, et le service domaine appelé.
 
 Le CLI est le **seul point d'entrée** pour les opérations d'installation et de configuration d'un réseau Myr (UCADM01–05). L'API REST n'expose jamais ces opérations. Les opérations d'infrastructure irréversibles (`myr network destroy`) n'existent que dans ce binaire.
 
@@ -25,28 +25,19 @@ myr
 │   ├── update <id>             — modifie un profil existant (flags fournis seulement)
 │   ├── activate <id>           — définit le réseau actif
 │   ├── delete <id>             — supprime un profil de configuration
-│   ├── test [id]               — teste la connectivité vers le nœud
+│   ├── test [id]               — teste la connectivité TCP vers le nœud
 │   ├── import                  — importe un profil depuis un fichier JSON/YAML
 │   ├── destroy <id> --confirm  — démantèle un réseau dev/test (UCADM05, irréversible)
-│   ╌╌ create                   — [POST-V1] crée un réseau from scratch
+│   ╌╌ create                   — [POST-V1] crée un réseau blockchain from scratch (configtx, genesis block)
 │   └─╌ sync                    — [POST-V1] synchronise la configuration d'un canal distant
 ├── org
-│   ├── add                     — ajoute une organisation au réseau (UCADM01)
-│   └── role
-│       ├── assign              — attribue un rôle à une organisation (UCADM06)
-│       └── remove              — retire un rôle d'une organisation (UCADM06)
-├── role                        — gestion des rôles
-│   ├── list                    — liste les rôles disponibles
-│   ├── create                  — crée un nouveau rôle (UCADM07)
-│   ├── edit <id>               — modifie un rôle existant (UCADM07)
-│   └── delete <id>             — supprime un rôle (UCADM07)
+│   └── add                     — ajoute une organisation au canal (UCADM01)
 ├── node
-│   ├── add                     — ajoute un nœud au réseau (UCADM03)
-│   └── remove                  — retire administrativement un nœud (UCADM04)
-├── peer
-│   └── add                     — enregistre un nœud dans la CA et génère ses certificats
+│   ├── add                     — ajoute un nœud peer ou orderer au réseau (UCADM03)
+│   ├── provision                — enregistre un nouveau nœud auprès de la CA et génère ses identifiants
+│   └── remove                  — retire administrativement un nœud du réseau (UCADM04)
 ├── model                       — gestion des modèles 3D (existant)
-├── channel                     — lecture des canaux (existant)
+├── channel                     — lecture des canaux blockchain (existant)
 └── payment                     — commandes de paiement (existant)
 ```
 
@@ -54,7 +45,7 @@ myr
 
 ## 3. Groupe `myr network` — Gestion des profils réseau
 
-Un **profil réseau** (`NetworkProfile`) est la configuration qui permet à `myr-app` de se connecter à un nœud blockchain. Le champ `BlockchainType` détermine quel adapter sortant est chargé au démarrage — l'administrateur choisit la technologie blockchain lors de la création du profil. Myr se connecte à **un seul nœud** par profil actif.
+Un **profil réseau** (`NetworkProfile`) est la configuration qui permet à `myr-app` de se connecter à un nœud blockchain d'une organisation. Myr se connecte à **un seul nœud** (celui de son organisation) — le réseau synchronise ensuite avec les autres organisations.
 
 ### 3.1 `myr network list`
 
@@ -67,7 +58,7 @@ myr network list
 **Sortie :**
 
 ```
-ID                   NOM                  ENDPOINT                  MSP          ACTIF
+ID                   NOM                  ENDPOINT                  ORG-ID       ACTIF
 net-1700000000000    diy-network          89.167.102.193:7051       Org1MSP      *
 net-1700000000001    sandbox-test         localhost:7051             Org2MSP
 ```
@@ -92,16 +83,16 @@ myr network show <id>
 ────────────────────────────────────────────────────
 Réseau : diy-network  (id: net-1700000000000)
 ────────────────────────────────────────────────────
-Peer endpoint    : 89.167.102.193:7051
-Gateway peer     : peer0.org1.diy-network.com
-MSP ID           : Org1MSP
-Canal Fabric     : sandbox
+Endpoint du nœud : 89.167.102.193:7051
+Nœud d'entrée TLS: peer0.org1.diy-network.com
+Org ID           : Org1MSP
+Canal            : sandbox
 Certificat       : data/certs/org1/client.pem
 Clé privée       : data/certs/org1/client-key.pem
 Certificat TLS   : data/certs/org1/tls-root.pem
-Chaincode        : myrcc
-CA endpoint      : https://89.167.102.193:7054
-CA name          : ca-org1
+Contrat          : myrcc
+Autorité cert.   : https://89.167.102.193:7054
+Nom autorité     : ca-org1
 Server URL       : (non configuré)
 Auto guest       : false
 Auto register    : false
@@ -121,7 +112,7 @@ Créé le          : 2026-01-15 10:23:45
 ### 3.3 `myr network add`
 
 ```
-myr network add --name <nom> --peer <host:port> --msp <mspID> [options]
+myr network add --name <nom> --node <host:port> --org-id <id> [options]
 ```
 
 **Drapeaux :**
@@ -129,16 +120,16 @@ myr network add --name <nom> --peer <host:port> --msp <mspID> [options]
 | Drapeau | Type | Requis | Description |
 |---------|------|--------|-------------|
 | `--name` | string | ✅ | Nom lisible du réseau |
-| `--blockchain` | string | ✅ | Type de backend blockchain : `fabric`, `json`, *(futur : `ethereum`…)* |
-| `--node` | string | — | Endpoint du nœud principal (`host:port`) |
-| `--org-id` | string | — | Identifiant de l'organisation dans le réseau (ex: MSP ID pour Fabric) |
-| `--channel` | string | — | Nom du canal ou namespace par défaut |
-| `--contract` | string | — | Nom du contrat ou chaincode déployé |
+| `--node` | string | ✅ | Adresse du nœud d'entrée (`host:port`) |
+| `--org-id` | string | ✅ | Identifiant de l'organisation (`ex: Org1MSP`) |
+| `--gateway` | string | — | Nom TLS du nœud d'entrée (ex: `peer0.org1.com`) |
 | `--cert` | string | — | Chemin vers le certificat client PEM |
 | `--key` | string | — | Chemin vers la clé privée PEM |
 | `--tls-cert` | string | — | Chemin vers le certificat TLS du nœud PEM |
-| `--ca` | string | — | URL de la CA (`https://host:port`) |
-| `--ca-name` | string | — | Nom de la CA |
+| `--channel` | string | — | Nom du canal blockchain par défaut |
+| `--contract` | string | — | Nom du contrat déployé |
+| `--ca` | string | — | URL de l'autorité de certification (`https://host:port`) |
+| `--ca-name` | string | — | Nom de l'autorité de certification (ex: `ca-org1`) |
 | `--server` | string | — | URL du MYR Server central (`https://host:port`) |
 | `--auto-guest` | bool | — | Autoriser les accès invité automatiques (défaut: `false`) |
 | `--auto-register` | bool | — | Autoriser l'enregistrement CA automatique (défaut: `false`) |
@@ -157,7 +148,7 @@ Activez-le avec : myr network activate net-1700000000000
 
 **Erreurs :**
 - `Erreur : le nom est requis`
-- `Erreur : adresse du peer invalide "localhost" — utilisez le format host:port`
+- `Erreur : adresse du nœud invalide "localhost" — utilisez le format host:port`
 - `Erreur : un réseau avec ce nom existe déjà — utilisez "myr network update <id>"`
 
 **Service :** `networkSvc.Add(...)`
@@ -167,7 +158,7 @@ Activez-le avec : myr network activate net-1700000000000
 ### 3.4 `myr network update <id>`
 
 ```
-myr network update <id> [--name <nom>] [--peer <host:port>] [--msp <mspID>] [options]
+myr network update <id> [--name <nom>] [--node <host:port>] [--org-id <id>] [options]
 ```
 
 **Drapeaux :** mêmes que `add`, tous optionnels. Seuls les drapeaux explicitement fournis écrasent les valeurs existantes.
@@ -181,7 +172,7 @@ myr network update <id> [--name <nom>] [--peer <host:port>] [--msp <mspID>] [opt
 
 **Erreurs :**
 - `Erreur : réseau introuvable : <id>`
-- `Erreur : adresse du peer invalide "<val>" — utilisez le format host:port`
+- `Erreur : adresse du nœud invalide "<val>" — utilisez le format host:port`
 
 **Service :** `networkSvc.List()` + `networkSvc.Update(...)`
 
@@ -230,11 +221,11 @@ Réseau supprimé.
 
 **Erreurs :**
 - `Erreur : réseau introuvable : <id>`
-- `Avertissement : ce réseau est actuellement actif. La suppression désactive la connexion Fabric.`
+- `Avertissement : ce réseau est actuellement actif. La suppression désactive la connexion au réseau blockchain.`
 
 **Service :** `networkSvc.Delete(id)`
 
-> **Distinction avec `destroy` :** `delete` supprime uniquement le profil de configuration. Il ne touche pas aux processus Fabric, ni aux données ledger locales. Utilisé pour retirer un réseau mal configuré ou désusage.
+> **Distinction avec `destroy` :** `delete` supprime uniquement le profil de configuration. Il ne touche pas aux processus blockchain, ni aux données ledger locales. Utilisé pour retirer un réseau mal configuré ou désusage.
 
 ---
 
@@ -244,12 +235,12 @@ Réseau supprimé.
 myr network test [id]
 ```
 
-**Comportement :** Teste la connectivité TCP vers le peer endpoint du profil. Si `id` est omis, utilise le réseau actif.
+**Comportement :** Teste la connectivité TCP vers l'endpoint du nœud du profil. Si `id` est omis, utilise le réseau actif.
 
 **Sortie :**
 ```
 Test de connectivité vers 89.167.102.193:7051...
-OK — peer joignable
+OK — nœud joignable
 ```
 
 > La latence n'est pas retournée par `networkSvc.TestConnection(id)` en v1 (le port retourne uniquement `error`). Un affichage de latence supposerait que le port retourne une durée — à ajouter si nécessaire en v2.
@@ -296,8 +287,8 @@ Les champs non extractibles du profil Fabric (CertPath, KeyPath) restent vides �
 ```
 Profil importé depuis connection-org1.json
   Nom        : diy-network
-  MSP ID     : Org1MSP
-  Peer       : 89.167.102.193:7051
+  Org ID     : Org1MSP
+  Nœud       : 89.167.102.193:7051
   Canal      : sandbox
   CA         : https://89.167.102.193:7054
   TLS cert   : data/certs/diy-network/tls-root.pem (extrait du profil)
@@ -326,14 +317,14 @@ myr network destroy <id> --confirm [--data-path <chemin>]
 | Drapeau | Type | Requis | Description |
 |---------|------|--------|-------------|
 | `--confirm` | bool | ✅ | Confirmation explicite obligatoire (RM28) |
-| `--data-path` | string | — | Chemin du répertoire ledger Fabric local à supprimer (défaut: `MYR_FABRIC_DATA_PATH` ou `/var/hyperledger/production`) |
+| `--data-path` | string | — | Chemin du répertoire ledger blockchain local à supprimer (défaut: `MYR_FABRIC_DATA_PATH` ou `/var/hyperledger/production`) |
 
 **Comportement (CLI Handler uniquement — pas dans le domaine, règle DC-D2-05) :**
 
 1. Vérifier la présence du flag `--confirm`. Si absent → afficher l'avertissement et sortir.
 2. Charger le profil via `networkSvc.List()`.
 3. Vérifier `profile.IsProduction == false`. Si production → refuser et sortir.
-4. **Arrêter les processus Fabric** (dépend du mode de déploiement — cf. § 3.9.1).
+4. **Arrêter les processus blockchain** (dépend du mode de déploiement — cf. § 3.9.1).
 5. **Supprimer les données ledger locales** : `os.RemoveAll(dataPath)`.
 6. **Supprimer les artefacts cryptographiques** : `os.RemoveAll("data/certs/" + profile.ID)`.
 7. **Supprimer le profil** : `networkSvc.Delete(id)`.
@@ -343,7 +334,7 @@ myr network destroy <id> --confirm [--data-path <chemin>]
 ```
 ATTENTION : Cette opération est irréversible.
 Elle supprimera toutes les données locales du réseau "diy-network".
-  - Processus Fabric (peer, orderer, CA) arrêtés
+  - Processus blockchain (nœuds, CA) arrêtés
   - Données ledger supprimées (/var/hyperledger/production)
   - Artefacts cryptographiques supprimés (data/certs/net-1700000000000/)
   - Profil réseau supprimé
@@ -376,13 +367,13 @@ Réseau "diy-network" démantelé. Toutes les données locales ont été supprim
 **Service :** `networkSvc.List()` (validation) + `networkSvc.Delete(id)` (suppression profil)
 Opérations OS restent dans le CLI Handler (ENF18, DC-D2-05).
 
-#### 3.9.1 Arrêt des processus Fabric
+#### 3.9.1 Arrêt des processus blockchain
 
-Le mode d'arrêt dépend du déploiement. Le CLI tente dans l'ordre :
+Le mode d'arrêt dépend du déploiement et de l'adaptateur actif (Fabric par défaut). Le CLI tente dans l'ordre :
 
 | Méthode | Condition | Commande |
 |---------|-----------|---------|
-| Docker Compose | `docker ps` détecte des conteneurs Fabric | `docker compose -f <compose-file> down` |
+| Docker Compose | `docker ps` détecte des conteneurs blockchain | `docker compose -f <compose-file> down` |
 | systemd | `/etc/systemd/system/fabric-*.service` existe | `systemctl stop fabric-peer fabric-orderer fabric-ca` |
 | pkill (fallback) | Toujours | `pkill -SIGTERM peer orderer fabric-ca-server` |
 | Timeout | Processus toujours actif après 10s | SIGKILL + avertissement |
@@ -396,14 +387,14 @@ Le chemin vers le fichier `docker-compose.yaml` est lu depuis `MYR_FABRIC_COMPOS
 ### 4.1 `myr org add`
 
 ```
-myr org add --org-id <orgID> --name <nom> --cert <cert.pem> [options]
+myr org add --org-id <id> --name <nom> --cert <cert.pem> [options]
 ```
 
 **Drapeaux :**
 
 | Drapeau | Type | Requis | Description |
 |---------|------|--------|-------------|
-| `--org-id` | string | ✅ | Identifiant de l'organisation sur le réseau (ex: MSP ID pour Fabric) |
+| `--org-id` | string | ✅ | Identifiant de l'organisation (`[a-zA-Z0-9_.-]{1,128}`) |
 | `--name` | string | ✅ | Nom lisible de l'organisation |
 | `--cert` | string | ✅ | Chemin vers le certificat CA racine PEM |
 | `--channel` | string | — | ID du canal cible (défaut: canal du réseau actif) |
@@ -414,13 +405,14 @@ myr org add --org-id <orgID> --name <nom> --cert <cert.pem> [options]
 
 **Comportement :**
 1. Le CLI Handler lit le certificat depuis `--cert` et optionnellement depuis `--tls-cert`.
-2. Résout le canal cible : `--channel` si fourni, sinon `FabricChannel` du réseau actif.
-3. Appelle `channelSvc.AddOrganisation(channelID, org)`.
+2. Valide que l'identifiant d'organisation respecte le format attendu (`[a-zA-Z0-9_.\-]{1,128}`).
+3. Résout le canal cible : `--channel` si fourni, sinon le canal du réseau actif.
+4. Appelle `channelSvc.AddOrganisation(channelID, org)`.
 
 **Sortie (succès) :**
 ```
-Organisation "Mon Organisation" (ID: MonOrgMSP) ajoutée au réseau.
-Attribuez des rôles avec : myr org role assign --org MonOrgMSP --role <roleNom>
+Organisation "Mon Organisation" (id: MonOrgMSP) ajoutée au canal sandbox.
+La configuration du canal est mise à jour sur le réseau.
 ```
 
 **Sortie (organisation déjà membre — mise à jour) :**
@@ -434,8 +426,8 @@ Organisation "Mon Organisation" mise à jour sur le réseau.
 
 | Code interne | Message CLI |
 |-------------|------------|
-| `ErrInvalidOrgID` | `Erreur : identifiant d'organisation invalide — format non conforme au backend actif.` |
-| `ErrBackendUnavailable` | `Erreur : backend blockchain non configuré — vérifiez le réseau actif.` |
+| `ErrInvalidMSPID` | `Erreur : identifiant d'organisation invalide — caractères non autorisés ou longueur hors limites (max 128).` |
+| `ErrFabricUnavailable` | `Erreur : adaptateur blockchain non configuré — vérifiez le réseau actif et les variables d'environnement.` |
 | `ErrEndorsementPolicy` | `Erreur : politique d'endorsement non satisfaite. Contactez les autres administrateurs d'organisation.` |
 | `file not found` | `Erreur : certificat introuvable : <chemin>` |
 | `ErrAlreadyMember` (si pas de --update) | Déclenche le flux de mise à jour (interactif ou via flag `--update`) |
@@ -619,7 +611,7 @@ Rôle "contributeur" supprimé. Retiré de 3 organisation(s).
 ### 5.1 `myr node add` *(UCADM03)*
 
 ```
-myr node add --type <peer|orderer> --addr <host:port> --org <mspID> [options]
+myr node add --type <peer|orderer> --addr <host:port> --org-id <id> [options]
 ```
 
 **Drapeaux :**
@@ -628,7 +620,7 @@ myr node add --type <peer|orderer> --addr <host:port> --org <mspID> [options]
 |---------|------|--------|-------------|
 | `--type` | string | ✅ | Type de nœud : `peer` ou `orderer` |
 | `--addr` | string | ✅ | Adresse du nœud (`host:port`, ex: `89.167.102.193:7051`) |
-| `--org` | string | ✅ | MSP ID de l'organisation propriétaire du nœud |
+| `--org-id` | string | ✅ | Identifiant de l'organisation propriétaire du nœud |
 | `--channel` | string | — | Canal cible (défaut: canal du réseau actif) |
 | `--cert` | string | — | Chemin vers le certificat TLS du nœud PEM |
 
@@ -636,11 +628,11 @@ myr node add --type <peer|orderer> --addr <host:port> --org <mspID> [options]
 1. Valide le format `host:port` de `--addr`.
 2. Résout le canal cible (cf. `--channel` ou réseau actif).
 3. Lit le certificat TLS si `--cert` fourni.
-4. Appelle `channelSvc.AddNode(channelID, nodeType, addr, orgMSP, certs)`.
+4. Appelle `channelSvc.AddNode(channelID, nodeType, addr, orgID, certs)`.
 
 **Sortie :**
 ```
-Soumission de la demande d'ajout du peer 89.167.102.193:7051 au canal sandbox...
+Soumission de la demande d'ajout du nœud peer 89.167.102.193:7051 au canal sandbox...
 Nœud peer 89.167.102.193:7051 ajouté. Synchronisation du ledger en cours.
 Synchronisation terminée à la hauteur 1042.
 ```
@@ -650,19 +642,47 @@ Synchronisation terminée à la hauteur 1042.
 | Code interne | Message CLI |
 |-------------|------------|
 | `ErrNodeUnreachable` | `Erreur : impossible de joindre 89.167.102.193:7051 — vérifiez le pare-feu et la disponibilité réseau.` |
-| `ErrFabricUnavailable` | `Erreur : adapter Fabric non configuré.` |
+| `ErrFabricUnavailable` | `Erreur : adaptateur blockchain non configuré.` |
 | `ErrEndorsementPolicy` | `Erreur : politique d'endorsement non satisfaite. Contactez les autres administrateurs.` |
-| `ErrSyncTimeout` | `Avertissement : le peer est ajouté mais la synchronisation a dépassé le délai. Vérifiez la connectivité avec : myr network test` |
+| `ErrSyncTimeout` | `Avertissement : le nœud est ajouté mais la synchronisation a dépassé le délai. Vérifiez la connectivité avec : myr network test` |
 
-**Cas orderer :** Mêmes flags. Le CLI Handler communique que les paramètres Raft sont gérés par Fabric — seuls addr, org et cert sont requis pour l'enregistrement.
+**Cas orderer :** Mêmes flags. Le CLI Handler communique que les paramètres de consensus sont gérés par l'adaptateur actif — seuls addr, org-id et cert sont requis pour l'enregistrement.
 
-**Service :** `channelSvc.AddNode(channelID, nodeType, addr, orgMSP, certs)`
+**Service :** `channelSvc.AddNode(channelID, nodeType, addr, orgID, certs)`
 
 **Port requis :** `ChannelService.AddNode()` — méthode à ajouter au port `domain/channel/port_in.go`
 
 ---
 
-### 5.2 `myr node remove` *(UCADM04)*
+### 5.2 `myr node provision` — enregistrer l'identité d'un nouveau nœud
+
+```
+myr node provision --node-id <id> [--hostname <host>] [--out <dossier>] [options]
+```
+
+**Drapeaux :**
+
+| Drapeau | Type | Requis | Description |
+|---------|------|--------|-------------|
+| `--node-id` | string | ✅ | Identité CA du nœud, ex: `node1.org1.example.com` |
+| `--hostname` | string | — | Hostname/IP pour le SAN TLS (défaut: `--node-id`) |
+| `--secret` | string | — | Secret d'enrôlement (généré automatiquement si omis) |
+| `--out` | string | — | Répertoire de sortie pour les identifiants (défaut: `./<node-id>`) |
+| `--network` | string | — | ID du réseau (défaut: réseau actif) |
+
+**Comportement :** Enregistre le nœud auprès de l'autorité de certification du réseau actif (`networkSvc.AddPeer`), puis écrit sur disque les fichiers renvoyés par l'adaptateur actif (`PeerCredentials.Files`) et affiche les instructions de démarrage qu'il fournit (`PeerCredentials.StartupInstructions`). Le CLI ne connaît ni la mise en page des fichiers ni la manière de démarrer le nœud — c'est l'adaptateur (ex: `adapters/out/fabric/`) qui porte cette connaissance.
+
+**Sortie :** liste des fichiers générés et instructions de démarrage propres à l'adaptateur actif.
+
+**Erreurs :**
+- `Erreur : service réseau non disponible — relancez myr avec une configuration réseau`
+- `Erreur : échec : <détail renvoyé par l'adaptateur>`
+
+**Service :** `networkSvc.AddPeer(networkID, AddPeerRequest{PeerID, Hostname, Secret})`
+
+---
+
+### 5.3 `myr node remove` *(UCADM04)*
 
 ```
 myr node remove --addr <host:port> [--channel <channelID>]
@@ -687,11 +707,11 @@ Nœud 89.167.102.193:7051 retiré du canal sandbox.
 3 nœuds actifs restants sur ce canal.
 ```
 
-**Avertissement gateway peer :**
+**Avertissement nœud d'entrée :**
 ```
-Avertissement : le nœud retiré était le gateway peer du réseau actif.
-Reconfigurez le gateway avec :
-  myr network update net-1700000000000 --gateway <nouveau-peer>
+Avertissement : le nœud retiré était le nœud d'entrée (TLS) du réseau actif.
+Reconfigurez le nœud d'entrée avec :
+  myr network update net-1700000000000 --gateway <nouveau-nœud>
 ```
 
 **Erreurs :**
@@ -700,7 +720,7 @@ Reconfigurez le gateway avec :
 |-------------|------------|
 | `ErrNodeNotMember` | `Erreur : 89.167.102.193:7051 n'est pas membre actif du canal sandbox.` |
 | `ErrMinNodesRequired` | `Erreur : le réseau doit conserver au moins 3 nœuds actifs. Retrait impossible (actuellement 3 nœuds actifs). [RM27]` |
-| `ErrFabricUnavailable` | `Erreur : adapter Fabric non configuré.` |
+| `ErrFabricUnavailable` | `Erreur : adaptateur blockchain non configuré.` |
 | `ErrEndorsementPolicy` | `Erreur : politique d'endorsement non satisfaite. Contactez les autres administrateurs.` |
 
 **Service :** `channelSvc.RemoveNode(channelID, addr)`

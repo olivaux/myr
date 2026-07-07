@@ -1,13 +1,13 @@
 ﻿---
 categorie: Atelier Module
-titre: "Retirer un composant de l'atelier"
+titre: "Retirer une instance de composant d'un Module"
 probabilite: 4
 impact: 4
 importance: 16
 etat: relire
 ---
 
-# Retirer un composant de l'atelier
+# Retirer une instance de composant d'un Module
 
 ## Diagramme d'acteurs
 
@@ -18,7 +18,7 @@ left to right direction
 actor "Concepteur" as C
 
 rectangle "Application MYR" {
-    usecase "Retirer un composant de l'atelier" as UC1
+    usecase "Retirer une instance de composant d'un module" as UC1
     usecase "Supprimer les liaisons en cascade" as UC2
 }
 
@@ -30,40 +30,32 @@ UC1 ..> UC2 : <<include>>
 
 ## Contexte
 
-L'utilisateur peut retirer un composant ou un module de son espace de travail (atelier). Cette opération supprime **uniquement l'instance locale** : le composant reste disponible sur le réseau blockchain et peut être rajouté à tout moment.
+Une instance de composant ou de module ajoutée à un module hôte peut en être retirée par une action directe (`RemoveAssetFromWorkspace` au niveau du domaine). Cette opération supprime **uniquement l'instance** : le composant reste disponible sur le réseau blockchain et peut être rajouté à tout moment.
 
-Toutes les liaisons impliquant cette instance sont supprimées automatiquement en cascade — elles ne peuvent pas rester orphelines dans l'atelier.
+Toutes les liaisons impliquant cette instance sont supprimées automatiquement en cascade — elles ne peuvent pas rester orphelines.
 
 ## Pré-conditions
 
-- Être dans l'atelier
-- Avoir au moins un composant sélectionné dans l'atelier
+- Connaître l'identifiant du module hôte et de l'instance à retirer (`myr module get <id>` pour lister ses instances)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant dans l'atelier et choisit "Retirer"
+**Étape initiale :** `myr module instance remove <moduleID> <instanceID>` est exécutée (ou l'appel API équivalent), sans étape de confirmation interactive
 
 ### Flux nominal — Retrait sans liaisons actives
 
-1. Le composant n'a aucune liaison dans l'atelier
-2. Le composant est retiré de l'atelier immédiatement
+1. L'instance ciblée n'a aucune liaison enregistrée
+2. Elle est retirée immédiatement du module
 
 ### Flux nominal — Retrait avec liaisons en cascade
 
-1. Le composant possède des liaisons avec d'autres composants dans l'atelier
-2. Le système affiche un avertissement listant les liaisons qui seront supprimées
-3. L'utilisateur confirme le retrait
-4. Toutes les liaisons impliquant ce composant sont supprimées en cascade
-5. Le composant est retiré de l'atelier
-
-### Flux erreur — Refus de confirmation
-
-1. L'utilisateur annule à l'étape de confirmation
-2. Aucune modification n'est effectuée — le composant reste dans l'atelier
+1. L'instance ciblée possède des liaisons avec d'autres instances du module
+2. Toutes les liaisons impliquant cette instance sont supprimées en cascade (RM15)
+3. L'instance est retirée du module
 
 ## Post-conditions
 
-- Le composant n'est plus visible dans l'atelier
+- Le composant n'est plus une instance du module hôte
 - Toutes ses liaisons sont supprimées (cascade)
 - Le composant reste disponible sur le réseau et peut être réajouté (voir UCMOD02)
 - **Aucune transaction blockchain n'est émise** — Fabric ne supporte pas la suppression d'asset
@@ -81,7 +73,7 @@ title Retrait du composant C2 → cascade sur ses liaisons
 (C2) -- (C3) : liaison L2 ← supprimée
 (C3) -- (C4) : liaison L3 ← conservée
 
-note bottom of (C2) : retiré de l'atelier
+note bottom of (C2) : instance retirée
 @enduml
 ```
 
@@ -90,22 +82,15 @@ note bottom of (C2) : retiré de l'atelier
 ```plantuml
 @startuml
 skin rose
-title Retirer un composant de l'atelier
+title Retirer une instance de composant d'un Module
 start
-:Sélectionner un composant dans l'atelier;
-:Choisir "Retirer";
-if (Composant a des liaisons actives?) then (oui)
-  :Afficher un avertissement listant les liaisons à supprimer;
-  if (Utilisateur confirme?) then (oui)
-    :Supprimer toutes les liaisons en cascade;
-    :Retirer le composant de l'atelier;
-    stop
-  else (non)
-    :Annuler — le composant reste dans l'atelier;
-    stop
-  endif
+:Transmettre moduleID et instanceID (myr module instance remove);
+if (Instance a des liaisons actives?) then (oui)
+  :Supprimer toutes les liaisons en cascade (RM15);
+  :Retirer l'instance du module;
+  stop
 else (non)
-  :Retirer le composant de l'atelier immédiatement;
+  :Retirer l'instance du module immédiatement;
   stop
 endif
 @enduml

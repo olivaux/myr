@@ -32,6 +32,8 @@ UC1 ..> UC2 : <<include>>
 
 L'auteur d'un module peut définir un prix pour l'utilisation commerciale ou la commande de celui-ci.
 
+Conformément au principe de parité CLI/REST (CLAUDE.md), la définition d'un prix sur un module doit être exposable en CLI au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -40,13 +42,12 @@ L'auteur d'un module peut définir un prix pour l'utilisation commerciale ou la 
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur accède à son module et ouvre la section "Tarification"
+**Étape initiale :** `myr module price set <id> <montant> --currency <devise>` est exécutée (ou l'appel API équivalent), pour le compte du propriétaire du module
 
 ### Flux nominal — Prix défini
 
-1. L'utilisateur définit le prix du module
-2. Il sélectionne la devise
-3. Il valide la transaction
+1. Le prix du module et la devise sont transmis
+2. La transaction est validée
 
 ## Post-conditions
 
@@ -84,9 +85,7 @@ Le prix d'un module (ProductA) agrège les prix unitaires de chaque composant co
 skin rose
 title Définir un prix sur un Module propriétaire
 start
-:Accéder au module et ouvrir la section "Tarification";
-:Définir le prix du module;
-:Sélectionner la devise;
+:Transmettre prix du module et devise (myr module price set);
 :Valider la transaction;
 stop
 @enduml

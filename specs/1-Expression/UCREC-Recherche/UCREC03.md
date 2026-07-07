@@ -36,17 +36,17 @@ UC1 ..> UC2 : <<include>>
 ## Pré-conditions
 
 - Être connecté au réseau
-- Avoir un composant sélectionné
+- Avoir un identifiant de composant
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant et accède à "Versions"
+**Étape initiale :** Les descendants directs et récursifs sont listés (`myr model children <parentID>`, ou l'appel API équivalent)
 
-### Flux nominal — Arbre de versions affiché
+### Flux nominal — Arbre de versions retourné
 
-1. Le système remonte la chaîne de dépendances sur la blockchain
-2. L'arbre de versions est affiché (parent → enfants avec leur type : AMELIORATION, VARIATION, ADAPTATION...)
-3. L'utilisateur peut naviguer dans l'arbre et consulter chaque version
+1. Les descendants directs et récursifs sont listés (`myr model children <parentID>`)
+2. Les ascendants sont reconstitués par appels successifs à `myr model get <parentID>` en suivant `ParentID` jusqu'à la racine
+3. L'arbre complet (ascendants + descendants) est recomposé, avec le type de chaque version (AMELIORATION, VARIATION, ADAPTATION...)
 
 ## Post-conditions
 
@@ -59,14 +59,9 @@ UC1 ..> UC2 : <<include>>
 skin rose
 title Rechercher les versions des Composants
 start
-:Sélectionner un composant et accéder à "Versions";
-:Remonter la chaîne de dépendances sur la blockchain;
-:Afficher l'arbre de versions (parent → enfants avec leur type);
-if (Navigation dans l'arbre?) then (oui)
-  :Consulter une version spécifique;
-  stop
-else (non)
-  stop
-endif
+:Lister les descendants (myr model children);
+:Reconstituer les ascendants (myr model get suivant ParentID);
+:Retourner l'arbre complet (parent → enfants avec leur type);
+stop
 @enduml
 ```

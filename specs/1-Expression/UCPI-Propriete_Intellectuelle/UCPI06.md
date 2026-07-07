@@ -32,7 +32,9 @@ UC1 .> UC2 : <<extend>>
 
 ## Contexte
 
-Signaler un composant similaire à un autre non pris en compte par le système. Forme de protection communautaire pour garantir la pertinence et l'intégrité du réseau.
+Signaler un composant similaire à un autre non pris en compte par le système. Forme de protection communautaire pour garantir la pertinence et l'intégrité du réseau, complémentaire à RM01.
+
+Conformément au principe de parité CLI/REST (CLAUDE.md), le signalement d'un composant similaire doit pouvoir être initié en CLI pour le compte d'un utilisateur, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 
@@ -41,12 +43,12 @@ Signaler un composant similaire à un autre non pris en compte par le système. 
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant et choisit "Signaler un similaire"
+**Étape initiale :** `myr model report-similar <id> <referenceID>` est exécutée (ou l'appel API équivalent)
 
 ### Flux nominal — Signalement soumis
 
-1. L'utilisateur indique le composant de référence (similaire existant)
-2. Il ajoute une justification
+1. Le composant de référence (similaire existant) est transmis
+2. Une justification est ajoutée
 3. Le signalement est soumis à l'administration
 
 ## Post-conditions
@@ -60,9 +62,7 @@ Signaler un composant similaire à un autre non pris en compte par le système. 
 skin rose
 title Déclarer un composant similaire
 start
-:Sélectionner un composant et choisir "Signaler un similaire";
-:Indiquer le composant de référence (similaire existant);
-:Ajouter une justification;
+:Transmettre le composant de référence et une justification (myr model report-similar);
 :Soumettre le signalement à l'administration;
 stop
 @enduml

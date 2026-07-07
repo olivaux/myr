@@ -35,19 +35,19 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 | ID | Règle | Déclencheur | Condition | Conséquence | UC |
 |----|-------|------------|-----------|-------------|-----|
 | RM09 | **Interface à usage unique** | Tentative de liaison d'une interface déjà engagée | Interface source ou cible déjà utilisée dans une liaison | La liaison est refusée | UCAM01 |
-| RM10 | **Vérification de compatibilité automatique** | Création de toute liaison | Toujours | Le système appelle `ifacesCompatible` pour vérifier la cohérence de la paire avant d'enregistrer la liaison. Une liaison incompatible ne peut pas être créée via l'atelier (les interfaces incompatibles sont rendues non sélectionnables). L'incompatibilité post-création est couverte par RM12 | UCAM01 |
+| RM10 | **Vérification de compatibilité automatique** | Création de toute liaison | Toujours | Le système appelle `ifacesCompatible` pour vérifier la cohérence de la paire avant d'enregistrer la liaison. Une liaison incompatible est refusée par le service. L'incompatibilité post-création est couverte par RM12 | UCAM01 |
 | RM11 | **Critères de compatibilité d'interfaces** | Appel de `ifacesCompatible` | Toujours | Deux interfaces sont compatibles si : (1) même catégorie (Électrique, Mécanique, Numérique…), (2) même tag (Câble, vis…) si renseigné, (3) même type (USB-C, UART…) si renseigné, (4) sens complémentaires (♂/♀ ou bidirectionnel), (5) plages de valeurs se chevauchant (`ValueMin`/`ValueMax`) | UCAM01, UCAM03 |
-| RM12 | **Persistance des liaisons incompatibles** | Liaison devenant incompatible après modification d'un asset | Toujours | La liaison n'est pas supprimée automatiquement. Elle passe à `Incompatible: true` et doit rester accessible dans l'atelier jusqu'à suppression manuelle par l'utilisateur | UCAM01 |
-| RM13 | **Slot virtuel garanti** | Ajout d'un asset dans l'atelier | Toujours | Chaque asset dispose en permanence d'au moins un slot virtuel (`Virtual: true`). Dès qu'un slot virtuel est matérialisé en interface, un nouveau slot virtuel est recréé automatiquement | UCAM03, UCAM06 |
+| RM12 | **Persistance des liaisons incompatibles** | Liaison devenant incompatible après modification d'un asset | Toujours | La liaison n'est pas supprimée automatiquement. Elle passe à `Incompatible: true` et doit rester accessible jusqu'à suppression manuelle par l'utilisateur | UCAM01 |
+| RM13 | **Slot virtuel garanti** | Ajout d'un asset à un module | Toujours | Chaque asset dispose en permanence d'au moins un slot virtuel (`Virtual: true`). Dès qu'un slot virtuel est matérialisé en interface, un nouveau slot virtuel est recréé automatiquement | UCAM02, UCAM03 |
 
 ---
 
-## 4. Atelier (Workspace)
+## 4. Composition d'un Module (instances)
 
 | ID | Règle | Déclencheur | Condition | Conséquence | UC |
 |----|-------|------------|-----------|-------------|-----|
-| RM14 | **Suppression en cascade des connexions** | Retrait d'un asset de l'atelier (`RemoveAssetFromWorkspace`) | Toujours | Toutes les connexions de l'instance retirée sont supprimées automatiquement. Les assets liés restent dans l'atelier mais leurs interfaces concernées redeviennent libres | UCAM08 |
-| RM15 | **Instance indépendante** | Ajout d'un module déjà présent dans l'atelier | Module déjà instancié | Une seconde instance est créée avec ses propres connexions, indépendantes de la première | UCMOD02 |
+| RM14 | **Suppression en cascade des connexions** | Retrait d'une instance d'un module (`RemoveAssetFromWorkspace`) | Toujours | Toutes les connexions de l'instance retirée sont supprimées automatiquement. Les assets liés restent dans le module mais leurs interfaces concernées redeviennent libres | UCAM08 |
+| RM15 | **Instance indépendante** | Ajout d'un module déjà instancié dans le module hôte | Module déjà instancié | Une seconde instance est créée avec ses propres connexions, indépendantes de la première | UCMOD02 |
 
 ---
 
@@ -55,7 +55,7 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 
 | ID | Règle | Déclencheur | Condition | Conséquence | UC |
 |----|-------|------------|-----------|-------------|-----|
-| RM16 | **État draft obligatoire** | Création d'un module dans l'atelier | Toujours | Un module nouvellement créé est en état `draft`. Il n'est pas visible sur le réseau. Il peut être modifié librement tant qu'il n'est pas soumis | UCMOD01 |
+| RM16 | **État draft obligatoire** | Création d'un module | Toujours | Un module nouvellement créé est en état `draft`. Il n'est pas visible sur le réseau. Il peut être modifié librement tant qu'il n'est pas soumis | UCMOD01 |
 | RM17 | **Assemblage requis pour soumission** | Appel de `SubmitModule` | Toujours | Le module doit contenir au moins une liaison entre composants. Si aucune liaison → soumission rejetée avec message explicite | UCMOD06 |
 | RM18 | **ModuleVersion immuable** | Soumission réussie d'un module | Toujours | Une `ModuleVersion` est créée avec un hash de l'assemblage et un horodatage. Ce snapshot est immuable. Toute modification ultérieure exige la création d'une nouvelle version | UCMOD06 |
 | RM19 | **Fork de module** | Modification d'un module publié | Toujours | Un module publié ne peut pas être modifié directement. Une nouvelle version (fork) doit être créée en état `draft` | UCMOD06 |
@@ -66,9 +66,9 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 
 | ID | Règle | Déclencheur | Condition | Conséquence | UC |
 |----|-------|------------|-----------|-------------|-----|
-| RM20 | **Provisionnement blockchain différé** | Première connexion d'un utilisateur | Compte existant, première connexion JWT | L'identité Fabric CA (certificat X.509) est provisionnée automatiquement par le backend. Elle n'est PAS créée à la création du compte | UCA01, UCA02 |
-| RM21 | **Rôle Lecteur par défaut** | Création de compte | Toujours | Tout compte nouvellement créé reçoit automatiquement le rôle **Lecteur** (lecture seule). Aucune approbation admin n'est requise pour l'activation du compte | UCA01 |
-| RM22 | **Distribution d'un rôle supplémentaire** | Demande de rôle depuis le profil | Toujours | Si le rôle cible est configuré en auto-distribution → il est attribué immédiatement. Sinon → la demande est soumise à l'administrateur, le rôle reste en attente de validation | UCA08 |
+| RM20 | **Identité = enrôlement CA, pas un compte séparé** | Connexion (`POST /api/identity/session`) | Toujours | Il n'existe pas de « création de compte » distincte de l'identité blockchain : se connecter, c'est enrôler (ou ré-enrôler) l'identité auprès de la Fabric CA avec le secret fourni. Aucun compte email/mot de passe n'est créé au préalable | UCA01, UCA02 |
+| RM21 | **Rôle Lecteur par défaut à l'auto-enregistrement** | `POST /api/identity/request` avec auto-enregistrement réseau actif (`AllowAutoRegister`) | Le profil réseau ne définit pas explicitement un autre rôle (`AutoRegisterRole`) | Une identité auto-enregistrée reçoit par défaut le rôle **Lecteur** (`reader`), sauf si le profil réseau configure explicitement un autre rôle initial | UCA01 |
+| RM22 | **Changement de rôle réservé à l'administrateur** | `myr identity set-role` | Toujours | Seul l'administrateur peut modifier le rôle (`Myr.role`) d'une identité existante auprès de la CA. Le nouveau rôle ne s'applique qu'au prochain ré-enrôlement de l'identité — ce n'est pas immédiat | UCA08 |
 
 ---
 
@@ -116,17 +116,17 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 | RM09 | Interface à usage unique dans une liaison | Interfaces |
 | RM10 | Vérification de compatibilité automatique à la création | Interfaces |
 | RM11 | Critères de compatibilité : catégorie + tag + type + sens + plage de valeurs | Interfaces |
-| RM12 | Liaison incompatible persistante (rouge, Incompatible:true) | Interfaces |
+| RM12 | Liaison incompatible persistante (`Incompatible:true`, non supprimée automatiquement) | Interfaces |
 | RM13 | Slot virtuel garanti et recréé automatiquement à chaque matérialisation | Interfaces |
-| RM14 | Suppression en cascade des connexions à la sortie d'atelier | Atelier |
-| RM15 | Seconde instance indépendante si module déjà dans l'atelier | Atelier |
+| RM14 | Suppression en cascade des connexions au retrait d'une instance | Composition (instances) |
+| RM15 | Seconde instance indépendante si module déjà instancié dans le module hôte | Composition (instances) |
 | RM16 | Module en état draft à la création | Modules |
 | RM17 | Au moins un assemblage requis pour soumettre | Modules |
 | RM18 | ModuleVersion immuable horodatée à la soumission | Modules |
 | RM19 | Toute modification d'un module publié crée une nouvelle version | Modules |
-| RM20 | Provisionnement blockchain à la première connexion (pas à la création) | Compte |
-| RM21 | Rôle Lecteur attribué par défaut à la création de compte | Compte |
-| RM22 | Rôle supplémentaire : auto si configuré, sinon validation admin | Compte |
+| RM20 | Identité = enrôlement CA — pas de compte email/mot de passe séparé | Compte |
+| RM21 | Rôle Lecteur par défaut à l'auto-enregistrement, sauf rôle explicite | Compte |
+| RM22 | Changement de rôle réservé à l'administrateur (`myr identity set-role`) | Compte |
 | RM23 | Commissions distribuées automatiquement à la livraison | PI |
 | RM24 | Répartition proportionnelle par auteur | PI |
 | RM25 | Transfert de propriété définitif et immuable | PI |

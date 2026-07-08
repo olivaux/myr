@@ -47,7 +47,7 @@ Un peer déconnecté trop longtemps devient inutilisable (ledger désynchronisé
 
 ## Pré-conditions
 
-- L'administrateur est authentifié avec le rôle `admin` (JWT valide).
+- L'administrateur dispose d'un accès SSH au serveur et exécute la commande CLI localement (`myr node add`) — pas d'authentification REST pour cette opération.
 - Un réseau opérationnel existe (UCADM02 réalisé).
 - Le serveur cible est accessible avec une IP fixe publique (port 7051 pour peer, port 7050 pour orderer).
 - L'organisation propriétaire du nœud est déjà membre du réseau (UCADM01 réalisé).
@@ -111,7 +111,7 @@ Un peer déconnecté trop longtemps devient inutilisable (ledger désynchronisé
 
 ```plantuml
 @startuml
-participant "CLI Admin\n(myr.exe)" as CLI
+participant "CLI Admin\n(myr)" as CLI
 participant "CLI Handler\n(adapters/in/cli/)" as CLIHandler
 participant "Channel Service\n(domain/channel/)" as ChanSvc
 participant "Network Service\n(domain/network/)" as NetSvc

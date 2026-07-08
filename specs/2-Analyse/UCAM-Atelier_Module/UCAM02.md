@@ -18,85 +18,63 @@ left to right direction
 actor "Concepteur" as C
 actor "Consommateur" as CL
 
-rectangle "Application MYR" {
-    usecase "Visualiser les interfaces physiques" as UC1
-    usecase "Consulter le détail d'une interface" as UC2
-    usecase "Distinguer interfaces libres / utilisées" as UC3
+rectangle "API myr" {
+    usecase "Obtenir les interfaces physiques" as UC1
 }
 
 C --> UC1
 CL --> UC1
-UC1 ..> UC2 : <<extend>>
-UC1 ..> UC3 : <<include>>
 
 @enduml
 ```
 
 ## Contexte
 
-Chaque composant ou module présent dans l'Atelier expose ses interfaces physiques (`AssetInterface`) comme points de connexion cliquables. La visualisation est le prérequis de toute opération de liaison (UCAM01) ou de création d'interface (UCAM03).
+Chaque composant ou module expose ses interfaces physiques (`AssetInterface`) comme points de connexion. Cette lecture est le prérequis de toute opération de liaison (UCAM01) ou de création d'interface (UCAM03) côté client.
 
-Les interfaces sont persistées dans l'`InterfaceStore` local (non sur la blockchain) et récupérées via `GET /api/components/:id/interfaces` ou `GET /api/modules/:id/interfaces`.
+Les interfaces sont persistées dans l'`InterfaceStore` local tant que l'asset qui les porte est en brouillon (ADR-02, `specs/3-Conception/Conception_intro.md`) — récupérées via `GET /api/components/:id/interfaces` ou `GET /api/modules/:id/interfaces`. Elles ne rejoignent la blockchain (`Model3D.Interfaces`) qu'à la soumission de l'asset.
 
 Pour un module, les interfaces exposées sont calculées dynamiquement : seules les interfaces des sous-composants **non reliées en interne** sont exposées (`GetModuleInterfaces` — calcul récursif avec cache).
 
-Un slot virtuel (`Virtual: true`) est toujours présent sur chaque asset (RM13), représenté visuellement par une icône "+" permettant de créer une nouvelle interface (voir UCAM03).
+Un slot virtuel (`Virtual: true`) est toujours présent sur chaque asset (RM13), permettant au client de proposer la création d'une nouvelle interface (voir UCAM03).
+
+> La représentation visuelle (icônes, grisage, tooltip) relève du dépôt GUI externe — hors périmètre de ce document. Le contrat REST ci-dessous ainsi que son équivalent CLI (`myr model interface list`, voir Notes d'implémentation) font partie de `myr`.
 
 ## Pré-conditions
 
 - L'utilisateur est authentifié (rôle **Lecteur** minimum)
-- Au moins un composant est sélectionné dans l'Atelier ou dans l'Explorer UI
-- L'`InterfaceStore` est configuré côté serveur (mode GUI)
+- Un composant ou module est identifié (ID connu du client)
+- L'`InterfaceStore` est configuré côté serveur
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant dans l'Atelier ou clique sur un asset dans l'Explorer UI
+### Flux nominal — Interfaces d'un composant simple
 
-### Flux nominal — Affichage des interfaces d'un composant simple
-
-1. Le navigateur envoie `GET /api/components/:id/interfaces`
-2. Le handler appelle `service.ListInterfacesForAsset(assetID)`
-3. Si aucune interface n'existe encore, `EnsureVirtualSlot(assetID)` crée un slot virtuel (RM13)
+1. Le client appelle `GET /api/components/:id/interfaces`
+2. Le handler appelle `service.ListInterfacesForAsset(assetID)`, qui lit le brouillon local (`InterfaceStore`) si l'asset n'est pas encore soumis, sinon `Model3D.Interfaces` via `blockchain.GetModelRecord()`
+3. Si aucune interface n'existe encore, `EnsureVirtualSlot(assetID)` crée un slot virtuel (RM13) et le persiste localement (brouillon)
 4. La liste des interfaces est retournée : chaque interface contient `{ id, asset_id, name, category, tag, type, direction, value_min, value_max, is_range, unit, virtual }`
-5. L'UI affiche chaque interface avec son icône et son sens (entrée/sortie/bidirectionnel)
-6. Les interfaces déjà engagées dans une liaison sont grisées (libres vs utilisées)
-7. Le slot virtuel (`virtual: true`) est représenté par une icône "+" distincte
 
-### Flux nominal — Affichage des interfaces d'un module
+### Flux nominal — Interfaces d'un module
 
-1. Le navigateur envoie `GET /api/modules/:id/interfaces`
+1. Le client appelle `GET /api/modules/:id/interfaces`
 2. Le handler appelle `service.GetModuleInterfaces(id)` — calcul récursif
 3. Le service parcourt les `WorkspaceInstances` du module et collecte les interfaces de chaque sous-composant
 4. Seules les interfaces non présentes dans une connexion interne au module sont retournées (interfaces "exposées")
 5. Un slot virtuel propre au module est garanti si aucune interface directe n'existe
-6. L'UI affiche les interfaces exposées du module
-
-### Flux alternatif — Survol d'une interface (tooltip)
-
-1. L'utilisateur survole une interface dans l'UI
-2. Un tooltip affiche les détails complets :
-   - **Catégorie** (ex: `ELEC`, `MECA`, `HYD`)
-   - **Tag** (ex: `Câble`, `Vis`) — REQUIS dans le modèle cible, absent du code actuel (E2)
-   - **Type** (ex: `USB-C`, `Vis M3`)
-   - **Sens** (`in` / `out` / `bidir`)
-   - **Valeur** : fixe (`value_min`) ou plage (`value_min` – `value_max`)
-   - **Unité** (ex: `V`, `mm`, `bar`)
 
 ### Flux erreur — InterfaceStore non configuré
 
 1. Le service `ListInterfacesForAsset()` retourne `nil, nil` (pas d'erreur — juste une liste vide)
-2. L'UI affiche un composant sans interfaces (sauf si `EnsureVirtualSlot` peut créer le slot)
 
 ### Flux erreur — Asset introuvable
 
 1. `GET /api/components/:id/interfaces` pour un ID inexistant
 2. Le handler retourne HTTP 404 ou une liste vide selon l'état du store
-3. L'UI affiche "Aucune interface définie"
 
 ## Post-conditions
 
-- Les interfaces physiques du composant ou module sont affichées dans l'Atelier
-- Les interfaces libres et utilisées sont visuellement distinguées
+- Les interfaces physiques du composant ou module sont retournées au client
 - Le slot virtuel (`Virtual: true`) est toujours présent (RM13)
 - L'état du système est inchangé (lecture seule)
 
@@ -104,13 +82,13 @@ Un slot virtuel (`Virtual: true`) est toujours présent sur chaque asset (RM13),
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Client
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 
 alt Composant simple
-    Browser -> REST : GET /api/components/:id/interfaces
+    Client -> REST : GET /api/components/:id/interfaces
     REST -> Service : ListInterfacesForAsset(assetID)
     Service -> Local : ifaceStore.ListInterfacesForAsset(assetID)
     Local --> Service : []*AssetInterface
@@ -123,10 +101,10 @@ alt Composant simple
     end
 
     Service --> REST : []*AssetInterface
-    REST --> Browser : 200 [{ id, category, tag, type,\n  direction, value_min, value_max,\n  is_range, unit, virtual }]
+    REST --> Client : 200 [{ id, category, tag, type,\n  direction, value_min, value_max,\n  is_range, unit, virtual }]
 
 else Module (interfaces exposées)
-    Browser -> REST : GET /api/modules/:id/interfaces
+    Client -> REST : GET /api/modules/:id/interfaces
     REST -> Service : GetModuleInterfaces(moduleID)
 
     loop Pour chaque WorkspaceInstance du module
@@ -136,11 +114,8 @@ else Module (interfaces exposées)
 
     Service -> Service : filtrer interfaces internes\n(présentes dans connexions du module)
     Service --> REST : []*AssetInterface exposées
-    REST --> Browser : 200 [interfaces exposées]
+    REST --> Client : 200 [interfaces exposées]
 end
-
-Browser -> Browser : afficher interfaces avec\nicônes directionnelles\ngrisage des interfaces utilisées
-
 @enduml
 ```
 
@@ -153,7 +128,6 @@ Browser -> Browser : afficher interfaces avec\nicônes directionnelles\ngrisage 
 
 ## Exigences non-fonctionnelles
 
-- **ENF22** — L'affichage des interfaces doit être fonctionnel sur Chrome 120+, Firefox 120+, Safari 17+, Edge 120+
 - **ENF12** — Lecture authentifiée côté serveur (rôle `reader` minimum)
 - Temps de réponse `GET /api/components/:id/interfaces` : `< 200 ms` (opération locale)
 
@@ -167,6 +141,8 @@ Browser -> Browser : afficher interfaces avec\nicônes directionnelles\ngrisage 
 
 **Interfaces exposées d'un module :** Le calcul est récursif dans `getModuleInterfacesInto()`. Un cache `map[string][]*AssetInterface` évite les appels blockchain redondants. Les interfaces internes (présentes dans `m.Assemblies` comme `FromIfaceID` ou `ToIfaceID`) sont exclues du résultat.
 
-**Grisage des interfaces utilisées :** La logique côté client consiste à croiser la liste des interfaces avec la liste des connexions actives. Une interface est "utilisée" si son `id` apparaît dans `connection.from_iface_id` ou `connection.to_iface_id` d'une connexion non incompatible.
+**Statut d'utilisation d'une interface :** une interface est "utilisée" si son `id` apparaît dans `connection.from_iface_id` ou `connection.to_iface_id` d'une connexion non incompatible — c'est un croisement que le client peut effectuer localement à partir des réponses de `GET .../interfaces` et `GET /api/connections`, sans appel serveur supplémentaire.
 
 **Vocabulaire de référence :** Les catégories, types et unités disponibles sont chargés via `GET /api/refs` — `handleRefs()` → `GetRefs()`. Ce vocabulaire est extensible par l'administrateur.
+
+**Commande CLI équivalente (cible) :** `myr model interface list <assetID>` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.3). Elle appelle `ModelService.ListInterfacesForAsset(assetID)` — ou `ModelService.GetModuleInterfaces(id)` si l'ID désigne un module, la commande détectant le type via `Get`/`GetModule` — soit les mêmes méthodes de service que respectivement `GET /api/components/:id/interfaces` et `GET /api/modules/:id/interfaces`. Le comportement (slot virtuel garanti RM13, calcul récursif des interfaces exposées d'un module) est strictement identique ; seul le canal de sortie change : une ligne par interface (`id`, `category`, `type`, `direction`, valeur/plage, `unit`, `virtual`) en texte terminal plutôt qu'un tableau JSON.

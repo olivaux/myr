@@ -34,7 +34,7 @@ UC1 ..> UC4 : <<extend>>
 
 ## Contexte
 
-La liaison est l'opération centrale de l'Atelier. Elle relie deux interfaces physiques (`AssetInterface`) de deux assets distincts présents dans l'Atelier, créant une `Connection` persistée dans le `ConnectionStore` local.
+La liaison est l'opération centrale de la composition d'un module. Elle relie deux interfaces physiques (`AssetInterface`) de deux assets distincts instanciés dans un module, créant une `Connection` persistée dans le `ConnectionStore` local.
 
 Une liaison peut être **directe** (`FastenerAssetID` vide) ou **via un asset d'accroche** (`FastenerAssetID` renseigné — voir UCAM07). La vérification de compatibilité (RM10) est systématique et automatique à la création.
 
@@ -44,64 +44,56 @@ Une liaison peut être **directe** (`FastenerAssetID` vide) ou **via un asset d'
 
 ## Pré-conditions
 
-- L'utilisateur est authentifié avec le rôle **Concepteur** (`contributor`)
-- Un module est ouvert dans l'Atelier (état `draft`)
-- Au moins deux assets sont présents dans l'Atelier avec des interfaces définies
+- L'identité agit avec le rôle **Concepteur** (`contributor`)
+- Un module cible existe, en état `draft`
+- Au moins deux assets sont instanciés dans ce module, avec des interfaces définies
 - Les interfaces à relier ne sont pas déjà engagées dans une liaison existante (RM09)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne une interface source d'un composant dans l'Atelier
+**Étape initiale :** `POST /api/assembly-links` est appelée (ou l'équivalent CLI `myr model link add`) avec les identifiants des interfaces source et cible
 
 ### Flux nominal A — Liaison directe
 
-1. L'utilisateur glisse l'interface source vers une interface compatible d'un autre composant
-2. Dès la sélection de l'interface source, toutes les interfaces incompatibles se grisent automatiquement (feedback visuel préventif)
-3. L'utilisateur dépose sur l'interface cible compatible
-4. Le navigateur envoie `POST /api/assembly-links` avec `{ from_iface_id, to_iface_id, label, from_instance_id, to_instance_id }`
-5. Le handler appelle `service.AddAssemblyLink(fromIfaceID, toIfaceID, label, fromInstanceID, toInstanceID, "")`
-6. Le service récupère les deux interfaces via `ifaceStore.GetInterface()`
-7. Le service vérifie la compatibilité via `ifacesCompatible(fromIface, toIface)` (RM10, RM11)
-8. La `Connection` est créée avec `FastenerAssetID` vide et persistée dans `connStore`
-9. La réponse `201 Created` retourne le DTO de la connexion créée
-10. L'Atelier affiche la liaison comme un trait entre les deux interfaces
+1. Le client transmet `{ from_iface_id, to_iface_id, label, from_instance_id, to_instance_id }`
+2. Le handler appelle `service.AddAssemblyLink(fromIfaceID, toIfaceID, label, fromInstanceID, toInstanceID, "")`
+3. Le service récupère les deux interfaces via `ifaceStore.GetInterface()` — brouillon local tant que les composants concernés ne sont pas soumis (ADR-02)
+4. Le service vérifie la compatibilité via `ifacesCompatible(fromIface, toIface)` (RM10, RM11)
+5. La `Connection` est créée avec `FastenerAssetID` vide et persistée dans `connStore`
+6. La réponse `201 Created` retourne le DTO de la connexion créée
 
 ### Flux nominal B — Liaison via asset d'accroche
 
 1. Étapes 1 à 3 identiques au flux A
-4. Le navigateur envoie `POST /api/assembly-links` avec `fastener_asset_id` renseigné
-5. Le service valide l'accroche via `validateFastener()` : l'asset d'accroche doit avoir au moins une interface compatible avec chacun des deux endpoints
-6. La `Connection` est créée avec `FastenerAssetID` renseigné
-7. L'Atelier représente la liaison avec l'asset d'accroche visible (voir UCAM07)
+2. Le client transmet `fastener_asset_id` renseigné
+3. Le service valide l'accroche via `validateFastener()` : l'asset d'accroche doit avoir au moins une interface compatible avec chacun des deux endpoints
+4. La `Connection` est créée avec `FastenerAssetID` renseigné (voir UCAM07)
 
 ### Flux alternatif — Liaison via slot virtuel (UCAM03)
 
-1. L'utilisateur glisse un slot virtuel (`Virtual=true`) vers une interface physique d'un autre composant
-2. Le navigateur envoie `POST /api/virtual-connect` avec `{ virtual_iface_id, physical_iface_id, ... }`
-3. Le service appelle `ConnectVirtualToPhysical()` : matérialise le slot virtuel en interface physique complémentaire, puis crée la liaison
-4. Un nouveau slot virtuel est recréé sur l'asset source (RM13 — `EnsureVirtualSlot`)
+1. Le client appelle `POST /api/virtual-connect` avec `{ virtual_iface_id, physical_iface_id, ... }`
+2. Le service appelle `ConnectVirtualToPhysical()` : matérialise le slot virtuel en interface physique complémentaire, puis crée la liaison
+3. Un nouveau slot virtuel est recréé sur l'asset source (RM13 — `EnsureVirtualSlot`)
 
 ### Flux — Liaison devenue incompatible après modification
 
 1. Une interface impliquée dans une liaison existante est modifiée via `PATCH /api/interfaces/:id`
 2. Le service `UpdateInterface()` recalcule la compatibilité pour toutes les connexions utilisant cette interface
 3. Si `!ifacesCompatible(fromIface, toIface)` → `Connection.Incompatible = true`, persisté via `connStore.UpdateConnection()`
-4. La liaison reste présente dans l'Atelier, représentée en rouge (RM12)
-5. L'utilisateur peut la supprimer manuellement — le système ne la supprime jamais automatiquement
+4. La liaison reste consultable, marquée `Incompatible: true`
+5. Elle peut être supprimée manuellement — le système ne la supprime jamais automatiquement
 
 ### Flux erreur — Interface déjà utilisée (RM09)
 
-1. L'utilisateur tente de créer une liaison avec une interface déjà engagée
-2. Dans l'UI : l'interface est grisée dès la sélection d'une interface source (prévention)
-3. En cas de tentative forcée via API : `AddAssemblyLink` ne vérifie pas RM09 directement dans le code actuel — **à implémenter** : vérifier dans `AddAssemblyLink` que `fromIfaceID` et `toIfaceID` ne sont pas déjà présents dans une connexion existante
-4. Message d'erreur attendu : `"Cette interface est déjà utilisée dans une liaison"`
+1. Le client tente de créer une liaison avec une interface déjà engagée
+2. `AddAssemblyLink` ne vérifie pas RM09 directement dans le code actuel — **à implémenter** : vérifier dans `AddAssemblyLink` que `fromIfaceID` et `toIfaceID` ne sont pas déjà présents dans une connexion existante
+3. Message d'erreur attendu : `"Cette interface est déjà utilisée dans une liaison"`
 
 ### Flux erreur — Interfaces incompatibles
 
 1. `ifacesCompatible(a, b)` retourne `false` (catégorie différente, type différent, sens non complémentaires, plages sans chevauchement)
 2. Le service retourne une erreur
 3. Le handler renvoie HTTP 500 (à améliorer : retourner HTTP 422 avec message métier explicite)
-4. L'UI affiche un message d'erreur
 
 ### Flux erreur — Asset d'accroche invalide
 
@@ -112,7 +104,7 @@ Une liaison peut être **directe** (`FastenerAssetID` vide) ou **via un asset d'
 ## Post-conditions
 
 - Une `Connection` est enregistrée dans `ConnectionStore` avec `FromIfaceID`, `ToIfaceID`, `FastenerAssetID` (optionnel)
-- Les interfaces engagées dans la liaison sont marquées comme utilisées (grisées dans l'UI)
+- Les interfaces engagées dans la liaison sont marquées comme utilisées
 - Une liaison incompatible après modification reste présente avec `Incompatible: true` (jamais supprimée automatiquement — RM12)
 - L'état du module reste `draft` — aucune transaction blockchain n'est émise
 
@@ -120,12 +112,12 @@ Une liaison peut être **directe** (`FastenerAssetID` vide) ou **via un asset d'
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Client
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 
-Browser -> REST : POST /api/assembly-links\n{ from_iface_id, to_iface_id,\n  from_instance_id, to_instance_id,\n  fastener_asset_id? }
+Client -> REST : POST /api/assembly-links\n{ from_iface_id, to_iface_id,\n  from_instance_id, to_instance_id,\n  fastener_asset_id? }
 
 REST -> REST : valider présence from_iface_id et to_iface_id
 
@@ -143,7 +135,7 @@ alt fastenerAssetID renseigné
     Service -> Service : validateFastener()\nvérifier ifacesCompatible(fi, fromIface)\net ifacesCompatible(fi, toIface)
     alt Accroche invalide
         Service --> REST : error "asset d'accroche invalide"
-        REST --> Browser : 500 { error: "..." }
+        REST --> Client : 500 { error: "..." }
     end
 end
 
@@ -151,16 +143,14 @@ Service -> Service : ifacesCompatible(fromIface, toIface)\n[RM10, RM11 : catégo
 
 alt Incompatibles
     Service --> REST : error
-    REST --> Browser : 500 { error: "interfaces incompatibles" }
+    REST --> Client : 500 { error: "interfaces incompatibles" }
 else Compatibles
     Service -> Local : connStore.SaveConnection(conn)
     Local --> Service : nil
 
     Service --> REST : *Connection
 
-    REST --> Browser : 201 { id, from, to, label,\n  from_iface_id, to_iface_id,\n  from_instance_id, to_instance_id,\n  fastener_asset_id }
-
-    Browser -> Browser : afficher trait de liaison\nentre les deux interfaces
+    REST --> Client : 201 { id, from, to, label,\n  from_iface_id, to_iface_id,\n  from_instance_id, to_instance_id,\n  fastener_asset_id }
 end
 
 @enduml
@@ -173,14 +163,14 @@ end
 | **RM09** | Interface à usage unique — `FromIfaceID`/`ToIfaceID` déjà utilisé → liaison refusée | A implémenter dans `AddAssemblyLink` |
 | **RM10** | Vérification de compatibilité automatique à toute création de liaison | Implémenté (`ifacesCompatible`) |
 | **RM11** | 5 critères : catégorie + **Tag** (REQUIS, absent du code) + type + sens complémentaires + plages chevauchantes | Partiel — Tag manquant |
-| **RM12** | Liaison incompatible → `Incompatible: true`, visible en rouge, jamais supprimée auto | Implémenté (`UpdateInterface`) |
+| **RM12** | Liaison incompatible → `Incompatible: true`, jamais supprimée auto | Implémenté (`UpdateInterface`) |
 | **RM13** | Slot virtuel garanti après matérialisation (flux UCAM03) | Implémenté (`EnsureVirtualSlot`) |
 
 ## Exigences non-fonctionnelles
 
-- **ENF12** — Vérification de compatibilité obligatoire côté serveur (pas seulement côté UI)
-- **ENF18** — Aucune dépendance Fabric dans `domain/model/service.go` — les connexions sont locales
-- Temps de réponse `POST /api/assembly-links` : `< 200 ms` (opération purement locale)
+- **ENF12** — Vérification de compatibilité obligatoire côté serveur (jamais déléguée à un client)
+- **ENF18** — Aucune dépendance Fabric dans `domain/model/service.go` — les interfaces en brouillon et les connexions sont locales (ADR-02, ADR-05)
+- Temps de réponse `POST /api/assembly-links` : `< 200 ms` (opération purement locale tant que les composants concernés sont en brouillon)
 
 ## Notes d'implémentation
 
@@ -208,3 +198,5 @@ for _, c := range conns {
 **Route REST concernée :** `POST /api/assembly-links` → `handleAssemblyLinks()` dans `handlers.go`
 
 **Route virtuel→physique :** `POST /api/virtual-connect` → `handleVirtualConnect()` dans `handlers.go`
+
+**Commande CLI équivalente (cible) :** `myr model link add --from <ifaceID> --to <ifaceID> [--fastener <assetID>] [--label <texte>] [--from-instance <id>] [--to-instance <id>]` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.4). Elle appelle la même méthode de service, `ModelService.AddAssemblyLink(fromIfaceID, toIfaceID, label, fromInstanceID, toInstanceID, fastenerAssetID)`, que le handler `POST /api/assembly-links` — même vérification de compatibilité (RM10/RM11), même unicité d'interface (RM09), mêmes messages d'erreur métier, quel que soit le canal. Le flux via slot virtuel (`POST /api/virtual-connect`) a pour équivalent `myr model link connect-virtual --virtual-iface <id> --physical-iface <id>`, appelant `ModelService.ConnectVirtualToPhysical()`. Seul le format de sortie change (texte terminal vs JSON HTTP) ; les écarts de code notés ci-dessus (RM09 à implémenter, HTTP 500 à affiner) s'appliquent identiquement quel que soit le canal, puisque la vérification est faite dans le service et non dans le handler.

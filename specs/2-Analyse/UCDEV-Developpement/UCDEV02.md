@@ -17,7 +17,7 @@ left to right direction
 
 actor "Administrateur" as ADM
 
-rectangle "CLI MYR (Serveur)\nmyr.exe — cobra" {
+rectangle "CLI MYR (Serveur)\nmyr — cobra" {
     usecase "Exécuter une commande model" as UC1
     usecase "Exécuter une commande channel" as UC2
     usecase "Exécuter une commande payment" as UC3
@@ -26,6 +26,8 @@ rectangle "CLI MYR (Serveur)\nmyr.exe — cobra" {
     usecase "Exécuter une commande org" as UC7
     usecase "Exécuter une commande node" as UC8
     usecase "Obtenir de l'aide (--help)" as UC5
+    usecase "Exécuter une commande interface/link/instance\n(pour le compte d'une identité)" as UC9
+    usecase "Exécuter une commande module\n(pour le compte d'une identité)" as UC10
 }
 
 ADM --> UC1
@@ -36,22 +38,26 @@ ADM --> UC5
 ADM --> UC6
 ADM --> UC7
 ADM --> UC8
+ADM --> UC9
+ADM --> UC10
 
 @enduml
 ```
 
 ## Contexte
 
-L'administrateur peut utiliser le CLI MYR (`myr.exe`) directement sur le serveur pour administrer le réseau. Le CLI est un outil cobra exposant sept groupes de commandes : `model`, `channel`, `payment`, `peer`, `network`, `org`, `node`.
+L'administrateur peut utiliser le CLI MYR (`myr`) directement sur le serveur (via SSH) pour administrer le réseau. Le CLI est un outil cobra exposant sept groupes de commandes : `model`, `channel`, `payment`, `peer`, `network`, `org`, `node`.
 
 Le Développeur n'a **pas** accès au CLI — il interagit avec MYR exclusivement via l'API REST (UCDEV01). Le CLI est réservé aux opérations serveur nécessitant un accès direct aux services domaine sans passer par HTTP.
 
 Les groupes `model`, `channel`, `payment` et `peer` sont **implémentés** (`adapters/in/cli/`). Les groupes `network`, `org` et `node` (UCADM01–05) sont **à implémenter** — leur contrat d'interface complet est défini dans `specs/3-Conception/DC_CLI_Admin.md`.
 
+`myr model` n'est aujourd'hui qu'un sous-ensemble de `ModelService` (`add`/`get`/`list`/`verify`). Le port domaine expose déjà les interfaces physiques, les liaisons, les instances et les modules (UCCE02/06, UCAM01–05/07/08, UCMOD01–06) — leur exposition CLI cible (`myr model interface/link/instance`, `myr module`) est définie dans `specs/3-Conception/DC_CLI_Model.md`, sur le même principe que `DC_CLI_Admin.md` pour l'administration réseau : aucun changement de domaine requis, seul l'adaptateur `adapters/in/cli/` reste à écrire.
+
 ## Pré-conditions
 
 - L'administrateur est connecté au serveur distant (SSH ou accès direct)
-- `myr.exe` est compilé et disponible dans le PATH (`make cli` → `bin/myr.exe`)
+- `myr` est déployé sur le serveur (`make deploy` → installé dans `~/.local/bin/myr`)
 - Les variables d'environnement Fabric sont configurées (`fabricadapter.ConfigFromEnv()` ou `fabric.env`)
 - Les services domaine sont disponibles (Fabric ou mode simulation JSON local)
 
@@ -192,8 +198,10 @@ CLIHandler --> Dev : "Réseau démantelé."
 | `myr network` | `list`, `show`, `add`, `update`, `activate`, `delete`, `test`, `import`, `destroy` | `adapters/in/cli/network.go` | ❌ À implémenter (UCADM02, UCADM05) |
 | `myr org` | `add` | `adapters/in/cli/org.go` | ❌ À implémenter (UCADM01) |
 | `myr node` | `add`, `remove` | `adapters/in/cli/node.go` | ❌ À implémenter (UCADM03, UCADM04) |
+| `myr model interface`, `myr model link`, `myr model instance` | `add`/`update`/`remove`/`list` | `adapters/in/cli/model.go` (à étendre) | ❌ À implémenter (UCCE06, UCAM01–04/07/08) |
+| `myr module` | `create`, `get`, `list`, `add-assembly`, `remove-assembly`, `submit`, `remove`, `interfaces` | `adapters/in/cli/module.go` (à créer) | ❌ À implémenter (UCMOD01–06) |
 
-**Référence contrat CLI :** `specs/3-Conception/DC_CLI_Admin.md` — syntaxe complète, flags, sorties, erreurs, ports requis.
+**Référence contrat CLI :** `specs/3-Conception/DC_CLI_Admin.md` (administration réseau) et `specs/3-Conception/DC_CLI_Model.md` (composants, interfaces, liaisons, instances, modules) — syntaxe complète, flags, sorties, erreurs, ports requis.
 
 **Injection de services :** `cli.Execute(modelSvc, channelSvc, paymentSvc, networkSvc)` dans `cmd/cli/main.go`. Les services sont injectés au démarrage — la CLI respecte l'architecture hexagonale.
 

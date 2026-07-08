@@ -49,7 +49,7 @@ Lorsque le module est prêt, la soumission à la blockchain (voir UCMOD06) est u
 ### Flux nominal — Module créé (draft)
 
 1. Le module est initialisé en état **draft**
-2. Les liaisons entre les interfaces compatibles des composants sont créées (`myr module instance add` puis `myr model link add`, voir UCAM01)
+2. Les liaisons entre les interfaces compatibles des composants sont créées (`myr model instance add` puis `myr model link add`, voir UCAM01)
 3. Le module est nommé et configuré
 4. Le module est enregistré en état **draft**
 

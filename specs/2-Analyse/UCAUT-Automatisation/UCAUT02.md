@@ -44,7 +44,7 @@ Le développeur de la boutique intègre l'API MYR pour récupérer les prix à j
 
 ## Pré-conditions
 
-- Le consommateur est identifié et authentifié (via token JWT ou token API de la boutique partenaire)
+- Le consommateur est identifié et authentifié (via token de session ou token API de la boutique partenaire)
 - L'asset est disponible à la commande et a un prix défini sur la blockchain
 - La boutique partenaire dispose d'un token API MYR valide avec le rôle `developer`
 - L'adresse de livraison est fournie dans la requête
@@ -109,7 +109,7 @@ participant "Model Service\n(domain/model/)" as ModelSvc
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 database "Smart Contract\n(chaincode/)" as CC
 
-Shop -> REST : GET /api/assets/{id}/price\nAuthorization: Bearer {apiToken}
+Shop -> REST : GET /api/assets/{id}/price\nX-Myr-Token: {apiToken}
 REST -> REST : Vérifier token API (rôle developer)
 REST -> ModelSvc : GetAsset(assetID)
 ModelSvc -> Fabric : QueryAsset(assetID)
@@ -121,7 +121,7 @@ else Asset disponible
     REST --> Shop : 200 {price, currency, assetID}
 end
 
-Shop -> REST : POST /api/orders\n{assetID, qty, consumerID, deliveryAddress}\nAuthorization: Bearer {apiToken}
+Shop -> REST : POST /api/orders\n{assetID, qty, consumerID, deliveryAddress}\nX-Myr-Token: {apiToken}
 REST -> REST : Vérifier token API + données
 
 REST -> PaySvc : CheckBalance(consumerID, price * qty)
@@ -170,7 +170,8 @@ end
 
 - **Non implémenté** : Aucun endpoint de commande ni de récupération de prix dans `adapters/in/rest/`
 - **À créer** : Routes `GET /api/assets/{id}/price` et `POST /api/orders` dans `adapters/in/rest/handlers_payment.go`
-- **À créer** : Mécanisme de tokens API pour les boutiques partenaires (distinct des JWT utilisateurs) — peut s'appuyer sur `adapters/out/sqlite/` pour la gestion des tokens
-- Le rôle `developer` n'existe pas encore dans le code (`domain/auth/`) — à créer
+- **À créer** : Mécanisme de tokens API pour les boutiques partenaires (distinct des tokens de session opaques des utilisateurs) — peut s'appuyer sur `adapters/out/localstorage/` pour la gestion des tokens, à l'image du store de sessions REST existant
+- Le rôle `developer` n'existe pas encore par défaut dans le RBAC dynamique (`domain/role`) — à créer via `myr role create developer --permission ...`
 - La gestion du "prix mis à jour entre affichage et commande" (race condition e-commerce classique) nécessite un mécanisme de price lock ou de validation côté client — à discuter avec le PO
 - L'API `GET /api/assets/{id}/price` peut être publique (sans auth) pour faciliter l'intégration — à décider avec le PO
+- **Parité CLI/REST :** conformément au principe de parité (CLAUDE.md), une commande passée par une boutique partenaire via l'API devrait pouvoir être reproduite en CLI pour le compte d'un consommateur. Le volet paiement recoupe `domain/payment.Pay(from, to, modelID, amount)`, déjà exposé via `myr payment pay <from> <to> <modelID> <amount>` — mais comme noté ci-dessus, la récupération de prix en temps réel et l'entité `Order` (statut, adresse, `orderID`) n'existent pas encore : une commande CLI complète ne pourra être ajoutée qu'une fois ce domaine conçu.

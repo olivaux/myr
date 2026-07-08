@@ -18,8 +18,8 @@ left to right direction
 actor "Concepteur" as C
 
 rectangle "Application MYR" {
-    usecase "Créer une interface\n(glisser-déposer slot virtuel)" as UC1
-    usecase "Créer une interface\n(panneau propriétés)" as UC2
+    usecase "Créer une interface\n(connexion virtuelle)" as UC1
+    usecase "Créer une interface\n(attributs explicites)" as UC2
     usecase "Définir les attributs\nde l'interface" as UC3
     usecase "Matérialiser le slot virtuel\net créer la liaison" as UC4
     usecase "Recréer le slot virtuel" as UC5
@@ -37,79 +37,72 @@ UC4 ..> UC5 : <<include>>
 
 ## Contexte
 
-Chaque composant dans l'Atelier possède toujours au moins un slot virtuel (`AssetInterface.Virtual = true`) représenté par une icône "+". Ce slot est le point d'entrée pour créer une nouvelle interface physique.
+Chaque composant possède toujours au moins un slot virtuel (`AssetInterface.Virtual = true`), point d'entrée pour créer une nouvelle interface physique.
 
-L'utilisateur peut créer une interface de deux façons :
+Une interface peut être créée de deux façons :
 
-- **Flux A — Glisser-déposer** : glisser le slot virtuel d'un composant vers une interface physique d'un autre composant. Le système appelle `ConnectVirtualToPhysical()` qui matérialise le slot virtuel en interface complémentaire ET crée la liaison en une seule opération.
-- **Flux B — Panneau propriétés** : saisir manuellement tous les attributs de la nouvelle interface via `POST /api/components/:id/interfaces`. La liaison n'est pas créée automatiquement dans ce flux.
+- **Flux A — Connexion virtuelle** : relier le slot virtuel d'un composant à une interface physique d'un autre composant. Le système appelle `ConnectVirtualToPhysical()` qui matérialise le slot virtuel en interface complémentaire ET crée la liaison en une seule opération.
+- **Flux B — Attributs explicites** : transmettre manuellement tous les attributs de la nouvelle interface via `POST /api/components/:id/interfaces`. La liaison n'est pas créée automatiquement dans ce flux.
 
 **Invariant RM13 :** Dès qu'un slot virtuel est matérialisé (Flux A), un nouveau slot virtuel est immédiatement recréé sur le même asset (`EnsureVirtualSlot`). Un asset a toujours au moins un slot virtuel disponible.
 
-**Champ Tag (E2) :** Le tag est un attribut obligatoire selon RM11. Il est absent de la struct `AssetInterface` dans le code actuel. Dans les deux flux, le tag doit être sélectionné ou créé par l'utilisateur (non déduit automatiquement depuis l'interface cible).
+**Champ Tag (E2) :** Le tag est un attribut obligatoire selon RM11. Il est absent de la struct `AssetInterface` dans le code actuel. Dans les deux flux, le tag doit être transmis explicitement (non déduit automatiquement depuis l'interface cible).
 
 ## Pré-conditions
 
-- L'utilisateur est authentifié avec le rôle **Concepteur** (`contributor`)
-- Au moins un composant est présent dans l'Atelier avec un slot virtuel (`Virtual: true`)
-- Pour le Flux A : un autre composant avec au moins une interface physique est présent dans l'Atelier
+- L'identité agit avec le rôle **Concepteur** (`contributor`)
+- Au moins un composant existe avec un slot virtuel (`Virtual: true`)
+- Pour le Flux A : un autre composant avec au moins une interface physique est identifié
 - Pour le Flux B : le composant cible est identifié
 
 ## Scénario
 
-### Flux A — Glisser-déposer depuis le slot virtuel
+### Flux A — Connexion virtuelle (déduction automatique)
 
-**Étape initiale :** L'utilisateur fait glisser le slot virtuel (`Virtual=true`) d'un composant vers une interface physique d'un autre composant
+**Étape initiale :** `POST /api/virtual-connect` est appelée (ou l'équivalent CLI `myr model link connect-virtual`) avec l'identifiant du slot virtuel et celui de l'interface physique cible
 
-1. Le système détecte le dépôt sur une interface physique cible
-2. Vérification préliminaire : la catégorie de la cible doit être compatible (même catégorie possible)
-3. Une fenêtre de confirmation s'ouvre avec les propriétés déduites de l'interface cible, pré-remplies :
+1. Le service vérifie que la catégorie de la cible est compatible
+2. Le service déduit les propriétés de la nouvelle interface à partir de la cible :
    - **Catégorie** : identique à la cible
    - **Sens (Direction)** : inversé (`out` → `in` ; `in` → `out` ; `bidir` → `bidir`)
    - **Type** : identique à la cible
    - **Valeur/Unité** : inférée depuis la cible
-4. Le champ **Tag** est vide — l'utilisateur doit sélectionner un tag depuis la liste filtrée ou en créer un nouveau (REQUIS)
-5. L'utilisateur valide (avec ou sans ajustements des valeurs)
-6. Le navigateur envoie `POST /api/virtual-connect` avec `{ virtual_iface_id, physical_iface_id, name, value_min, value_max, is_range, unit, from_instance_id, to_instance_id }`
-7. Le service `ConnectVirtualToPhysical()` :
-   a. Récupère les deux interfaces (`GetInterface`)
+3. Le **Tag** doit être transmis explicitement (`--tag`/`tag`, REQUIS) — jamais déduit
+4. Le client transmet `{ virtual_iface_id, physical_iface_id, name, value_min, value_max, is_range, unit, from_instance_id, to_instance_id }`
+5. Le service `ConnectVirtualToPhysical()` :
+   a. Récupère les deux interfaces (`GetInterface`) — brouillon local tant que les composants concernés ne sont pas soumis (ADR-02)
    b. Vérifie que `virtualIfaceID` est bien `Virtual: true`
-   c. Matérialise l'interface virtuelle : applique catégorie, type, direction inversée de la physique ; affecte les valeurs de la popup
-   d. Sauvegarde l'interface matérialisée (`ifaceStore.SaveInterface`)
+   c. Matérialise l'interface virtuelle : applique catégorie, type, direction inversée de la physique ; affecte les valeurs transmises
+   d. Sauvegarde l'interface matérialisée (`ifaceStore.SaveInterface`) — reste en brouillon, aucune transaction Fabric ici
    e. Crée la liaison `AddAssemblyLink(physicalIfaceID, virtualIfaceID, ...)`
-   f. Recrée un slot virtuel sur l'asset source (`EnsureVirtualSlot`) — RM13
-8. La réponse `201 Created` retourne le DTO de la connexion créée
-9. L'Atelier affiche la liaison et le nouveau slot virtuel "+"
+   f. Recrée un slot virtuel sur l'asset source (`EnsureVirtualSlot`) — RM13, également en brouillon local
+6. La réponse `201 Created` retourne le DTO de la connexion créée
 
-### Flux B — Via le panneau propriétés
+### Flux B — Attributs explicites
 
-**Étape initiale :** L'utilisateur ouvre le panneau de propriétés d'un composant et clique "Ajouter une interface"
+**Étape initiale :** `POST /api/components/:id/interfaces` est appelée (ou l'équivalent CLI `myr model interface add`) avec tous les attributs de l'interface
 
-1. Un formulaire s'affiche avec les champs : catégorie, sens, tag, type, valeur/plage, unité
-2. L'utilisateur renseigne tous les attributs
-3. Le navigateur envoie `POST /api/components/:id/interfaces` avec le corps JSON de l'interface
-4. Le handler appelle `service.AddInterface(&iface)` — génère un ID si absent
-5. L'interface est persistée dans `ifaceStore.SaveInterface()`
-6. La réponse `201 Created` retourne l'interface créée
-7. L'interface physique apparaît sur le composant dans l'Atelier
+1. Le client transmet catégorie, sens, tag, type, valeur/plage, unité
+2. Le handler appelle `service.AddInterface(&iface)` — génère un ID si absent
+3. L'interface est persistée en brouillon local dans `ifaceStore.SaveInterface()` (ADR-02) — aucune transaction Fabric tant que le composant n'est pas soumis
+4. La réponse `201 Created` retourne l'interface créée
 
-### Flux alternatif A2 — Ajustement des valeurs dans la fenêtre de confirmation
+### Flux alternatif A2 — Ajustement des valeurs déduites
 
-1. L'utilisateur modifie une ou plusieurs valeurs pré-remplies (ex: affiner la plage de valeur)
+1. Une ou plusieurs valeurs déduites (Flux A) sont surchargées par des valeurs explicites avant validation (ex : affiner la plage de valeur)
 2. La validation se poursuit avec les valeurs ajustées
 3. Résultat identique au Flux A nominal
 
-### Flux erreur — Dépôt sur interface incompatible (catégorie différente)
+### Flux erreur — Connexion sur interface incompatible (catégorie différente)
 
-1. Le système détecte une catégorie différente entre le slot virtuel et l'interface cible
-2. Le dépôt est refusé visuellement (l'interface cible reste grisée, pas de fenêtre de confirmation)
+1. Le service détecte une catégorie différente entre le slot virtuel et l'interface cible
+2. La requête est refusée
 3. Aucune interface n'est créée
 
 ### Flux erreur — Interface virtuelle introuvable
 
 1. `ConnectVirtualToPhysical()` appelle `GetInterface(virtualIfaceID)` → erreur
 2. Le handler retourne HTTP 500 avec le message d'erreur
-3. L'UI affiche un message d'erreur
 
 ### Flux erreur — Interface non virtuelle passée comme slot virtuel
 
@@ -125,27 +118,24 @@ L'utilisateur peut créer une interface de deux façons :
 - Un nouveau slot virtuel (`Virtual: true`) est recréé sur le composant source (RM13)
 
 **Flux B :**
-- Une nouvelle interface physique est enregistrée sur le composant dans l'Atelier (état local)
+- Une nouvelle interface physique est enregistrée en brouillon local sur le composant (état `draft` — ADR-02)
 - Aucune liaison n'est créée automatiquement
-- Aucune transaction blockchain n'est émise (état `draft` local)
+- Aucune transaction blockchain n'est émise — l'interface rejoindra Fabric à la soumission du composant
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Client
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 
-alt Flux A — Glisser-déposer slot virtuel
+alt Flux A — Connexion virtuelle
 
-    Browser -> Browser : glisser slot virtuel\nvers interface physique cible
-    Browser -> Browser : ouvrir fenêtre confirmation\n(propriétés déduites pré-remplies)
-    Browser -> Browser : saisir Tag (obligatoire)
-    Browser -> REST : POST /api/virtual-connect\n{ virtual_iface_id, physical_iface_id,\n  name, value_min, value_max,\n  is_range, unit,\n  from_instance_id, to_instance_id }
+    Client -> REST : POST /api/virtual-connect\n{ virtual_iface_id, physical_iface_id,\n  name, value_min, value_max,\n  is_range, unit, tag,\n  from_instance_id, to_instance_id }
 
-    REST -> Service : ConnectVirtualToPhysical(\n  virtualIfaceID, physicalIfaceID,\n  popupValues, fromInstID, toInstID)
+    REST -> Service : ConnectVirtualToPhysical(\n  virtualIfaceID, physicalIfaceID,\n  values, fromInstID, toInstID)
 
     Service -> Local : GetInterface(physicalIfaceID)
     Local --> Service : physical *AssetInterface
@@ -155,7 +145,7 @@ alt Flux A — Glisser-déposer slot virtuel
 
     Service -> Service : vérifier virtual.Virtual == true
 
-    Service -> Service : matérialiser :\nvirtual.Virtual = false\nvirtual.Category = physical.Category\nvirtual.Type = physical.Type\nvirtual.Direction = oppositeDir(physical.Direction)\nappliquer popupValues (name, value, unit)
+    Service -> Service : matérialiser :\nvirtual.Virtual = false\nvirtual.Category = physical.Category\nvirtual.Type = physical.Type\nvirtual.Direction = oppositeDir(physical.Direction)\nappliquer les valeurs transmises (name, value, unit, tag)
 
     Service -> Local : ifaceStore.SaveInterface(virtual)
 
@@ -166,13 +156,11 @@ alt Flux A — Glisser-déposer slot virtuel
     Service -> Local : ifaceStore.SaveInterface({Virtual:true})
 
     Service --> REST : *Connection
-    REST --> Browser : 201 { connection DTO }
+    REST --> Client : 201 { connection DTO }
 
-    Browser -> Browser : afficher liaison\nafficher nouveau slot virtuel "+"
+else Flux B — Attributs explicites
 
-else Flux B — Panneau propriétés
-
-    Browser -> REST : POST /api/components/:id/interfaces\n{ category, tag, type, direction,\n  value_min, value_max, is_range, unit }
+    Client -> REST : POST /api/components/:id/interfaces\n{ category, tag, type, direction,\n  value_min, value_max, is_range, unit }
 
     REST -> REST : iface.AssetID = assetID
 
@@ -182,9 +170,7 @@ else Flux B — Panneau propriétés
     Local --> Service : nil
 
     Service --> REST : nil (succès)
-    REST --> Browser : 201 { AssetInterface }
-
-    Browser -> Browser : afficher nouvelle interface\nsur le composant
+    REST --> Client : 201 { AssetInterface }
 
 end
 
@@ -204,20 +190,22 @@ end
 
 - **ENF12** — Création d'interface réservée au rôle `contributor` côté serveur
 - **ENF18** — `domain/model/service.go` ne doit pas importer Fabric ou SQLite
-- Temps de réponse `POST /api/virtual-connect` : `< 300 ms` (opérations locales enchaînées)
+- Temps de réponse `POST /api/virtual-connect` : `< 300 ms` (opérations locales enchaînées, tant que les composants concernés sont en brouillon)
 
 ## Notes d'implémentation
 
 **`ConnectVirtualToPhysical` dans `service.go` :** La logique complète est implémentée (lignes 772–847). Le service :
 1. Vérifie que `virtualIfaceID` est virtuel
 2. Matérialise l'interface en lui appliquant catégorie/type/direction opposée de la physique
-3. Applique les valeurs de la popup (avec fallback sur les valeurs du physique)
-4. Sauvegarde l'interface matérialisée
+3. Applique les valeurs transmises (avec fallback sur les valeurs du physique)
+4. Sauvegarde l'interface matérialisée en brouillon local (`ifaceStore.SaveInterface()`)
 5. Crée la liaison (`AddAssemblyLink` avec from=physique, to=virtuel — ordre inversé intentionnel)
 6. Appelle `EnsureVirtualSlot` pour maintenir RM13
 
-**Tag non déduit automatiquement :** Contrairement à catégorie, type et direction, le Tag ne peut pas être déduit de l'interface cible (il représente une qualification sémantique libre). La fenêtre de confirmation doit proposer une liste des tags existants filtrés par type (depuis `GET /api/refs`) et permettre la création d'un nouveau tag.
+**Tag non déduit automatiquement :** Contrairement à catégorie, type et direction, le Tag ne peut pas être déduit de l'interface cible (il représente une qualification sémantique libre). Le client doit le transmettre explicitement, en le choisissant parmi le vocabulaire existant (`GET /api/refs`) ou en le créant.
 
 **Flux B — route :** `POST /api/components/:id/interfaces` → `handleComponentInterfaces()` case `MethodPost`. Le handler extrait `assetID` du path et appelle `service.AddInterface()`. Aucune vérification de compatibilité n'est faite dans ce flux (l'interface est ajoutée sans liaison).
 
 **EnsureVirtualSlot — idempotence :** La fonction vérifie d'abord si un slot `Virtual: true` existe déjà sur l'asset avant d'en créer un nouveau. Elle est donc idempotente et peut être appelée à tout moment sans risque de duplication.
+
+**Commande CLI équivalente (cible) :** Le Flux B (attributs explicites) correspond à `myr model interface add <assetID> --category --type --direction [--value-min --value-max --unit] --tag <tag> [--name <label>]` (voir `DC_CLI_Model.md` § 3.2), qui appelle `ModelService.AddInterface(&iface)` — la même méthode que le handler `POST /api/components/:id/interfaces`. Le Flux A (connexion virtuelle / matérialisation + liaison en une opération) correspond à `myr model link connect-virtual --virtual-iface <id> --physical-iface <id> --tag <tag>`, appelant `ModelService.ConnectVirtualToPhysical()` — la même méthode que le handler `POST /api/virtual-connect`, avec le même maintien du slot virtuel (RM13). Le comportement (règles métier, erreurs) est strictement identique quel que soit le canal ; seul le format de sortie change (texte terminal vs JSON HTTP). Le champ Tag (E2) reste à transmettre explicitement dans les deux cas, puisqu'il n'est pas déductible automatiquement.

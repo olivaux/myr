@@ -45,13 +45,13 @@ Un Module déjà existant (Contrôleurs, Caméra, Visserie...) peut être ajout�
 
 ### Flux nominal — Module ajouté
 
-1. `myr module instance add <moduleID> <assetID>` (ou l'appel API équivalent) est exécutée avec le module trouvé — une nouvelle instance est créée dans le module hôte
+1. `myr model instance add <moduleID> <assetID>` (ou l'appel API équivalent) est exécutée avec le module trouvé — une nouvelle instance est créée dans le module hôte
 2. Une fois les liaisons créées (`myr model link add`, voir UCAM01), elles sont rattachées au module hôte avec `myr module add-assembly <moduleID> <connID>`
 
 ### Flux alternatif — Module déjà instancié dans le module hôte
 
 1. Le module ciblé possède déjà une instance dans le module hôte
-2. `myr module instance add` crée une nouvelle instance indépendante à chaque appel, y compris si le module est déjà présent — chaque instance a ses propres connexions indépendantes
+2. `myr model instance add` crée une nouvelle instance indépendante à chaque appel, y compris si le module est déjà présent — chaque instance a ses propres connexions indépendantes
 
 ## Post-conditions
 
@@ -65,7 +65,7 @@ skin rose
 title Ajouter un Module existant
 start
 :Rechercher un module par référence ou par filtre (myr module list);
-:Transmettre le module trouvé (myr module instance add);
+:Transmettre le module trouvé (myr model instance add);
 if (Module déjà instancié dans le module hôte?) then (oui)
   :Créer une nouvelle instance indépendante;
   stop

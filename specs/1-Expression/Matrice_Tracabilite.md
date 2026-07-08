@@ -46,7 +46,7 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | **Modules**                                      |                                                                         |                           |
 | EF26                                             | Assembler plusieurs composants en module (état draft)                  | UCMOD01                   |
 | EF27                                             | Soumettre un module à la blockchain (ModuleVersion immuable)           | UCMOD06                   |
-| EF28                                             | Ajouter un module existant comme instance d'un module hôte             | UCMOD02, UCMOD03          |
+| EF28                                             | Ajouter un module existant à l'espace de travail                       | UCMOD02, UCMOD03, UCMOD05 |
 | EF29                                             | Visualiser la composition d'un module                                   | UCMOD04                   |
 | **Propriété Intellectuelle et Rémunération** |                                                                         |                           |
 | EF30                                             | Commander un module complet (fabrication ou achat en stock)             | UCPI01                    |

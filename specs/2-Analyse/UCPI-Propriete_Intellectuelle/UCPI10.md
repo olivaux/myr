@@ -53,34 +53,33 @@ Ce use case est en marge du domaine PI principal (commissions, transferts, clona
 
 ### Flux A — Définition des normes (acteur : Administrateur)
 
-**Étape initiale :** L'administrateur accède aux paramètres du réseau et ouvre "Normes écoconception"
+**Étape initiale :** `PUT /api/network/eco-norms` est appelée (ou l'équivalent CLI `myr network eco-norms set`) avec les critères de conformité
 
-1. L'administrateur définit les critères de conformité (ex. : matériaux recyclables requis, durée de vie minimale, réparabilité, empreinte carbone maximale)
-2. Il définit si la norme est obligatoire (bloque la soumission) ou indicative (avertissement seulement)
+1. Les critères de conformité sont transmis (ex. : matériaux recyclables requis, durée de vie minimale, réparabilité, empreinte carbone maximale)
+2. Le caractère obligatoire (bloque la soumission) ou indicatif (avertissement seulement) de la norme est transmis
 3. Les normes sont enregistrées sur la blockchain du réseau (configuration réseau immuable)
 4. Tous les composants soumis après cette date sont soumis aux nouvelles normes
 
-### Flux B — Vérification automatique (acteur : Concepteur)
+### Flux B — Vérification automatique (déclenchée à la soumission d'un composant)
 
-**Étape initiale :** Le concepteur crée ou modifie un composant
+**Étape initiale :** `POST /api/components` (création ou modification d'un composant)
 
 1. Le système détecte que des normes d'écoconception sont actives sur le réseau
 2. Le système vérifie automatiquement la conformité aux critères définis
-3. **Flux B1 — Conforme** : un indicateur vert s'affiche sur le composant, le rapport de conformité est accessible
-4. **Flux B2 — Non conforme (norme indicative)** : un avertissement jaune s'affiche, les critères non respectés sont listés, des recommandations sont proposées — la soumission est possible
-5. **Flux B3 — Non conforme (norme obligatoire)** : un blocage rouge s'affiche, la soumission est impossible jusqu'à correction
+3. **Flux B1 — Conforme** : le rapport de conformité est retourné avec la réponse
+4. **Flux B2 — Non conforme (norme indicative)** : les critères non respectés et des recommandations sont retournés — la soumission se poursuit
+5. **Flux B3 — Non conforme (norme obligatoire)** : la soumission est refusée (`422`) jusqu'à correction
 
 ### Flux alternatif — Réseau sans norme définie
 
 1. Aucune norme n'est active sur le réseau
-2. La section "Conformité écoconception" n'est pas affichée sur les composants
-3. Aucune vérification n'est effectuée
+2. Aucune vérification n'est effectuée
 
 ### Flux erreur — Critères de conformité impossibles à évaluer automatiquement
 
 1. Certains critères nécessitent une évaluation humaine (ex. : "matériau recyclable" sans données dans le fichier CAO)
 2. Le système marque ces critères comme "Non évaluable automatiquement"
-3. Le concepteur doit attacher une documentation justificative
+3. Une documentation justificative doit être jointe à la soumission
 4. Un administrateur peut valider manuellement ces critères
 
 ## Post-conditions
@@ -98,8 +97,8 @@ Ce use case est en marge du domaine PI principal (commissions, transferts, clona
 
 ```plantuml
 @startuml
-participant "Navigateur\n(Admin)" as BrowserAdmin
-participant "Navigateur\n(Concepteur)" as BrowserDesigner
+participant "Client\n(Admin)" as BrowserAdmin
+participant "Client\n(Concepteur)" as BrowserDesigner
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 participant "Network Service\n(domain/network/)" as NetSvc
@@ -161,3 +160,4 @@ end
 - L'algorithme de vérification automatique des critères est dépendant des données disponibles dans le fichier CAO — ce périmètre est à préciser avec le PO (quels critères sont réellement évaluables automatiquement ?)
 - La validation manuelle des critères non évaluables automatiquement implique un workflow admin hors périmètre de ce UC — à traiter dans un UC dédié si nécessaire
 - Ce UC est de faible priorité (importance = 2) — peut être différé après implémentation des UC de plus haute importance
+- **Parité CLI/REST :** conformément au principe de parité (CLAUDE.md), la définition des normes d'écoconception par l'administrateur et la vérification de conformité devraient être exposables en CLI. Comme noté ci-dessus, aucun champ `EcoNorms` ni route REST n'existe — des commandes CLI (par ex. `myr network eco-norms set ...` / `myr model eco-check <id>`) ne pourront être ajoutées qu'une fois ce domaine conçu.

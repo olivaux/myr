@@ -100,7 +100,7 @@ Ce use case est déclenché par UCAUT01 (livraison confirmée) et non directemen
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Payment Service\n(domain/payment/)" as PaySvc
 participant "Model Service\n(domain/model/)" as ModelSvc
@@ -163,3 +163,4 @@ REST --> Browser : 200 [{commission, amount, date, modelID}]
 - **À créer** : Route `GET /api/payments/history` dans `adapters/in/rest/handlers_payment.go`
 - L'atomicité de la distribution multi-auteurs est garantie par le mécanisme de transaction Fabric (un seul bloc pour N transfers)
 - La notion de "taux de commission" par composant n'est pas encore modélisée dans les entités (`Model3D`, `chaincode/model/entity.go`) — champ `CommissionRate float64` à ajouter
+- **Parité CLI/REST :** conformément au principe de parité (CLAUDE.md), la consultation des commissions reçues devrait être exposée en CLI. `GetHistory(identityID)` existe déjà côté service mais n'est exposé ni en REST ni en CLI ; surtout, aucune notion de `CommissionRate` ni de distribution proportionnelle multi-auteurs n'existe dans le domaine (voir notes ci-dessus). Une commande CLI (par ex. `myr payment commissions <identityID>`) ne pourra être ajoutée qu'une fois ces éléments conçus au niveau domaine.

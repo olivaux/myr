@@ -44,38 +44,34 @@ Ce use case crée un nouvel asset `Model3D` avec `ParentID` renseigné — il ne
 
 ## Pré-conditions
 
-- Le Concepteur est authentifié avec le rôle `contributor` (JWT valide).
+- Le Concepteur est authentifié avec le rôle `contributor` (session REST valide).
 - L'asset parent existe sur le canal Fabric et son ID est connu.
 - Le Concepteur a les droits d'amélioration sur cet asset (propriétaire ou droits délégués — à vérifier selon config réseau).
 - Le Concepteur dispose de la version améliorée du fichier 3D.
 
 ## Scénario
 
-**Étape initiale :** Le Concepteur sélectionne un composant existant et choisit "Améliorer".
+**Étape initiale :** `POST /api/components` est appelée (ou l'équivalent CLI `myr model add`) avec `category=amelioration` et `parent_id=<uuid>`
 
 ### Flux nominal — Amélioration réussie (mêmes interfaces)
 
-1. La catégorie `amelioration` est sélectionnée dans le formulaire, le `parent_id` est pré-rempli.
-2. Le Concepteur importe la version améliorée du composant.
-3. Il renseigne les modifications apportées (description, licence si différente).
-4. Il soumet → `POST /api/components` avec `category=amelioration`, `parent_id=<uuid>`.
-5. Le REST Handler valide les champs et vérifie la présence du `parent_id` (RM05).
-6. `service.AddFull()` vérifie la compatibilité de licence avec le parent (RM03).
-7. Le service calcule le SHA-256 de la version améliorée.
-8. Le service compare les interfaces du fichier amélioré avec celles du parent : aucune nouvelle interface détectée → catégorie `amelioration` confirmée.
-9. Le service téléverse le fichier vers IPFS.
-10. Le service construit le `Model3D` (`amelioration`, `ParentID`) et soumet `StoreModel` sur Fabric.
-11. L'API retourne `201 Created` avec le nouvel asset.
+1. La version améliorée du composant, `category=amelioration`, `parent_id=<uuid>` et les modifications apportées (description, licence si différente) sont transmises
+2. Le REST Handler valide les champs et vérifie la présence du `parent_id` (RM05).
+3. `service.AddFull()` vérifie la compatibilité de licence avec le parent (RM03).
+4. Le service calcule le SHA-256 de la version améliorée.
+5. Le service compare les interfaces du fichier amélioré avec celles du parent : aucune nouvelle interface détectée → catégorie `amelioration` confirmée.
+6. Le service téléverse le fichier vers IPFS.
+7. Le service construit le `Model3D` (`amelioration`, `ParentID`) et soumet `StoreModel` sur Fabric.
+8. L'API retourne `201 Created` avec le nouvel asset.
 
 ### Flux alternatif — Amélioration avec ajout d'interfaces (reclassification DERIVATION)
 
 1. La version améliorée introduit de nouvelles interfaces non présentes dans le composant parent.
 2. Le service compare les interfaces du fichier amélioré avec celles du parent et détecte l'ajout.
 3. Le service retourne un avertissement : `{ "warning": "Nouvelles interfaces détectées — type reclassifié en DERIVATION.", "suggestedCategory": "derivation" }`.
-4. L'interface propose au Concepteur de confirmer `derivation` ou de forcer `amelioration`.
-5. Le Concepteur confirme le type retenu (ex : `derivation`).
-6. La transaction est soumise avec le type final et la référence au composant parent.
-7. L'API retourne `201 Created` avec le type définitif.
+4. Le type retenu (`derivation` ou `amelioration` forcé via `--category`) est confirmé par une nouvelle requête
+5. La transaction est soumise avec le type final et la référence au composant parent.
+6. L'API retourne `201 Created` avec le type définitif.
 
 ### Flux erreur — ParentID absent (RM05)
 
@@ -107,7 +103,7 @@ Ce use case crée un nouvel asset `Model3D` avec `ParentID` renseigné — il ne
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "IPFS\n(adapters/out/ipfs/)" as IPFS
@@ -185,7 +181,9 @@ end
 
 ## Notes d'implémentation
 
-**Route existante :** `POST /api/components` — même route que UCCE01. La catégorie `amelioration` est transmise dans le champ `category` du formulaire multipart.
+**Route existante :** `POST /api/components` — même route que UCCE01. La catégorie `amelioration` est transmise dans le champ `category` de la requête multipart.
+
+**Commande CLI équivalente (cible, n'existe pas encore) :** `myr model add <file> --name <nom> --channel <id> --category amelioration --parent <id> --license <id>` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.1 et § 5). Comme pour UCCE01, la cible est `modelSvc.AddFull(AddRequest{Category: "amelioration", ParentID, LicenseID, ...})` — même méthode domaine que le handler REST `createAsset()`, donc même vérification `CheckLicenseCompatibility` (RM03) et même validation de présence du `parent_id` (RM05). La reclassification automatique en `derivation` (flux alternatif ci-dessus) reste un comportement du service, identique quel que soit le canal ; en CLI, la confirmation du Concepteur se ferait par un nouvel appel `myr model add ... --category derivation` (pas d'interaction interactive, cf. DC-CLIM-03).
 
 **Validation ParentID côté serveur :** Le handler actuel (`createAsset()`) ne valide pas explicitement la présence de `parent_id` pour les catégories dérivées. À ajouter : si `category != "base"` et `parent_id == ""` → `400 Bad Request`.
 

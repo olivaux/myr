@@ -20,7 +20,7 @@ actor "Concepteur" as C
 rectangle "Myr System" {
     usecase "Définir un prix sur un composant" as UC1
     usecase "Vérifier propriété de l'asset" as UC2
-    usecase "Enregistrer le prix sur la blockchain" as UC3
+    usecase "Enregistrer le prix localement" as UC3
 }
 
 C --> UC1
@@ -32,7 +32,7 @@ UC1 ..> UC3 : <<include>>
 
 ## Contexte
 
-Un concepteur propriétaire d'un composant peut lui attribuer un prix unitaire pour son utilisation commerciale. Ce prix est enregistré de manière immuable sur la blockchain et s'applique automatiquement lors de chaque commande intégrant ce composant. Il contribue au calcul des commissions distribuées à la livraison (RM23, RM24).
+Un concepteur propriétaire d'un composant peut lui attribuer un prix unitaire pour son utilisation commerciale. Contrairement aux transactions du domaine (assets, liaisons, modules), ce prix n'est **pas** une donnée blockchain : il est enregistré localement côté serveur (`adapters/out/localstorage/`) et reste mutable (RM31, RM33) — voir UCPI11 pour sa modification ultérieure. Il s'applique automatiquement lors de chaque commande créée après son enregistrement, et contribue au calcul des commissions distribuées à la livraison (RM23, RM24), au taux défini par le réseau (RM29).
 
 Le prix d'un composant dans la chaîne de dérivation remonte vers les modules qui l'intègrent — tout composant dérivé doit tenir compte du prix de ses parents pour calculer les commissions amont.
 
@@ -45,82 +45,78 @@ Le prix d'un composant dans la chaîne de dérivation remonte vers les modules q
 
 ## Scénario
 
-**Étape initiale :** Le concepteur accède à la fiche de son composant et ouvre la section "Tarification"
+**Étape initiale :** `PUT /api/components/{id}/price` est appelée (ou l'équivalent CLI `myr model price set`) avec le prix unitaire
 
 ### Flux nominal — Prix défini et enregistré
 
-1. Le système vérifie que l'utilisateur est bien le propriétaire du composant (`OwnerID`)
-2. Le concepteur saisit le prix unitaire (valeur numérique positive)
-3. Le concepteur sélectionne la devise (ex. token réseau, EUR, USD)
-4. Le concepteur saisit le taux de commission applicable lors des dérivations
-5. Le système affiche un récapitulatif : prix unitaire, devise, taux commission, impact estimé sur les modules parents
-6. Le concepteur valide — la transaction est soumise sur la blockchain
-7. Le prix est enregistré sur la blockchain et immédiatement appliqué aux futures commandes
+1. Le système vérifie que l'appelant est bien le propriétaire du composant (`OwnerID`)
+2. Le prix unitaire est transmis (valeur ≥ 0 — un prix nul rend le composant librement disponible, RM32)
+3. La devise appliquée est celle du réseau (RM33) — non transmise par le client
+4. Le taux de commission appliqué est celui défini par l'administrateur du réseau (RM29) — non transmis par le client
+5. Le prix est enregistré localement (`adapters/out/localstorage/`)
+6. La réponse confirme : prix unitaire, devise du réseau, taux de commission réseau
+7. Le prix est actif immédiatement pour toute commande créée après l'enregistrement (RM31)
 
 ### Flux alternatif — Mise à jour d'un prix existant
 
-1. Le composant possède déjà un prix enregistré sur la blockchain
-2. Le concepteur saisit le nouveau prix
-3. Le système avertit : "La modification du prix ne s'applique qu'aux commandes futures — les commandes en cours conservent le prix d'origine"
-4. La nouvelle entrée de prix est soumise sur la blockchain (l'ancienne version est conservée dans l'historique — immuabilité)
+1. Le composant possède déjà un prix enregistré localement
+2. Le nouveau prix est transmis
+3. Le service avertit : "La modification du prix ne s'applique qu'aux commandes futures — les commandes en cours conservent le prix d'origine (RM31)"
+4. Le nouveau prix remplace l'ancien dans le store local (`AssetPrice.UpdatedAt` mis à jour) — voir UCPI11 pour le détail de cette modification
 
 ### Flux erreur A — Utilisateur non propriétaire
 
-1. Le système détecte que `OwnerID != identityID de l'utilisateur connecté`
-2. Message affiché : "Vous n'êtes pas propriétaire de ce composant"
-3. La section Tarification est en lecture seule
+1. Le système détecte que `OwnerID != identityID de l'appelant`
+2. Réponse `403 Forbidden` : "Vous n'êtes pas propriétaire de ce composant"
 
-### Flux erreur B — Prix invalide (négatif ou nul)
+### Flux erreur B — Prix invalide (négatif)
 
-1. Le concepteur saisit une valeur ≤ 0
-2. Message affiché : "Le prix doit être strictement positif"
-3. Le formulaire n'est pas soumis
+1. Une valeur strictement négative est transmise
+2. Réponse `400 Bad Request` : "Le prix ne peut pas être négatif"
 
-### Flux erreur C — Échec de soumission blockchain
+> Un prix de 0 est valide : il rend le composant librement disponible, sans commission (RM32) — voir flux nominal.
 
-1. La transaction blockchain échoue
-2. Le prix reste inchangé sur la blockchain
-3. Message affiché : "Erreur réseau blockchain — le prix n'a pas été enregistré"
+### Flux erreur C — Échec d'écriture locale
+
+1. L'écriture dans le store local échoue (ex. erreur disque, verrou concurrent)
+2. Le prix précédent reste actif
+3. Message affiché : "Erreur serveur — le prix n'a pas été enregistré"
 
 ## Post-conditions
 
-- Le prix unitaire est enregistré de manière immuable sur la blockchain
-- Le taux de commission est enregistré et sera utilisé par le smart contract lors de la livraison (RM23)
+- Le prix unitaire est enregistré localement (pas sur la blockchain — RM31, RM33) et actif pour toute commande créée après l'enregistrement
+- Le taux de commission appliqué à la livraison reste celui défini par le réseau (RM29), indépendamment de ce prix
 - Les modules intégrant ce composant refléteront le nouveau prix lors des prochaines commandes
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
-participant "Model Service\n(domain/model/)" as ModelSvc
 participant "Payment Service\n(domain/payment/)" as PaySvc
-database "Fabric\n(adapters/out/fabric/)" as Fabric
-database "Smart Contract\n(chaincode/)" as CC
+database "Store local des prix\n(adapters/out/localstorage/)" as Local
+database "Config réseau\n(adapters/out/localstorage/)" as NetCfg
 
-Browser -> REST : PUT /api/components/{id}/price\n{price, currency, commissionRate}
+Browser -> REST : PUT /api/components/{id}/price\n{price}
 REST -> REST : Vérifier auth + rôle designer (RM22)
-REST -> ModelSvc : GetAsset(componentID)
-ModelSvc -> Fabric : QueryAsset(componentID)
-Fabric --> ModelSvc : Model3D {OwnerID, ...}
+REST -> PaySvc : SetComponentPrice(componentID, ownerID, price)
+PaySvc -> Local : GetAssetPrice(componentID)
+Local --> PaySvc : AssetPrice{OwnerID, ...} ou absent
 
 alt OwnerID != identityID
-    ModelSvc --> REST : ErrForbidden
+    PaySvc --> REST : ErrForbidden
     REST --> Browser : 403 "Non propriétaire"
-else Propriétaire confirmé
-    REST -> REST : Valider price > 0, currency valide (RM07)
+else price < 0
+    PaySvc --> REST : ErrInvalidAmount
+    REST --> Browser : 400 "Le prix ne peut pas être négatif"
+else Données valides
+    PaySvc -> NetCfg : GetCommissionRate(networkID)
+    NetCfg --> PaySvc : commission_rate (RM29)
+    PaySvc -> Local : SaveAssetPrice{componentID, price, currency: réseau, updatedAt: now}
+    Local --> PaySvc : OK
 
-    alt Données invalides
-        REST --> Browser : 400 "Prix invalide"
-    else Données valides
-        REST -> Fabric : SubmitPriceUpdate{componentID, price, currency, commissionRate, ownerID}
-        Fabric -> CC : SetComponentPrice(...)
-        CC --> Fabric : tx confirmée
-        Fabric --> REST : OK
-
-        REST --> Browser : 200 {componentID, price, currency, commissionRate}
-    end
+    REST --> Browser : 200 {componentID, price, currency, commissionRate}
 end
 
 @enduml
@@ -131,22 +127,25 @@ end
 | Règle | Description | Détail |
 |-------|-------------|--------|
 | RM22 | Contrôle d'accès par rôle | Seul le propriétaire (role designer) peut modifier le prix |
-| RM07 | Validation avant soumission blockchain | Prix et devise validés côté serveur avant transaction |
-| RM23 | Commissions distribuées à la livraison | Le taux enregistré ici est utilisé par le smart contract lors de UCAUT01 |
-| RM24 | Répartition proportionnelle par auteur | Le taux de commission défini ici détermine la part de cet auteur |
+| RM29 | Taux de commission défini par le réseau | Le taux appliqué à la livraison provient de la configuration réseau, pas d'une saisie du concepteur |
+| RM31 | Modification de prix applicable aux commandes futures uniquement | Voir UCPI11 pour le détail de la modification |
+| RM32 | Asset à prix nul → libre accès, aucune commission | Un prix de 0 est une valeur valide, pas une erreur |
+| RM33 | Devise unique par réseau, non modifiable par l'auteur | La devise appliquée est toujours celle du réseau |
+| RM23 | Commissions distribuées à la livraison | Le prix enregistré ici est utilisé par le smart contract lors de UCAUT01 |
+| RM24 | Répartition proportionnelle par auteur | Le prix par composant détermine la part de cet auteur dans un module |
 
 ## Exigences non-fonctionnelles
 
 | ENF | Description |
 |-----|-------------|
 | ENF12 | Contrôle de propriété vérifié côté serveur (pas côté client) |
-| ENF30 | En cas d'échec blockchain, le prix précédent reste actif |
+| ENF27 | Le prix étant une donnée locale (pas blockchain), il suit les mêmes garanties de sauvegarde que le reste de `adapters/out/localstorage/` |
 
 ## Notes d'implémentation
 
-- **Non implémenté** : Aucun endpoint REST de tarification n'existe dans `adapters/in/rest/`
-- **À créer** : Route `PUT /api/components/{id}/price` dans `adapters/in/rest/handlers_payment.go`
-- **À créer** : Champ `Price`, `Currency`, `CommissionRate` dans l'entité `Model3D` (`domain/model/entity.go`) et dans le chaincode (`chaincode/model/entity.go`)
-- **À créer** : Fonction chaincode `SetComponentPrice(componentID, price, rate)` dans `chaincode/`
-- L'historique des prix (immuabilité blockchain) implique une structure append-only — ne pas écraser, ajouter une nouvelle entrée `PriceHistory[]`
-- La notion de devise doit être normalisée (enum ou code ISO) — à définir avec le product owner
+- **Non implémenté** : aucun endpoint REST de tarification n'existe dans `adapters/in/rest/`, aucun store de prix dans `adapters/out/localstorage/`
+- **À créer** : structure `AssetPrice{AssetID, OwnerID, Amount, Currency, UpdatedAt}` dans `domain/payment/`, persistée via `adapters/out/localstorage/price_store.go` — **pas** de champ prix dans `Model3D` ni dans le chaincode (RM31 : le prix n'est pas une donnée blockchain)
+- **À créer** : route `PUT /api/components/{id}/price` dans `adapters/in/rest/handlers_payment.go`, appelant le service domaine `payment` — même chemin de code que UCPI11 (modification), pas de duplication (règle hexagonale 4, CLAUDE.md)
+- Le taux de commission n'est **pas** saisi par le concepteur : il est lu depuis la configuration du réseau (RM29, `domain/network/`)
+- La devise est celle du réseau (RM33) — pas de sélection ni de conversion côté composant
+- **Parité CLI/REST :** `myr model price set <id> <montant>` doit appeler le même service domaine `payment` que la route REST — aucun accès direct à `localstorage` depuis l'adapter CLI

@@ -40,7 +40,7 @@ Le rôle `admin` est natif et protégé : il ne peut pas être attribué à d'au
 
 ## Pré-conditions
 
-- L'administrateur est authentifié avec le rôle `admin` (JWT valide).
+- L'administrateur est authentifié avec le rôle `admin` (session SSH sur le serveur).
 - L'organisation cible existe sur le réseau (UCADM01 réalisé).
 - Au moins un rôle disponible (autre que `admin`) existe (UCADM07 réalisé).
 

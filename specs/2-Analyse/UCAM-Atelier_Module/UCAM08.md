@@ -1,13 +1,13 @@
 ---
 categorie: Atelier Module
-titre: "Retirer un composant de l'atelier"
+titre: "Retirer une instance de composant d'un Module"
 probabilite: 4
 impact: 4
 importance: 16
 etat: analyse
 ---
 
-# Retirer un composant de l'atelier
+# Retirer une instance de composant d'un Module
 
 ## Diagramme d'acteurs
 
@@ -18,8 +18,8 @@ left to right direction
 actor "Concepteur" as C
 
 rectangle "Application MYR" {
-    usecase "Retirer une instance\nde l'atelier" as UC1
-    usecase "Avertir l'utilisateur\n(liaisons à supprimer)" as UC2
+    usecase "Retirer une instance\nd'un module" as UC1
+    usecase "Signaler les liaisons\nà supprimer" as UC2
     usecase "Supprimer les liaisons\nen cascade" as UC3
 }
 
@@ -32,68 +32,50 @@ UC1 ..> UC3 : <<include>>
 
 ## Contexte
 
-Le retrait d'un composant de l'Atelier supprime une **instance spécifique** (`WorkspaceInstance`) du module en cours de composition. Un composant peut être présent plusieurs fois dans l'Atelier sous des instances indépendantes (RM15) — le retrait ne concerne qu'une instance identifiée par son `instanceID`.
+Le retrait d'un composant d'un module supprime une **instance spécifique** (`WorkspaceInstance`) du module en cours de composition. Un composant peut être présent plusieurs fois dans un même module sous des instances indépendantes (RM15) — le retrait ne concerne qu'une instance identifiée par son `instanceID`.
 
 **L'opération est locale :** aucune transaction blockchain n'est émise. Le composant reste disponible sur le réseau et peut être rajouté à tout moment.
 
-**Cascade obligatoire (RM14) :** Toutes les connexions (`Connection`) qui impliquent cette instance (`FromInstanceID` ou `ToInstanceID` correspondant) sont supprimées automatiquement sans confirmation supplémentaire par la logique domaine. L'UI doit prévenir l'utilisateur et demander confirmation avant d'envoyer la requête.
+**Cascade obligatoire (RM14) :** Toutes les connexions (`Connection`) qui impliquent cette instance (`FromInstanceID` ou `ToInstanceID` correspondant) sont supprimées automatiquement par la logique domaine, sans étape de confirmation intermédiaire — c'est une action directe.
 
-**Identification par instance :** La route utilise `instanceID` (ID de `WorkspaceInstance`), pas `assetID`. Cela permet de retirer une instance spécifique d'un composant présent plusieurs fois dans l'Atelier sans affecter les autres instances du même composant.
+**Identification par instance :** La route utilise `instanceID` (ID de `WorkspaceInstance`), pas `assetID`. Cela permet de retirer une instance spécifique d'un composant présent plusieurs fois dans un module sans affecter les autres instances du même composant.
 
 ## Pré-conditions
 
-- L'utilisateur est authentifié avec le rôle **Concepteur** (`contributor`)
-- Un module est ouvert dans l'Atelier en état `draft`
-- Au moins un composant (instance) est présent dans l'Atelier
-- L'`instanceID` à retirer est connu
+- L'identité agit avec le rôle **Concepteur** (`contributor`)
+- Un module cible existe, en état `draft`
+- Au moins un composant (instance) est présent dans ce module
+- L'`instanceID` à retirer est connu (`GET /api/modules/:id/instances` ou `myr module get`)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant dans l'Atelier et choisit "Retirer"
+**Étape initiale :** `DELETE /api/modules/:moduleID/instances/:instanceID` est appelée (ou l'équivalent CLI `myr model instance remove`), sans étape de confirmation interactive
 
 ### Flux nominal — Retrait sans liaisons actives
 
-1. L'utilisateur sélectionne l'instance et clique "Retirer"
-2. L'UI vérifie côté client si des liaisons impliquent cette instance (depuis la liste des connexions en mémoire)
-3. Aucune liaison active → l'UI envoie directement la requête sans demander confirmation
-4. Le navigateur envoie `DELETE /api/modules/:moduleID/workspace/:instanceID`
-5. `RemoveAssetFromWorkspace(moduleID, instanceID)` :
+1. `RemoveAssetFromWorkspace(moduleID, instanceID)` :
    a. Récupère le module depuis la blockchain
    b. Construit l'ensemble des assemblages du module (`asmSet`)
    c. Parcourt `connStore.ListConnections()` — aucune connexion avec cet `instanceID`
    d. Filtre `WorkspaceInstances` en retirant l'instance cible
    e. Sauvegarde le module mis à jour (`blockchain.StoreModelRecord`)
-6. La réponse `200 OK` retourne le module mis à jour
-7. L'instance disparaît de l'Atelier
+2. La réponse `200 OK` retourne le module mis à jour
 
 ### Flux nominal — Retrait avec liaisons en cascade
 
-1. L'utilisateur sélectionne l'instance et clique "Retirer"
-2. L'UI détecte des liaisons impliquant cette instance
-3. Un avertissement liste les liaisons qui seront supprimées : "Ce composant est impliqué dans N liaison(s). Confirmer la suppression ?"
-4. L'utilisateur confirme
-5. Le navigateur envoie `DELETE /api/modules/:moduleID/workspace/:instanceID`
-6. `RemoveAssetFromWorkspace(moduleID, instanceID)` :
+1. `RemoveAssetFromWorkspace(moduleID, instanceID)` :
    a. Pour chaque connexion du module avec `FromInstanceID == instanceID` ou `ToInstanceID == instanceID` :
       - Retire la connexion de `m.Assemblies`
       - Supprime la connexion via `connStore.RemoveConnection(c.ID)` (RM14)
    b. Filtre `WorkspaceInstances` pour retirer l'instance
    c. Sauvegarde le module (`blockchain.StoreModelRecord`)
-7. La réponse retourne le module sans l'instance et sans ses connexions
-8. L'instance et toutes ses liaisons disparaissent de l'Atelier
-
-### Flux erreur — Refus de confirmation
-
-1. L'utilisateur annule à l'étape de confirmation
-2. Aucune requête n'est envoyée au serveur
-3. Le composant reste dans l'Atelier avec ses liaisons intactes
+2. La réponse retourne le module sans l'instance et sans ses connexions
 
 ### Flux erreur — Module non trouvé
 
 1. `blockchain.GetModelRecord(moduleID)` retourne une erreur (module supprimé ou Fabric indisponible)
 2. `RemoveAssetFromWorkspace` retourne l'erreur
 3. Le handler retourne HTTP 500
-4. L'UI affiche un message d'erreur
 
 ### Flux erreur — Instance introuvable dans le module
 
@@ -114,24 +96,13 @@ Le retrait d'un composant de l'Atelier supprime une **instance spécifique** (`W
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Client
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 
-Browser -> Browser : clic "Retirer" sur instance
-
-alt Liaisons détectées côté client
-    Browser -> Browser : afficher avertissement\n"N liaison(s) seront supprimées"
-    Browser -> Browser : attendre confirmation utilisateur
-
-    alt Utilisateur annule
-        Browser -> Browser : aucune requête envoyée
-    end
-end
-
-Browser -> REST : DELETE /api/modules/:moduleID/workspace/:instanceID
+Client -> REST : DELETE /api/modules/:moduleID/instances/:instanceID
 
 REST -> Service : RemoveAssetFromWorkspace(moduleID, instanceID)
 
@@ -158,9 +129,7 @@ Service -> Fabric : StoreModelRecord(module mis à jour)
 Fabric --> Service : nil
 
 Service --> REST : *Model3D (module sans instance)
-REST --> Browser : 200 { moduleDTO\n  sans l'instance retirée\n  sans ses connexions }
-
-Browser -> Browser : retirer instance de l'Atelier\nretirer traits de liaison associés
+REST --> Client : 200 { moduleDTO\n  sans l'instance retirée\n  sans ses connexions }
 
 @enduml
 ```
@@ -177,13 +146,13 @@ Browser -> Browser : retirer instance de l'Atelier\nretirer traits de liaison as
 
 - **ENF12** — Rôle `contributor` vérifié côté serveur
 - **ENF18** — Aucune dépendance Fabric dans la logique de suppression d'instance (locale uniquement)
-- Temps de réponse `DELETE /api/modules/:id/workspace/:instanceID` : `< 300 ms`
+- Temps de réponse `DELETE /api/modules/:id/instances/:instanceID` : `< 300 ms`
 
 ## Notes d'implémentation
 
-**Route REST :** `DELETE /api/modules/:moduleID/workspace/:instanceID` — traitée dans `handleModule()` par le bloc :
+**Route REST :** `DELETE /api/modules/:moduleID/instances/:instanceID` — traitée dans `handleModule()` par le bloc :
 ```go
-if idx := strings.Index(rest, "/workspace/"); idx != -1 {
+if idx := strings.Index(rest, "/instances/"); idx != -1 {
     // ...
     case http.MethodDelete:
         p, err := h.svcFor(r).RemoveAssetFromWorkspace(productID, instanceID)
@@ -194,8 +163,10 @@ if idx := strings.Index(rest, "/workspace/"); idx != -1 {
 - Évite de supprimer des connexions d'autres modules (clé de sécurité : intersection avec `m.Assemblies`)
 - L'ordre : supprimer les connexions AVANT de filtrer les instances (pour éviter la cohérence partielle)
 
-**Avertissement UI :** L'UI doit construire la liste des liaisons impactées à partir des données en mémoire (connexions déjà chargées), sans appel supplémentaire au serveur. Le message doit lister les composants distants impliqués dans les liaisons supprimées.
+**Liaisons impactées avant retrait :** un appelant qui souhaite connaître les liaisons qui seront supprimées peut les lister au préalable via `GET /api/modules/:id/assemblies` (ou `myr model link list`) — ce n'est pas une étape imposée par le service, qui exécute le retrait et la cascade en une seule action directe.
 
-**RM19 non implémenté (E5) :** Si le module est en état `submitted`, le retrait d'une instance devrait être bloqué ou déclencher un fork. Ce comportement est absent du code actuel. À documenter dans les tests et l'UI : afficher un avertissement si `module.status == "submitted"`.
+**RM19 non implémenté (E5) :** Si le module est en état `submitted`, le retrait d'une instance devrait être bloqué ou déclencher un fork. Ce comportement est absent du code actuel — à couvrir par les tests.
 
 **Double instance du même composant (RM15) :** Si le composant A est présent deux fois (instances `inst-1` et `inst-2`), retirer `inst-1` ne supprime que les connexions de `inst-1`. Les connexions de `inst-2` sont conservées. Cette indépendance est garantie par l'identification par `instanceID` et non par `assetID`.
+
+**Commande CLI équivalente (cible) :** `myr model instance remove <moduleID> <instanceID>` (voir `DC_CLI_Model.md` § 3.5), appelant `ModelService.RemoveAssetFromWorkspace(moduleID, instanceID)` — la même méthode que le handler `DELETE /api/modules/:moduleID/instances/:instanceID`. La cascade de suppression des connexions (RM14) et l'indépendance des instances (RM15) sont gérées identiquement par le service, quel que soit le canal. Conformément à DC-CLIM-03, aucune confirmation interactive n'est demandée : l'identifiant de l'instance est fourni explicitement, l'appelant est censé avoir vérifié au préalable les liaisons impactées via `myr model link list`.

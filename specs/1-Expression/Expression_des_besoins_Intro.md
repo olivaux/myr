@@ -188,7 +188,7 @@ Entité membre d'un réseau (entreprise, association, individu). Chaque utilisat
 
 ## Instance (composition d'un Module)
 
-Un module rassemble des composants et modules existants sous forme d'instances constituant sa composition, avant toute soumission à la blockchain. Une instance est ajoutée ou retirée par une action directe et brute sur le module (`AddAssetToWorkspace` / `RemoveAssetFromWorkspace` au niveau du domaine, `myr module instance add` / `remove` côté CLI, appel API équivalent) — ce n'est jamais la navigation dans un espace (« atelier » ou « workspace »), qui relève exclusivement de l'ergonomie du dépôt GUI externe.
+Un module rassemble des composants et modules existants sous forme d'instances constituant sa composition, avant toute soumission à la blockchain. Une instance est ajoutée ou retirée par une action directe et brute sur le module (`AddAssetToWorkspace` / `RemoveAssetFromWorkspace` au niveau du domaine, `myr model instance add` / `remove` côté CLI, appel API équivalent) — ce n'est jamais la navigation dans un espace (« atelier » ou « workspace »), qui relève exclusivement de l'ergonomie du dépôt GUI externe.
 
 Une instance dispose toujours d'au moins un slot virtuel permettant de l'ancrer dans la composition (RM13).
 

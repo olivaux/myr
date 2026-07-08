@@ -56,17 +56,15 @@ Ce use case est à faible probabilité (1) car il est irréversible — les util
 
 ## Scénario
 
-**Étape initiale :** Le propriétaire accède à la fiche de son asset et choisit "Transférer la propriété"
+**Étape initiale :** `POST /api/assets/{id}/transfer` est appelée (ou l'équivalent CLI `myr model transfer initiate`) avec l'identifiant du destinataire
 
 ### Flux nominal — Transfert sur le même réseau
 
-1. Le propriétaire saisit l'identifiant du destinataire (IdentityID ou adresse email si le réseau le permet)
+1. L'identifiant du destinataire (IdentityID ou adresse email si le réseau le permet) est transmis
 2. Le système vérifie que le destinataire existe bien sur le réseau Myr courant
-3. Le système affiche un récapitulatif et un avertissement fort : "Cette action est **définitive et irréversible**. L'ancien propriétaire perdra tous droits d'édition."
-4. Le propriétaire confirme avec une validation explicite (double confirmation ou saisie du mot "CONFIRMER")
-5. La transaction de transfert est soumise sur la blockchain : `OwnerID = destinataireID`
-6. Le destinataire reçoit une notification et doit accepter le transfert
-7. Après acceptation, l'`OwnerID` est finalisé sur la blockchain
+3. La transaction de transfert est soumise sur la blockchain en statut `pending_acceptance` : `OwnerID` cible = destinataireID — cette action est **définitive et irréversible** une fois acceptée, l'ancien propriétaire perdra tous droits d'édition
+4. Le destinataire reçoit une notification et doit accepter le transfert (`PUT /api/transfers/{id}/accept`)
+5. Après acceptation, l'`OwnerID` est finalisé sur la blockchain
 
 ### Flux alternatif — Transfert vers un réseau externe
 
@@ -80,7 +78,7 @@ Ce use case est à faible probabilité (1) car il est irréversible — les util
 ### Flux alternatif — Destinataire qui refuse le transfert
 
 1. Le destinataire reçoit la notification de transfert
-2. Il choisit "Refuser le transfert"
+2. Un refus est transmis (`PUT /api/transfers/{id}/reject`)
 3. La transaction de transfert est annulée (si en attente d'acceptation, pas encore finalisée)
 4. L'`OwnerID` reste inchangé — le propriétaire d'origine conserve la propriété
 5. Le propriétaire d'origine est notifié du refus
@@ -112,8 +110,8 @@ Ce use case est à faible probabilité (1) car il est irréversible — les util
 
 ```plantuml
 @startuml
-participant "Navigateur\n(Propriétaire)" as BrowserOwner
-participant "Navigateur\n(Destinataire)" as BrowserDest
+participant "Client\n(Propriétaire)" as BrowserOwner
+participant "Client\n(Destinataire)" as BrowserDest
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 participant "Identity Service\n(domain/identity/)" as IdentitySvc
@@ -183,3 +181,4 @@ end
 - Le token JWT signé pour le transfert inter-réseaux nécessite une clé publique partagée entre réseaux — mécanisme à définir avec le PO
 - La durée d'expiration du token (48h par défaut) doit être configurable par l'administrateur du réseau
 - Question ouverte : un transfert vers une organisation (pas un individu) est-il supporté ? L'`OwnerID` peut-il être un OrgID ?
+- **Parité CLI/REST :** conformément au principe de parité (CLAUDE.md), l'initiation puis l'acceptation d'un transfert de propriété devraient être exposables en CLI. Comme noté ci-dessus, aucune fonction `InitiateTransfer`/`FinalizeTransfer` n'existe dans `domain/model` ni de route REST correspondante — des commandes CLI (par ex. `myr model transfer initiate/accept <id> ...`) ne pourront être ajoutées qu'une fois ce domaine conçu.

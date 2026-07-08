@@ -53,19 +53,18 @@ C'est une généralisation de UCPI08 (clonage d'un composant) appliquée à un a
 
 ## Scénario
 
-**Étape initiale :** Le concepteur accède à la fiche de son module et choisit "Cloner sur un autre réseau"
+**Étape initiale :** `POST /api/modules/{id}/clone` est appelée (ou l'équivalent CLI `myr module clone`) avec l'identifiant du réseau cible
 
 ### Flux nominal — Clonage autorisé (toutes licences compatibles)
 
 1. Le système récupère la liste complète des composants constitutifs du module depuis la blockchain
 2. Pour chaque composant, le système vérifie la compatibilité de licence avec le réseau cible
-3. Toutes les licences sont compatibles — le système affiche le récapitulatif : module + N composants à cloner
-4. Le concepteur sélectionne le réseau de destination et confirme
-5. Pour chaque composant non encore présent sur le réseau cible : clonage selon UCPI08 (UUID préservé)
-6. La transaction de clonage du module est soumise sur le réseau source
-7. La structure du module (avec les UUIDs de ses composants) est transmise au réseau cible
-8. La transaction de réception du module est enregistrée sur le réseau cible
-9. Confirmation : "Module et {N} composant(s) clonés sur {réseau cible}"
+3. Toutes les licences sont compatibles — la réponse détaille : module + N composants à cloner
+4. Pour chaque composant non encore présent sur le réseau cible : clonage selon UCPI08 (UUID préservé)
+5. La transaction de clonage du module est soumise sur le réseau source
+6. La structure du module (avec les UUIDs de ses composants) est transmise au réseau cible
+7. La transaction de réception du module est enregistrée sur le réseau cible
+8. Confirmation : "Module et {N} composant(s) clonés sur {réseau cible}"
 
 ### Flux alternatif — Certains composants déjà présents sur le réseau cible
 
@@ -105,7 +104,7 @@ C'est une généralisation de UCPI08 (clonage d'un composant) appliquée à un a
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 participant "Network Service\n(domain/network/)" as NetSvc
@@ -187,3 +186,4 @@ end
 - Ce UC est une orchestration de N appels UCPI08 — envisager un traitement asynchrone avec statut de progression pour les modules comportant de nombreux composants
 - L'état de "clonage en cours" pour la reprise en cas d'échec partiel nécessite un stockage local de l'état d'avancement — table dans SQLite ou fichier JSON dans `adapters/out/localstorage/`
 - Question ouverte : le concepteur doit-il être propriétaire de **tous** les composants, ou suffit-il que les licences soient compatibles ? (Un concepteur peut vouloir cloner un module intégrant des composants d'autrui avec une licence open-source)
+- **Parité CLI/REST :** conformément au principe de parité (CLAUDE.md), le clonage d'un module (orchestration multi-composants) devrait être exposable en CLI. Comme noté ci-dessus, cette orchestration n'existe dans aucun domaine ni route REST — une commande CLI (par ex. `myr module clone <id> --target-network <id>`) ne pourra être ajoutée qu'une fois ce domaine conçu, généralisation de l'écart déjà constaté pour UCPI08.

@@ -18,100 +18,88 @@ left to right direction
 actor "Utilisateur\n(tout rôle authentifié)" as U
 actor "Administrateur" as ADM
 
-rectangle "Application MYR" {
+rectangle "API myr" {
     usecase "Effectuer une action" as UC1
-    usecase "Vérifier les droits du rôle\n(middleware JWT)" as UC2
-    usecase "Attribuer un rôle" as UC3
-    usecase "Retourner erreur 403" as UC4
+    usecase "Vérifier la session\n(token opaque)" as UC2
+    usecase "Vérifier la permission\n(RBAC dynamique)" as UC3
+    usecase "Gérer les rôles et permissions" as UC4
+    usecase "Retourner erreur 401/403" as UC5
 }
 
 U --> UC1
 UC1 ..> UC2 : <<include>>
-ADM --> UC3
-UC2 .> UC4 : <<extend>> (droits insuffisants)
+UC1 ..> UC3 : <<include>>
+ADM --> UC4
+UC2 .> UC5 : <<extend>> (session invalide)
+UC3 .> UC5 : <<extend>> (permission manquante)
 
 @enduml
 ```
 
 ## Contexte
 
-UCA05 décrit le mécanisme de contrôle d'accès par rôle (RBAC) qui protège chaque action du système. Ce n'est pas un use case déclenché explicitement par l'utilisateur : il s'exécute de manière transparente à chaque appel d'endpoint protégé.
+Le contrôle d'accès repose sur deux couches, toutes deux dans `adapters/in/rest/handlers.go` :
 
-Le contrôle d'accès est implémenté en deux couches :
+1. **Authentification** (`requireAuth`) — vérifie que le token opaque `X-Myr-Token` correspond à une session active et non expirée. Retourne `401` sinon.
+2. **Autorisation** (`requireRole`) — vérifie que le rôle de la session porte la **permission** requise pour l'action, via `domain/role.RoleService.HasPermission(role, permission)`. Retourne `403` sinon.
 
-1. **Authentification** : middleware `withJWTAuth` — vérifie que le token JWT est valide et non expiré. Retourne `401` si absent ou invalide.
+Les permissions forment un catalogue plat (pas de hiérarchie implicite) : `read`, `write`, `network.admin`, `role.admin`, `identity.admin`, `admin`. Un rôle est une association arbitraire à un sous-ensemble de ces permissions (RBAC dynamique, `domain/role`), pas une simple étiquette ordonnée.
 
-2. **Autorisation** : vérification du rôle dans le handler — retourne `403` si le rôle est insuffisant pour l'action demandée.
+Quatre rôles **intégrés** existent toujours et ne peuvent pas être modifiés ni supprimés : `reader`, `contributor`, `auditor`, `admin` (voir `myr role list`). Des rôles personnalisés (ex. `consumer`, `manufacturer`) peuvent être créés par un administrateur via `myr role create` avec n'importe quel sous-ensemble de permissions.
 
-Les rôles disponibles dans le système sont hiérarchisés :
-
-| Rôle | Code | Droits |
-|------|------|--------|
-| Lecteur | `reader` | Lecture authentifiée |
-| Concepteur | `contributor` (code provisoire) | Lecture + écriture assets |
-| Consommateur | `consumer` | Lecture + commande |
-| Manufactureur | `manufacturer` | Lecture sur demande |
-| Développeur | `developer` | Lecture + API/CLI |
-| Administrateur | `admin` | Tous droits réseau |
-
-Le rôle est encodé dans le JWT au moment du login et relié directement à la valeur stockée en base `users.role`.
+**Si aucun `role.RoleService` n'est injecté** dans le serveur (config minimale), `requireRole` retombe sur une hiérarchie historique câblée en dur : `reader(1) < contributor(2) < admin(3)`, comparée au rang requis par la permission (`legacyRoleRank` / `legacyPermRank` dans `handlers.go`).
 
 ## Pré-conditions
 
-- L'utilisateur est authentifié (JWT valide, non expiré)
-- Un rôle est attribué à l'utilisateur (toujours le cas après UCA01)
+- L'utilisateur dispose d'un token de session valide (UCA02)
+- Un rôle est associé à la session (celui fixé à la connexion — voir écart UCA02 sur le rôle figé à `"contributor"`)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur tente d'effectuer une action via l'interface ou l'API
-
 ### Flux nominal — Action autorisée
 
-1. Le client envoie la requête avec `Authorization: Bearer <token>`
-2. `withJWTAuth` valide le JWT et extrait les claims (dont `role`)
-3. Le handler vérifie que `claims.Role` correspond au rôle requis pour l'action
-4. L'action est exécutée normalement
+1. Le client envoie la requête avec `X-Myr-Token: <token>`
+2. `requireAuth` retrouve la session ; `requireRole` vérifie `roleSvc.HasPermission(sess.Role, permission_requise)`
+3. La permission est accordée — l'action est exécutée normalement
 
-### Flux erreur — Authentification absente (401)
+### Flux erreur — Session absente ou invalide (401)
 
-1. Aucun token ou token invalide dans la requête
-2. `withJWTAuth` retourne `HTTP 401` avec `{"message": "authentification requise"}`
-3. L'interface redirige vers la page de connexion
+1. Aucun token, ou token inconnu/expiré
+2. `requireAuth` retourne `HTTP 401` avec `{"error": "authentification requise"}`
 
-### Flux erreur — Rôle insuffisant (403)
+### Flux erreur — Permission insuffisante (403)
 
-1. Le token JWT est valide mais le rôle est insuffisant pour l'action demandée
-2. Le handler retourne `HTTP 403` avec `{"message": "Vous n'avez pas les droits nécessaires pour cette action"}`
-3. L'interface affiche le message d'erreur sans redirection
+1. La session est valide mais `HasPermission` retourne `false` pour la permission requise (ou repli sur `legacyRoleRank` si aucun `RoleService` injecté)
+2. `requireRole` retourne `HTTP 403` avec `{"error": "droits insuffisants"}`
 
 ## Post-conditions
 
-- Si autorisé : l'action est exécutée, le rôle de l'utilisateur n'est pas modifié
+- Si autorisé : l'action est exécutée, le rôle de la session n'est pas modifié
 - Si refusé : aucun effet de bord, l'état du système est inchangé
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
-participant "withJWTAuth\nmiddleware\n(handlers_auth.go)" as Middleware
-participant "REST Handler\n(adapters/in/rest/)" as REST
-participant "Auth Service\n(domain/auth/)" as Service
+participant "Client" as Client
+participant "requireAuth" as Auth
+participant "requireRole" as RoleMW
+participant "RoleService\n(domain/role/service.go)" as RoleSvc
+participant "REST Handler" as REST
 
-Browser -> Middleware : GET|POST /api/... \nAuthorization: Bearer <token>
-
+Client -> Auth : requête + X-Myr-Token
 alt token absent ou invalide
-  Middleware --> Browser : HTTP 401\n{message: "authentification requise"}
-else token valide
-  Middleware -> Service : ValidateToken(tokenStr)
-  Service --> Middleware : *Claims {UserID, Role, ...}
-  Middleware -> REST : ctx avec claims injectés
-  REST -> REST : vérifier claims.Role\nvs rôle requis pour l'action
-  alt rôle suffisant
-    REST -> REST : exécuter l'action
-    REST --> Browser : HTTP 200 (résultat)
-  else rôle insuffisant
-    REST --> Browser : HTTP 403\n{message: "droits insuffisants"}
+  Auth --> Client : HTTP 401 {error: "authentification requise"}
+else session valide
+  Auth -> RoleMW : ctx avec session
+  RoleMW -> RoleSvc : HasPermission(sess.Role, permission)
+  alt permission accordée
+    RoleSvc --> RoleMW : true
+    RoleMW -> REST : exécuter l'action
+    REST --> Client : HTTP 200 (résultat)
+  else permission refusée
+    RoleSvc --> RoleMW : false
+    RoleMW --> Client : HTTP 403 {error: "droits insuffisants"}
   end
 end
 @enduml
@@ -119,22 +107,20 @@ end
 
 ## Règles métier déclenchées
 
-- **RM22** — Tout accès à une action protégée déclenche une vérification de rôle côté serveur. Le client ne peut pas contourner ce contrôle en modifiant le JWT (signature HS256 vérifiée).
+- **RM22** — Tout accès à une action protégée déclenche une vérification côté serveur (session + permission). Le client ne peut pas contourner ce contrôle : le token est opaque, non forgeable.
 
 ## Exigences non-fonctionnelles
 
-- **ENF12** — Le contrôle de rôle est strictement côté serveur — jamais basé uniquement sur une décision client.
-- **ENF18** — Le middleware `withJWTAuth` est dans l'adapter `in/rest/` — il ne contient pas de logique métier, uniquement de l'extraction de claims.
+- **ENF12** — Le contrôle d'accès est strictement côté serveur.
+- **ENF18** — `requireAuth`/`requireRole` (adapter `in/rest/`) ne contiennent que de l'orchestration ; la décision RBAC elle-même vit dans `domain/role`.
 
 ## Notes d'implémentation
 
-**Middleware `withJWTAuth` :** Implémenté dans `adapters/in/rest/handlers_auth.go`. Il injecte les claims JWT dans le contexte de requête via `ctxWithJWTClaims`. Les handlers downstream extraient les claims via `jwtClaimsFromCtx(r)`.
+**Composants réels :**
+- `requireAuth`, `requireRole`, `legacyRoleRank`, `legacyPermRank` → `adapters/in/rest/handlers.go`
+- Catalogue de permissions, rôles intégrés, RBAC dynamique → `domain/role/entity.go`, `service.go`
+- Gestion des rôles : `myr role list|show|create|update|delete` (CLI uniquement — aucun endpoint REST de gestion des rôles, seulement une consultation implicite via l'usage du middleware)
 
-**Rôles `consumer`, `manufacturer`, `developer` :** Ces rôles sont définis dans les specs et la table d'acteurs (`Analyse_des_besoins.md §3.1`) mais ne sont pas encore présents dans `SetUserRole()` (`domain/auth/service.go`), qui n'accepte que `reader`, `contributor`, `admin`. À ajouter lors de l'implémentation de UCA08.
+**Pas de JWT :** aucune claim signée n'est en jeu ici — la « vérification du rôle » se fait en interrogeant le store de sessions et le service RBAC à chaque requête, pas en décodant un token.
 
-**Rôle `contributor` :** Alias provisoire du rôle **Concepteur** dans le code. Le code de rôle cible (`designer`) est à confirmer avec le product owner.
-
-**Statut d'implémentation :**
-- Middleware `withJWTAuth` : **opérationnel**
-- Vérification de rôle dans les handlers existants (model, channel, payment) : **opérationnelle** pour `reader`/`contributor`/`admin`
-- Rôles `consumer`, `manufacturer`, `developer` : **non implémentés**
+**Rôle figé à la connexion :** le rôle vérifié ici est celui fixé une fois pour toutes à la création de la session (UCA02) — un changement de rôle CA (UCA08) ne s'applique qu'à la prochaine connexion, pas à la session en cours.

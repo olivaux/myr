@@ -53,13 +53,12 @@ Une fois soumis, le Module est visible sur le réseau par tous les acteurs autor
 
 ## Scénario
 
-**Déclencheur :** Le Concepteur clique **Soumettre** dans la vue Atelier du Module.
+**Étape initiale :** `POST /api/modules/:id/submit` est appelée (ou l'équivalent CLI `myr module submit`) avec une note optionnelle
 
 ### Flux nominal — Soumission réussie
 
-1. Le Concepteur clique **Soumettre** dans l'Asset UI / Atelier
-2. Le système appelle `POST /api/modules/:id/submit` avec `{note: "..."}`
-3. Service : `SubmitModule(moduleID, note)` :
+1. `POST /api/modules/:id/submit` est appelée avec `{note: "..."}`
+2. Service : `SubmitModule(moduleID, note)` :
    a. Vérifie `len(m.Assemblies) >= 1` (RM17) — rejet immédiat si vide
    b. Calcule le hash SHA-256 : `computeModuleHash(m.ID, vNum, m.Assemblies)` — tri déterministe des IDs
    c. Génère un `blockID` simulé (production : retour Fabric)
@@ -67,9 +66,9 @@ Une fois soumis, le Module est visible sur le réseau par tous les acteurs autor
    e. Ajoute la version à `m.ModuleVersions`
    f. Met à jour `m.Status = ModuleSubmitted`
    g. Appelle `blockchain.StoreModelRecord(m)` — transaction Fabric
-4. La transaction Fabric est soumise (endorsement, orderer, commit) — ≤ 30 s (ENF02)
-5. Confirmation affichée : "Module soumis — Version N ancrée"
-6. L'UI passe en mode lecture seule pour ce Module
+3. La transaction Fabric est soumise (endorsement, orderer, commit) — ≤ 30 s (ENF02)
+4. La réponse confirme : "Module soumis — Version N ancrée"
+5. Le Module passe en lecture seule (RM19)
 
 ### Flux alternatif — Module avec composants dérivés (licences parentales)
 
@@ -82,12 +81,12 @@ Une fois soumis, le Module est visible sur le réseau par tous les acteurs autor
 
 > **Note RM19 :** Ce flux décrit le comportement **attendu par les specs**. Il n'est **pas implémenté** dans le code actuel (écart E5). Dans le code, un module `submitted` reste modifiable directement.
 
-1. Le Concepteur tente de modifier un Module en état `submitted` (ajout d'assemblage, modification de liens…)
+1. Une tentative de modification d'un Module en état `submitted` est effectuée (ajout d'assemblage, modification de liens…)
 2. Le système détecte `m.Status == ModuleSubmitted` — **modification directe refusée**
 3. Message : "Ce module est publié. Créez une nouvelle version pour le modifier."
-4. Le Concepteur confirme la création d'une nouvelle version
+4. La création d'une nouvelle version est demandée explicitement
 5. Le système crée un nouveau `Model3D` en état `draft` avec les mêmes `WorkspaceInstances`, `Assemblies` et métadonnées (`ParentID` = ID du module original)
-6. Le Concepteur modifie le fork dans l'Atelier
+6. Le fork est modifié par les mêmes actions directes que UCAM01/UCMOD01
 7. Le fork peut être soumis à son tour → nouvelle `ModuleVersion` indépendante
 
 ### Flux erreur — Aucun assemblage (RM17)
@@ -95,7 +94,7 @@ Une fois soumis, le Module est visible sur le réseau par tous les acteurs autor
 1. `len(m.Assemblies) == 0` détecté dans `SubmitModule()`
 2. Réponse : `400 Bad Request`
 3. Message : "Le module doit contenir au moins une liaison pour être soumis"
-4. Le Module reste en état `draft` — l'Atelier reste ouvert pour ajout de liaisons
+4. Le Module reste en état `draft` — des liaisons peuvent être ajoutées avant une nouvelle tentative
 
 ### Flux erreur — Incompatibilité de licences
 
@@ -117,21 +116,21 @@ Une fois soumis, le Module est visible sur le réseau par tous les acteurs autor
 - La `ModuleVersion` N est enregistrée de façon immuable sur la blockchain (ENF28)
 - `m.Status == ModuleSubmitted`
 - Le Module est visible sur le réseau pour les acteurs autorisés
-- L'Atelier du Module passe en mode lecture seule (RM19 — implémentation cible)
+- Le Module passe en lecture seule (RM19 — implémentation cible)
 - Toute modification ultérieure nécessite un fork (RM19)
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Client
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 
-Browser -> REST : POST /api/modules/:id/submit\n{note: "..."}
-REST -> REST : Vérifier JWT + rôle Concepteur + OwnerID (ENF12)
+Client -> REST : POST /api/modules/:id/submit\n{note: "..."}
+REST -> REST : Vérifier session + permission write + OwnerID (ENF12)
 REST -> Service : SubmitModule(moduleID, note)
 Service -> Fabric : GetModelRecord(moduleID, "")
 Fabric --> Service : *Model3D (draft)
@@ -140,14 +139,14 @@ Service -> Service : Vérifier len(Assemblies) >= 1 — RM17
 
 alt Aucun assemblage
     Service --> REST : erreur "aucun assemblage"
-    REST --> Browser : 400 "Le module doit contenir au moins une liaison"
+    REST --> Client : 400 "Le module doit contenir au moins une liaison"
 end
 
 Service -> Service : (optionnel) CheckModuleLicenseCompatibility()
 
 alt Licences incompatibles
     Service --> REST : erreur licence
-    REST --> Browser : 400 "Incompatibilité de licence : <raison>"
+    REST --> Client : 400 "Incompatibilité de licence : <raison>"
 end
 
 Service -> Service : computeModuleHash(moduleID, vNum, assemblies)\n[SHA-256 sur IDs triés]
@@ -159,13 +158,11 @@ Service -> Fabric : StoreModelRecord(m) — transaction endorsement
 alt Transaction OK (≤ 30 s — ENF02)
     Fabric --> Service : OK
     Service --> REST : *Model3D (submitted)
-    REST --> Browser : 200 moduleDTO\n(status: "submitted", versions: [v])
-    Browser -> Browser : UI → mode lecture seule\nAfficher "Version N ancrée"
+    REST --> Client : 200 moduleDTO\n(status: "submitted", versions: [v])
 else Échec Fabric (timeout / endorsement)
     Fabric --> Service : erreur
     Service --> REST : erreur interne
-    REST --> Browser : 500 "Soumission échouée — module reste en draft"
-    Browser -> Browser : Afficher motif d'erreur\nAtelier reste ouvert (ENF30)
+    REST --> Client : 500 "Soumission échouée — module reste en draft"
 end
 @enduml
 ```
@@ -191,6 +188,8 @@ end
 
 **Endpoints REST utilisés :**
 - `POST /api/modules/:id/submit` → `SubmitModule()` (handlers.go:~1181)
+
+**Commande CLI équivalente (cible) :** `myr module submit <moduleID> [--note <texte>]` appelle le même `SubmitModule(moduleID, note)` que `POST /api/modules/:id/submit` — mêmes vérifications RM17 (assemblage requis) et RM18 (ModuleVersion immuable), même message d'erreur en cas de rejet. Voir `specs/3-Conception/DC_CLI_Model.md` § 3.6 et § 5.
 
 **Hash du module :** `computeModuleHash()` (service.go:~730) calcule `SHA-256` sur la chaîne `"<moduleID>|v<n>|<connID1>,<connID2>,..."` avec les IDs triés. Ce hash est déterministe et permet la vérification d'intégrité ultérieure.
 

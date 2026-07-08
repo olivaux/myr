@@ -14,14 +14,11 @@
   - [D2 — Administration réseau](#d2--administration-réseau)
   - [D3 — Composant (écriture)](#d3--composant-écriture)
   - [D4 — Composant (lecture)](#d4--composant-lecture)
-  - [D5 — Atelier (assemblage)](#d5--atelier-assemblage)
+  - [D5 — Composition de Module (instances et liaisons)](#d5--composition-de-module-instances-et-liaisons)
   - [D6 — Module](#d6--module)
   - [D7 — Propriété Intellectuelle](#d7--propriété-intellectuelle)
   - [D8 — Recherche](#d8--recherche)
   - [D9 — Automatisation](#d9--automatisation)
-  - [D10 — Paramètres](#d10--paramètres)
-  - [D11 — Documentation](#d11--documentation)
-  - [D12 — Interface Graphique](#d12--interface-graphique)
   - [D13 — Développement autour de Myr](#d13--développement-autour-de-myr)
 - [6. Contraintes structurantes](#6-contraintes-structurantes)
   - [6.1 Architecture hexagonale](#61-architecture-hexagonale)
@@ -74,10 +71,9 @@ Les concepteurs de pièces (CAO, firmware, modules électroniques…) n'ont pas 
 
 Myr est une plateforme serveur Open-Source (AGPL 3.0) proposant :
 1. Un **registre blockchain immuable** des assets (composants et modules) avec généalogie, licences et propriétaires.
-2. Un **atelier de composition** permettant d'assembler des composants en modules via des interfaces physiques vérifiées.
+2. Un **assemblage de composition** permettant d'assembler des composants en modules via des interfaces physiques vérifiées.
 3. Un **système de propriété intellectuelle automatisé** — commissions, transferts, clonage inter-réseaux.
-4. Une **interface web** sans logiciel client, accessible depuis tout navigateur moderne.
-5. Une **API REST** et un **CLI d'administration** pour l'intégration et l'exploitation.
+4. Une **API REST** et un **CLI d'administration** pour l'intégration et l'exploitation — ses deux seuls points d'entrée.
 
 ---
 
@@ -105,14 +101,11 @@ Myr est une plateforme serveur Open-Source (AGPL 3.0) proposant :
 | D2 Administration réseau | | | | | | | ✓ |
 | D3 Composant écriture | | | ✓ | | | | |
 | D4 Composant lecture | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| D5 Atelier (assemblage) | | | ✓ | | | | |
+| D5 Composition de Module | | | ✓ | | | | |
 | D6 Module | | ✓ | ✓ | ✓ | | ✓ | |
 | D7 Propriété Intellectuelle | | ✓ | ✓ | ✓ | ✓ | | ✓ |
 | D8 Recherche | | ✓ | ✓ | ✓ | ✓ | ✓ | |
 | D9 Automatisation | | | ✓ | ✓ | ✓ | ✓ | |
-| D10 Paramètres | | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
-| D11 Documentation | | ✓ | ✓ | ✓ | ✓ | ✓ | |
-| D12 Interface Graphique | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ |
 | D13 Dev autour de Myr | | | | | | ✓ | ✓ |
 
 ---
@@ -121,16 +114,16 @@ Myr est une plateforme serveur Open-Source (AGPL 3.0) proposant :
 
 ### Ce que Myr fait
 
-- Servir une interface web sans logiciel client (navigateur uniquement)
+- Exposer une API REST et un CLI d'administration — ce sont ses deux seuls points d'entrée
 - Enregistrer des assets (composants, modules) sur une blockchain Fabric
 - Vérifier l'unicité (anti-plagiat SHA-256 + SCM) et la compatibilité de licences
 - Gérer les interfaces physiques et vérifier la compatibilité d'assemblage
 - Automatiser la distribution des commissions à la livraison
-- Exposer une API REST et un CLI d'administration
 - Gérer les identités (wallets Fabric CA) et les sessions utilisateur
 
 ### Ce que Myr ne fait pas
 
+- Servir une interface graphique
 - Effectuer la fabrication physique (déléguée à des manufactureurs partenaires)
 - Héberger un éditeur 3D natif (le stockage de fichiers CAO est délégué à un dépôt distribué 3D)
 - Gérer les paiements fiat (les transactions monétaires sont hors périmètre — seules les commissions blockchain sont traitées)
@@ -148,13 +141,14 @@ actor "Administrateur" as ADM
 
 rectangle "Myr System" {
     rectangle "myr-app\n(serveur HTTP)" as App {
-        rectangle "GUI (SPA)\n/ui/static/" as GUI
         rectangle "API REST\n/api/" as REST
         rectangle "Domaine métier\n/domain/" as Domain
     }
 }
 
 rectangle "CLI Admin\nmyr-cli" as CLI
+
+rectangle "Dépôt GUI\n(externe, hors périmètre myr)" as GUI
 
 rectangle "Infrastructure" {
     rectangle "Blockchain\nHyperLedger Fabric" as BC
@@ -169,7 +163,7 @@ rectangle "Intégrations tierces" {
 
 V --> GUI : navigateur
 U --> GUI : navigateur
-ADM --> GUI : navigateur
+GUI ..> REST : appels HTTP
 ADM --> CLI : terminal
 
 App --> BC : adapters/out/fabric/
@@ -200,40 +194,47 @@ Pour chaque domaine, la structure est :
 
 **Besoin :** Tout acteur doit pouvoir s'identifier sur un réseau Myr. Les droits d'accès sont contrôlés par rôle.
 
+> Il n'existe pas de compte email/mot de passe : « s'identifier » signifie obtenir une identité enregistrée auprès de la Fabric CA (RM20), et se connecter signifie (ré-)enrôler cette identité pour obtenir un token opaque de session REST.
+
 **Service attendu :**
-- Création de compte avec attribution automatique du rôle **Lecteur** (RM21)
-- Authentification JWT (email/password) — `JWT_SECRET` requis
-- Provisionnement différé de l'identité blockchain : l'identité Fabric CA est créée à la **première connexion**, pas à la création du compte (RM20)
-- Contrôle d'accès par rôle sur chaque action (RM22)
-- Demande de rôle supplémentaire depuis le profil (UCA08) — auto ou avec validation admin selon config réseau
+- Demande d'accès avec attribution automatique du rôle **Lecteur** en cas d'auto-enregistrement réseau (RM21)
+- Connexion par enrôlement CA (secret) → token opaque de session REST (`X-Myr-Token`, pas de JWT)
+- Identité et connexion sont la même opération — il n'y a pas de provisionnement différé à une étape ultérieure (RM20)
+- Contrôle d'accès par permission (RBAC dynamique, `domain/role`) sur chaque action (RM22)
+- Changement de rôle réservé à l'administrateur (`myr identity set-role`, UCA08) — aucune auto-attribution possible
 
 **Points d'attention :**
-- Le rôle Lecteur est attribué à la création — tout autre comportement viole RM21
-- Le wallet Fabric n'existe pas avant la première connexion — les use cases ne doivent pas présupposer son existence
-- UCA08 dépend de la configuration du réseau (auto vs validation admin) — prévoir les deux flux
+- Le rôle Lecteur n'est garanti par défaut qu'en cas d'auto-enregistrement (`AllowAutoRegister`) — sinon le rôle dépend de ce que l'admin configure manuellement
+- Le rôle de session REST est actuellement figé à `contributor` à chaque connexion, indépendamment du rôle CA réel de l'identité — écart documenté (voir `DC_D1_Auth_Identity.md`, Écart E1)
+- UCA08 n'a pas de flux self-service : c'est une action CLI administrateur uniquement
 
-**Code existant :** `domain/auth/`, `adapters/out/sqlite/`, `adapters/in/rest/handlers_auth.go` — JWT Register/Login/Refresh/Logout opérationnels. UCA08 (demande de rôle) non implémenté.
+**Code existant :** `domain/identity/`, `domain/role/`, `adapters/out/localstorage/` (wallets, rôles), `adapters/in/rest/handlers_identity.go` — enrôlement CA, accès invité, RBAC dynamique opérationnels via REST et CLI. Pas de flux d'approbation pour les demandes d'accès en attente (écart, voir `DC_D1_Auth_Identity.md` Écart E2).
 
 ---
 
 ### D2 — Administration réseau
 
-**Use cases** : UCADM01–UCADM03 | **Exigences** : EF07–EF09
+**Use cases** : UCADM01–UCADM07 | **Exigences** : EF07–EF09, EF57–EF58 | **Règles** : RM27–RM28, RM34–RM37
 
-**Besoin :** Un administrateur doit pouvoir créer un réseau Fabric isolé, y ajouter des organisations et étendre sa capacité avec de nouveaux nœuds.
+**Besoin :** Un administrateur doit pouvoir créer un réseau Fabric isolé, y ajouter des organisations, étendre ou réduire sa capacité en nœuds, démanteler un réseau de test, et gérer les rôles (définition et attribution aux organisations).
 
 **Service attendu :**
 - Création d'un réseau blockchain (channel Fabric, genesis block)
 - Ajout d'une organisation membre (MSP, certificats CA)
 - Ajout d'un nœud peer ou orderer au réseau existant
+- Retrait administratif d'un nœud du canal — refusé si le canal passerait sous 3 nœuds actifs (RM27, UCADM04)
+- Démantèlement d'un réseau dev/test — opération d'infrastructure locale hors blockchain, CLI uniquement, jamais via REST, refusée sur un réseau marqué production (RM28, UCADM05)
+- Création/édition/suppression de rôles personnalisés, rôle `admin` protégé (RM34, RM36, UCADM07)
+- Attribution ou retrait de rôles à une organisation, droits effectifs = union des rôles actifs (RM37, UCADM06)
 - Configuration des règles d'accès du réseau (rôles auto-distribués vs validation)
 
 **Points d'attention :**
 - Ces opérations sont irréversibles sur la blockchain — validation stricte avant soumission (RM07)
 - L'administrateur est le seul acteur de ce domaine
 - La création de réseau est le prérequis de tout autre use case — c'est le premier use case à rédiger
+- Le démantèlement (UCADM05) et la gestion des rôles (UCADM06/07) sont des opérations CLI locales, sans transaction Fabric pour la seconde
 
-**Code existant :** `domain/channel/`, `domain/network/`, `domain/identity/` — services domaine définis. Aucun endpoint REST ni CLI exposés. Priorité **HAUTE** d'implémentation.
+**Code existant :** `domain/channel/`, `domain/network/`, `domain/identity/`, `domain/role/` — services domaine définis. Voir `specs/3-Conception/DC_CLI_Admin.md` pour l'état d'exposition CLI/REST par commande.
 
 ---
 
@@ -280,48 +281,48 @@ Pour chaque domaine, la structure est :
 
 ---
 
-### D5 — Atelier (assemblage)
+### D5 — Composition de Module (instances et liaisons)
 
-**Use cases** : UCAM01–UCAM08 | **Exigences** : EF18–EF25 | **Règles** : RM09–RM15
+**Use cases** : UCAM01–03, 05, 07–08 (UCAM04, UCAM06 hors périmètre) | **Exigences** : EF18–EF20, EF22–EF25 (EF21 hors périmètre) | **Règles** : RM09–RM15
 
-**Besoin :** Un concepteur doit pouvoir placer des composants dans un espace de travail local (l'Atelier), y créer des liaisons entre leurs interfaces et composer un assemblage avant soumission.
+**Besoin :** Un concepteur doit pouvoir ajouter des composants comme instances à un module (action directe, locale au serveur, hors blockchain), y créer des liaisons entre leurs interfaces et composer un assemblage avant soumission.
 
 **Service attendu :**
-- L'Atelier est un espace **local au serveur** — hors blockchain, modifiable librement
-- Placement de composants avec gestion d'instances indépendantes (RM15)
-- Chaque asset de l'atelier dispose toujours d'au moins un slot virtuel (RM13)
+- Ajout/retrait d'instances de composants sur un module : action brute et directe (`AddAssetToWorkspace`/`RemoveAssetFromWorkspace`), locale au serveur, hors blockchain, modifiable librement
+- Gestion d'instances indépendantes lors de l'ajout d'un module déjà instancié (RM15)
+- Chaque asset possède toujours au moins un slot virtuel (RM13)
 - Création de liaisons entre interfaces : vérification de compatibilité automatique (RM10) selon 5 critères (RM11)
 - Interface à usage unique par liaison (RM09)
 - Liaison devenant incompatible → `Incompatible: true` sans suppression automatique (RM12)
-- Retrait d'un asset → suppression en cascade de toutes ses connexions (RM14)
+- Retrait d'une instance → suppression en cascade de toutes ses connexions (RM14)
 - Choix d'un asset d'accroche (Fastener) pour une liaison indirecte (UCAM07)
 
 **Points d'attention :**
-- Les interfaces incompatibles (`Incompatible: true`) doivent être visibles en rouge dans l'UI — elles restent jusqu'à suppression manuelle
+- Les liaisons incompatibles (`Incompatible: true`) restent consultables jusqu'à suppression manuelle — aucune suppression automatique
 - La vérification RM11 porte sur 5 critères : catégorie + **tag** + type + sens complémentaires + plages de valeurs — le champ `Tag` est actuellement absent de `AssetInterface` dans le code (à ajouter)
-- L'Atelier correspond au terme `Workspace` dans le code — les deux termes sont équivalents
+- Le CLI/API n'expose aucun espace navigable : chaque action (ajout/retrait d'instance, création de liaison) s'exécute directement sur un module identifié. Les méthodes Go historiques (`AddAssetToWorkspace`) portent encore le nom « Workspace » en interne, mais ce nom ne doit apparaître ni dans les use cases ni dans le nommage des commandes CLI
 
-**Code existant :** `domain/model/service.go` — liaisons, slots virtuels, cascade opérationnels. `ifacesCompatible()` implémentée (critère tag manquant). `adapters/in/rest/handlers.go` — endpoints Atelier exposés.
+**Code existant :** `domain/model/service.go` — liaisons, slots virtuels, cascade opérationnels. `ifacesCompatible()` implémentée (critère tag manquant). `adapters/in/rest/handlers.go` — endpoints d'instance/liaison exposés.
 
 ---
 
 ### D6 — Module
 
-**Use cases** : UCMOD01–UCMOD06 | **Exigences** : EF26–EF29 | **Règles** : RM16–RM19
+**Use cases** : UCMOD01–04, 06 (UCMOD05 hors périmètre) | **Exigences** : EF26–EF29 | **Règles** : RM16–RM19
 
-**Besoin :** Un concepteur doit pouvoir consolider un assemblage de l'Atelier en module, le versionner et le soumettre à la blockchain.
+**Besoin :** Un concepteur doit pouvoir consolider un assemblage de composants en module, le versionner et le soumettre à la blockchain.
 
 **Service attendu :**
 - Création d'un module en état **draft** (RM16) — non visible sur le réseau
-- Ajout d'un module existant dans l'Atelier (instances indépendantes — RM15)
+- Ajout d'un module existant comme instance d'un module hôte (instances indépendantes — RM15)
 - Soumission à la blockchain : exige au moins une liaison (RM17)
 - `ModuleVersion` immuable créée à la soumission (hash + horodatage — RM18)
 - Toute modification d'un module **soumis** crée une nouvelle version (fork — RM19)
 - Visualisation de la composition (composants + liaisons)
 
 **Points d'attention :**
-- RM19 est critique : un module soumis doit être en lecture seule — l'Atelier doit interdire toute modification directe et proposer le fork
-- La `ModuleVersion` est le seul artefact ancré sur la blockchain pour les modules — les instances Atelier restent côté serveur
+- RM19 est critique : un module soumis doit être en lecture seule — le service doit interdire toute modification directe et proposer le fork
+- La `ModuleVersion` est le seul artefact ancré sur la blockchain pour les modules — les instances restent côté serveur
 
 **Code existant :** `domain/model/service.go` — `CreateModule()`, `SubmitModule()` opérationnels. RM17 (assemblage requis) vérifiée. RM18 (ModuleVersion) implémentée. **RM19 (fork obligatoire) absente** — un module soumis reste modifiable dans le code actuel.
 
@@ -329,14 +330,19 @@ Pour chaque domaine, la structure est :
 
 ### D7 — Propriété Intellectuelle
 
-**Use cases** : UCPI01–UCPI10 (sauf UCPI03 → reclassifié UCPAR) | **Exigences** : EF30–EF38 | **Règles** : RM23–RM26
+**Use cases** : UCPI01–11 (sauf UCPI03 → reclassifié, voir stub UCPI03) | **Exigences** : EF30–EF38, EF59 | **Règles** : RM23–RM26, RM29–RM33
 
-**Besoin :** Le système doit automatiser la rémunération des auteurs, permettre le transfert de propriété et tracer le clonage inter-réseaux.
+**Besoin :** Le système doit automatiser la rémunération des auteurs, gérer la tarification et la devise des assets, permettre le transfert de propriété et tracer le clonage inter-réseaux.
 
 **Service attendu :**
 - Commande d'un module (fabrication ou achat stock) — UCPI01
 - Distribution automatique des commissions à la livraison, calculée par smart contract (RM23, RM24)
+- Taux de commission uniforme défini par l'administrateur du réseau, non modifiable par l'auteur (RM29)
 - Définition d'un prix sur un composant ou module propriétaire (UCPI04, UCPI05)
+- Calcul automatique du prix d'un module non tarifé = somme des prix de ses composants (RM30)
+- Modification du prix d'un asset, applicable aux commandes futures uniquement (RM31, UCPI11)
+- Asset à prix nul librement disponible, sans commission générée (RM32)
+- Devise unique par réseau, définie par l'administrateur, sans conversion (RM33)
 - Signalement d'un composant similaire (UCPI06)
 - Transfert définitif de propriété — immuable (RM25)
 - Clonage inter-réseaux avec UUID et traçabilité préservés sur les deux réseaux (RM26)
@@ -346,6 +352,7 @@ Pour chaque domaine, la structure est :
 - La distribution de commissions est déclenchée par la **livraison** (UCAUT01) — ce domaine est couplé à D9
 - Le smart contract de commission est distinct du service `payment` côté serveur — il réside dans le chaincode Fabric
 - RM26 exige une transaction sur **deux réseaux distincts** — le use case doit préciser la séquence
+- UCPI11 (modification de prix) est un ajout récent, absent du diagramme de contexte et de la table `Package` de `Expression_des_besoins_Intro.md` §4
 
 **Code existant :** `domain/payment/service.go` — paiement manuel implémenté. Aucun endpoint REST exposé. Smart contract de commission **absent** du chaincode. Priorité implémentation : HAUTE.
 
@@ -353,19 +360,19 @@ Pour chaque domaine, la structure est :
 
 ### D8 — Recherche
 
-**Use cases** : UCREC01–UCREC05 | **Exigences** : EF39–EF43
+**Use cases** : UCREC01–05 | **Exigences** : EF39–EF43
 
 **Besoin :** Tout utilisateur authentifié doit pouvoir trouver des assets par critères et explorer leurs relations.
 
 **Service attendu :**
 - Recherche par référence, filtre multi-critères (UCREC01)
-- Identification des composants compatibles entre eux via leurs interfaces (UCREC02)
+- Identification des composants dont les interfaces libres sont compatibles avec celles d'un composant source (UCREC02)
 - Consultation de l'arbre de versions d'un composant (UCREC03)
 - Identification des modules intégrant un composant donné (UCREC04)
 - Export de la BOM (Bill of Materials) d'un module (UCREC05)
 
 **Points d'attention :**
-- UCREC02 s'appuie sur la logique `ifacesCompatible` (RM11) — réutiliser le même algorithme
+- UCREC02 est une recherche **approximative** : elle liste les composants candidats et compare leurs interfaces sans appliquer l'algorithme de compatibilité `ifacesCompatible` (RM10/RM11) — à ne pas confondre avec la vérification automatique déclenchée à la création d'une liaison (UCAM01)
 - L'export BOM (UCREC05) doit respecter ENF03 (≤ 5 s pour 100 composants)
 
 **Code existant :** `GET /api/components` implémenté (filtrage de base). UCREC02, UCREC04, UCREC05 non exposés.
@@ -389,157 +396,6 @@ Pour chaque domaine, la structure est :
 - UCAUT03 et UCAUT04 impliquent des intégrations tierces (logiciels CAO) — prévoir des interfaces bien délimitées
 
 **Code existant :** Non implémenté.
-
----
-
-### D10 — Paramètres
-
-**Use cases** : UCPAR01–UCPAR02 | **Exigences** : EF50–EF51
-
-**Besoin :** L'interface doit être disponible en anglais et en chinois.
-
-**Service attendu :**
-- Sélection de la langue (anglais par défaut, chinois disponible)
-- Persistance du choix utilisateur
-
-**Points d'attention :**
-- L'internationalisation impacte l'ensemble des messages de l'UI — à traiter comme une infrastructure transversale
-
-**Code existant :** Non implémenté. Aucun mécanisme i18n côté serveur ou frontend.
-
----
-
-### D11 — Documentation
-
-**Use cases** : UCDOC01–UCDOC03 | **Exigences** : EF52–EF54
-
-**Besoin :** Les utilisateurs doivent pouvoir accéder à la documentation et à la FAQ depuis l'application.
-
-**Service attendu :**
-- Accès à la documentation système depuis l'interface
-- FAQ accessible depuis le profil ou l'aide
-- Documentation technique pour les développeurs (API, CLI)
-
-**Code existant :** Non implémenté. `cmd/mangen/` génère des man pages pour la CLI.
-
----
-
-### D12 — Interface Graphique
-
-**Use cases** : UCIG01–UCIG02 | **Exigences** : EF48–EF49 | **ENF** : ENF22, ENF24
-
-**Besoin :** L'interface doit être cohérente, navigable et gérer les erreurs explicitement.
-
-**Service attendu :**
-- Navigation via MenuBar (Recherche, Profil, New Asset) présente sur toutes les pages
-- Explorer UI pour parcourir les assets
-- Asset UI avec Atelier intégré
-- Gestion des erreurs 404 et erreurs métier — messages explicites
-
-**Points d'attention :**
-- L'interface est une SPA (Single Page Application) en Vanilla JS — pas de framework, pas de bundler
-- Compatible Chrome 120+, Firefox 120+, Safari 17+, Edge 120+ (ENF22)
-- Le hot-reload est disponible en développement via `MYR_DEV=1`
-
-**Wireframe de navigation :**
-
-```plantuml
-@startuml
-top to bottom direction
-
-actor "Utilisateur\nconnecté" as User
-
-rectangle "WebView" as WebView {
-
-    rectangle "MenuBar UI" <<UI>> as MenuBar {
-        rectangle "Recherche" <<button>> as Search_BT
-        rectangle "Profil" <<button>> as Account_BT
-        rectangle "New Asset" <<button>> as NewAsset_BT
-    }
-
-    rectangle "Asset UI" <<UI>> as Asset_UI {
-        rectangle "Atelier" as Workshop_UI {
-             rectangle "<List>Asset" as AssetList_Edition {
-                rectangle "Asset1" as Asset1_edit
-                rectangle "Asset2" as Asset2_edit
-            }
-        }
-        rectangle "<List>Asset" as AssetList_ {
-            rectangle "Asset1" as Asset1
-            rectangle "Asset2" as Asset2
-        }
-        rectangle "Atelier" <<button>> as Workshop_BT
-    }
-
-    rectangle "MainWindow UI" <<UI>> as MainWindow {
-        rectangle "Search" as Search_UI {
-            rectangle "Add to Explorer" <<button>> as AddExplorer
-        }
-        rectangle "Explorer UI" <<UI>> as Explorer_UI {
-            rectangle "<List>Asset" as AssetList {
-                rectangle "AssetA" as AssetA
-                rectangle "AssetB" as AssetB
-            }
-        }
-        rectangle "Profil" as Account_UI
-        rectangle "Page Erreur\n404" as Error
-    }
-}
-
-rectangle "Serveur" as Server {
-    rectangle "myr-app" {
-        rectangle "Base de données" as SQL {
-            rectangle "User_DB"
-        }
-        rectangle "Dépôt distribué 3D" as IPFS {
-            rectangle "Asset_DB"
-        }
-        rectangle "BlockChain" as BC {
-            rectangle "reseau" {
-                rectangle "Identity"
-                rectangle "Asset_Ledger"
-            }
-        }
-    }
-}
-
-WebView <--> Server : API REST
-
-User --> AssetList : add asset
-User --> Workshop_UI : add asset
-AddExplorer --> AssetList : add Part
-AssetA --> Asset_UI : open AssetA
-Workshop_BT --> Workshop_UI : open
-Account_BT --> Account_UI : open
-NewAsset_BT --> Asset_UI : open New
-AssetList_ --> AssetList_Edition : Edition
-
-note top of MenuBar
-  Présent sur <b>toutes les pages</b>
-end note
-
-note left of Workshop_UI
-  Edite l'asset
-end note
-
-note left of Asset_UI
-  Détail Module. Vide si Composant
-end note
-
-skinparam rectangle<<button>> {
-  BackgroundColor #f0f4ff
-  BorderColor #4a6fa5
-}
-
-skinparam rectangle<<UI>> {
-  BackgroundColor #e1c87c
-  BorderColor #4a6fa5
-}
-
-@enduml
-```
-
-**Code existant :** `ui/static/` — SPA servie depuis `myr-app`. Fonctionnel en mode hot-reload (`MYR_DEV=1`).
 
 ---
 
@@ -625,15 +481,15 @@ Deux interfaces sont **compatibles** si et seulement si les 5 critères de RM11 
 
 | Priorité | Domaines | Justification |
 |----------|---------|--------------|
-| **Must have** | D1 Compte & Accès, D3 Composant écriture, D4 Composant lecture, D5 Atelier, D6 Module | Cœur fonctionnel — sans ces domaines, le système ne peut pas fonctionner |
-| **Should have** | D2 Administration réseau, D7 Propriété Intellectuelle, D8 Recherche, D12 Interface Graphique, D13 Dev autour de Myr | Nécessaires pour une mise en production réelle |
-| **Could have** | D9 Automatisation, D10 Paramètres, D11 Documentation | Améliorent l'expérience mais non bloquants |
+| **Must have** | D1 Compte & Accès, D3 Composant écriture, D4 Composant lecture, D5 Composition de Module, D6 Module | Cœur fonctionnel — sans ces domaines, le système ne peut pas fonctionner |
+| **Should have** | D2 Administration réseau, D7 Propriété Intellectuelle, D8 Recherche, D13 Dev autour de Myr | Nécessaires pour une mise en production réelle |
+| **Could have** | D9 Automatisation | Améliorent l'expérience mais non bloquants |
 | **Won't have (v1)** | Intégrations CAO avancées, paiements fiat, app mobile | Hors périmètre v1 |
 
 ### Ordre d'implémentation recommandé
 
 ```
-D2 (réseau) → D1 (auth) → D4 (lecture) → D3 (écriture) → D5 (atelier) → D6 (module) → D8 (recherche) → D7 (PI) → D9 (automatisation)
+D2 (réseau) → D1 (auth) → D4 (lecture) → D3 (écriture) → D5 (composition) → D6 (module) → D8 (recherche) → D7 (PI) → D9 (automatisation)
 ```
 
 ---
@@ -663,7 +519,7 @@ D2 (réseau) → D1 (auth) → D4 (lecture) → D3 (écriture) → D5 (atelier) 
 |----|-------|---------|--------|
 | E1 | Catégorie `decoupage` absente | `domain/model/entity.go` | RM02 |
 | E2 | `AssetInterface.Tag` absent | `domain/model/entity.go` | RM11 |
-| E3 | Rôle `contributor` au lieu de `reader` à la création | `domain/auth/service.go:93` | RM21 |
+| E3 | Rôle de session REST figé à `contributor`, jamais lu depuis le rôle CA réel | `adapters/in/rest/handlers_identity.go` (`handleIdentitySession`) | RM22 |
 | E4 | Anti-plagiat RM01 : comparaison avec assets existants absente | `domain/model/service.go` | RM01 |
 | E5 | Fork module soumis non contraint | `domain/model/service.go:461` | RM19 |
 | E6 | Entité chaincode `Model3D` incomplète (7 vs 20+ champs) | `chaincode/model/entity.go` | RM06 |
@@ -681,13 +537,13 @@ Ces écarts sont documentés ici à titre de référence — les use cases sont 
 | Asset | `Model3D` | **Asset** |
 | Composant | `Model3D` (sans WorkspaceInstances) | **Composant** |
 | Module | `Model3D` (avec WorkspaceInstances) | **Module** |
-| Atelier | `Workspace` | **Atelier** |
+| Instance (d'un composant/module dans un module hôte) | `WorkspaceInstance` (nom interne, ne pas exposer) | **Instance** — jamais « atelier »/« workspace » |
 | Interface physique | `AssetInterface` | **Interface** |
 | Liaison | `Connection` | **Liaison** |
 | Asset d'accroche | `FastenerAssetID` | **Asset d'accroche** |
 | Réseau | `Network` | **Réseau** |
 | Canal | `Channel` (Fabric) | **Canal** |
-| Wallet | `wallet` (SQLite chiffré) | **Wallet** |
+| Wallet | `WalletEntry` (fichiers MSP locaux, non chiffrés) | **Wallet** |
 | Rôle Lecteur | `reader` | **Lecteur** |
 | Rôle Concepteur | `contributor` (provisoire) | **Concepteur** |
 
@@ -712,7 +568,7 @@ Chaque use case doit contenir :
 - [ ] Le rôle de l'acteur est-il vérifié côté serveur ? (ENF12)
 - [ ] L'UUID est-il généré par le système, pas par le client ? (RM04)
 
-À vérifier dans tout use case d'**atelier** (UCAM) :
+À vérifier dans tout use case de **composition de module** (UCAM) :
 
 - [ ] La vérification de compatibilité RM11 est-elle appelée ? (5 critères dont Tag)
 - [ ] Un slot virtuel est-il garanti après toute matérialisation ? (RM13)

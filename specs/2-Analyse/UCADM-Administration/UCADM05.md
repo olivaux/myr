@@ -40,7 +40,7 @@ Lors des phases de développement et de test, l'administrateur crée des réseau
 
 **Cette opération est hors périmètre blockchain.** Elle n'appelle aucune API Fabric SDK — elle opère au niveau de l'infrastructure système : arrêt de processus, suppression de fichiers. Elle ne viole pas RM06 (immuabilité des transactions) car aucune transaction n'est soumise. Le ledger existant est simplement détruit avec l'infrastructure (RM28).
 
-La commande est exposée **uniquement via le CLI admin** (`myr.exe`). Elle n'est jamais disponible via l'API REST. Elle requiert un flag `--confirm` explicite et refuse d'agir sur un réseau marqué `IsProduction: true`.
+La commande est exposée **uniquement via le CLI admin** (`myr`). Elle n'est jamais disponible via l'API REST. Elle requiert un flag `--confirm` explicite et refuse d'agir sur un réseau marqué `IsProduction: true`.
 
 ## Pré-conditions
 
@@ -101,7 +101,7 @@ La commande est exposée **uniquement via le CLI admin** (`myr.exe`). Elle n'est
 
 ```plantuml
 @startuml
-participant "CLI Admin\n(myr.exe)" as CLI
+participant "CLI Admin\n(myr)" as CLI
 participant "CLI Handler\n(adapters/in/cli/)" as CLIHandler
 participant "Network Service\n(domain/network/)" as NetSvc
 database "LocalStorage\n(adapters/out/localstorage/)" as Local

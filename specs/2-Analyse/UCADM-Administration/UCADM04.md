@@ -46,7 +46,7 @@ Le seuil minimum de 3 nœuds actifs est imposé par RM27 pour garantir la résil
 
 ## Pré-conditions
 
-- L'administrateur est authentifié avec le rôle `admin` (JWT valide).
+- L'administrateur dispose d'un accès SSH au serveur et exécute la commande CLI localement (`myr node remove`) — pas d'authentification REST pour cette opération.
 - Un réseau opérationnel existe (UCADM02 réalisé).
 - Le nœud à retirer est membre actif du canal cible.
 - Au moins 4 nœuds actifs sur le canal (pour rester ≥ 3 après retrait — RM27).
@@ -101,7 +101,7 @@ Le seuil minimum de 3 nœuds actifs est imposé par RM27 pour garantir la résil
 
 ```plantuml
 @startuml
-participant "CLI Admin\n(myr.exe)" as CLI
+participant "CLI Admin\n(myr)" as CLI
 participant "CLI Handler\n(adapters/in/cli/)" as CLIHandler
 participant "Channel Service\n(domain/channel/)" as ChanSvc
 participant "Network Service\n(domain/network/)" as NetSvc

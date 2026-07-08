@@ -15,150 +15,95 @@ etat: analyse
 @startuml
 left to right direction
 
-actor "Lecteur\n(ou tout rôle authentifié)" as U
+actor "Utilisateur\n(tout rôle authentifié)" as U
 actor "Administrateur" as ADM
 
-rectangle "Application MYR" {
-    usecase "Demander un rôle" as UC1
-    usecase "Vérifier doublon de rôle" as UC2
-    usecase "Attribution automatique\n(auto-distribution)" as UC3
-    usecase "Soumettre à l'admin" as UC4
-    usecase "Traiter la demande" as UC5
+rectangle "API myr" {
+    usecase "Soumettre une demande\n(message libre)" as UC1
+    usecase "Changer le rôle d'une identité\n(myr identity set-role)" as UC2
 }
 
 U --> UC1
-UC1 ..> UC2 : <<include>>
-UC1 .> UC3 : <<extend>> (auto-distribution activée)
-UC1 .> UC4 : <<extend>> (validation manuelle requise)
-ADM --> UC5
-UC4 .> UC5 : <<extend>>
+ADM --> UC2
 
 @enduml
 ```
 
 ## Contexte
 
-UCA08 permet à un utilisateur connecté de demander l'attribution d'un rôle supplémentaire. Le rôle par défaut à la création de compte est **Lecteur** (`reader`) — ce use case est le seul moyen d'obtenir un rôle plus élevé.
+**Il n'existe aucun mécanisme en libre-service pour qu'un utilisateur change son propre rôle.** Le changement de rôle est une opération strictement administrateur :
 
-Deux modes de traitement sont possibles, configurables par réseau :
+```
+myr identity set-role --id <pseudo@org> --role <nom-du-rôle>
+```
 
-1. **Auto-distribution** : le rôle est attribué immédiatement sans intervention humaine. Adapté aux rôles peu sensibles (ex. : Consommateur).
+Cette commande CLI modifie l'attribut `Myr.role` de l'identité auprès de la Fabric CA (`identitySvc.SetRole` → `CAPort.UpdateAttributes`). **Le nouveau rôle ne s'applique qu'au prochain ré-enrôlement de l'identité** (propriété de la Fabric CA, pas une limitation de `myr`) — l'utilisateur doit donc se reconnecter (UCA02) après le changement.
 
-2. **Validation manuelle** : la demande est transmise à l'administrateur qui l'approuve ou la refuse. Adapté aux rôles sensibles (ex. : Concepteur, Administrateur).
+Le rôle demandé doit exister dans le catalogue RBAC (`domain/role`) — soit l'un des 4 rôles intégrés (`reader`, `contributor`, `auditor`, `admin`), soit un rôle personnalisé déjà créé par un administrateur (`myr role create`, voir UCA05).
 
-**Ce use case n'est pas implémenté** dans le code actuel. Aucun endpoint `POST /api/auth/request-role` n'existe. L'attribution de rôle se fait actuellement via `SetUserRole()` du service auth, appelable uniquement par l'administrateur.
+Un utilisateur ne peut transmettre une requête d'accès qu'en texte libre : le champ `message` de `POST /api/identity/request` (UCA01) ou de `POST /api/identity/guest` (UCA02) permet d'écrire une demande, mais **il n'existe pas de champ structuré « rôle souhaité » dans `AccountRequest`** — l'administrateur doit lire le message et agir manuellement via `myr identity set-role`.
 
-Les rôles demandables doivent être parmi : `contributor` (Concepteur), `consumer` (Consommateur), `manufacturer` (Manufactureur), `developer` (Développeur). Le rôle `admin` ne peut pas être auto-attribué.
+> ⚠️ En complément, le rôle de session REST étant actuellement figé à `"contributor"` à chaque connexion (voir écart documenté dans UCA02), un changement de rôle effectué via `myr identity set-role` **n'a aujourd'hui aucun effet visible sur la session REST** obtenue via `POST /api/identity/session` — seul un usage CLI direct de l'identité (hors REST) refléterait le nouveau rôle CA.
 
 ## Pré-conditions
 
-- L'utilisateur est authentifié (JWT valide)
-- Le rôle cible est différent du rôle déjà détenu
-- Le rôle cible est différent de `admin` (non demandable)
-- Le réseau cible est configuré avec une règle pour ce rôle (auto ou validation)
+- L'identité existe déjà auprès de la CA (UCA01 complété)
+- L'administrateur dispose des droits pour exécuter `myr identity set-role` (accès CLI serveur)
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur ouvre son profil et clique sur "Demander un rôle"
+### Flux nominal — Demande informelle puis changement manuel
 
-### Flux nominal — Attribution automatique (auto-distribution activée)
+1. L'utilisateur transmet sa demande de rôle par le champ `message` libre d'une requête `POST /api/identity/request` ou `POST /api/identity/guest`, ou par un canal hors `myr` (email, ticket, etc.)
+2. L'administrateur consulte les demandes en attente via `GET /api/identity/requests`
+3. L'administrateur exécute `myr identity set-role --id <pseudo@org> --role <nouveau-rôle>`
+4. Le service appelle `CAPort.UpdateAttributes(ctx, name, {"Myr.role": newRole})`
+5. Le CLI affiche : « Rôle de "pseudo@org" mis à jour : nouveau-rôle. Le nouveau rôle s'applique au prochain ré-enrôlement de l'identité. »
+6. L'utilisateur doit se reconnecter (`POST /api/identity/session`) pour qu'un nouveau certificat portant l'attribut à jour soit émis — **cela ne met pas à jour le rôle de la session REST**, actuellement toujours fixé à `"contributor"` (voir écart UCA02)
 
-1. L'utilisateur sélectionne le rôle souhaité dans la liste disponible
-2. `POST /api/auth/request-role` avec `{role_requested}`
-3. Le handler vérifie l'authentification (`withJWTAuth`)
-4. Le service vérifie que le rôle n'est pas déjà détenu (`claims.Role != role_requested`)
-5. La configuration du réseau indique que ce rôle est en auto-distribution
-6. `SetUserRole(userID, role_requested)` est appelé — mise à jour en base SQLite
-7. Un nouveau JWT est généré avec le rôle mis à jour (ou le client re-appelle `/api/auth/me` pour rafraîchir)
-8. `HTTP 200` avec `{"message": "Rôle [X] attribué", "new_role": "..."}`
-9. L'interface affiche la confirmation et met à jour l'infobulle de rôle
+### Flux erreur — Identité ou rôle invalide
 
-### Flux alternatif — Validation manuelle par l'administrateur
-
-1. L'utilisateur sélectionne le rôle souhaité
-2. `POST /api/auth/request-role` avec `{role_requested}`
-3. Le service vérifie que le rôle n'est pas déjà détenu
-4. La configuration du réseau indique que ce rôle nécessite une validation admin
-5. La demande est enregistrée dans une table `role_requests` (à créer)
-6. `HTTP 202` avec `{"message": "Demande envoyée — en attente de validation"}`
-7. L'administrateur reçoit la demande (dans son interface ou par notification)
-8. L'administrateur approuve ou refuse via `POST /api/admin/role-requests/{id}/approve` (ou `/reject`)
-9. Si approuvé : `SetUserRole()` est appelé — le rôle est mis à jour
-10. L'utilisateur est notifié (message dans l'interface ou rechargement)
-
-### Flux erreur — Rôle déjà attribué
-
-1. `claims.Role == role_requested`
-2. `HTTP 400` avec `{"message": "Vous possédez déjà ce rôle"}`
-
-### Flux erreur — Rôle non demandable
-
-1. Le rôle demandé est `admin` ou n'existe pas dans la liste des rôles disponibles
-2. `HTTP 400` avec `{"message": "Ce rôle ne peut pas être demandé"}`
+1. `--id` ou `--role` manquant : cobra refuse la commande (`MarkFlagRequired`)
+2. Rôle inexistant dans le catalogue RBAC : l'appel CA échoue ou le rôle reste sans effet RBAC tant qu'il n'est pas créé (`myr role create`)
 
 ## Post-conditions
 
-- **Auto-distribution** : le rôle est mis à jour en base, le JWT suivant contiendra le nouveau rôle
-- **Validation manuelle** : une demande de rôle est en attente dans le système
-- **Dans tous les cas** : le rôle courant est conservé jusqu'à la décision finale
+- L'attribut `Myr.role` de l'identité CA est mis à jour
+- Le nouveau rôle ne prend effet qu'au prochain enrôlement CA — pas immédiatement
+- La session REST en cours (et toute nouvelle session créée via `POST /api/identity/session` tant que l'écart de rôle figé n'est pas corrigé) n'est pas affectée par ce changement
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
-participant "REST Handler\n(adapters/in/rest/\nhandlers_auth.go)" as REST
-participant "Auth Service\n(domain/auth/service.go)" as Service
-database "SQLite users\n(adapters/out/sqlite/)" as SQLite
-database "SQLite role_requests\n(à créer)" as Requests
+participant "Administrateur" as ADM
+participant "CLI\n(adapters/in/cli/identity.go)" as CLI
+participant "Identity Service\n(domain/identity/service.go)" as Service
+participant "Fabric CA" as CA
 
-Browser -> REST : POST /api/auth/request-role\nAuthorization: Bearer <token>\n{role_requested}
-REST -> REST : withJWTAuth — extraire claims
-REST -> REST : vérifier role_requested != claims.Role
-REST -> REST : vérifier role_requested != "admin"
-
-alt auto-distribution activée pour ce rôle
-  REST -> Service : SetUserRole(ctx, userID, role_requested)
-  Service -> SQLite : users.UpdateRole(id, role)
-  SQLite --> Service : ok
-  Service --> REST : ok
-  REST --> Browser : HTTP 200\n{message: "Rôle [X] attribué", new_role}
-else validation manuelle requise
-  REST -> Requests : créer RoleRequest{userID, role, status:"pending"}
-  Requests --> REST : ok
-  REST --> Browser : HTTP 202\n{message: "Demande envoyée — en attente de validation"}
-end
-
-alt rôle déjà détenu
-  REST --> Browser : HTTP 400 {message: "Vous possédez déjà ce rôle"}
-else rôle non demandable
-  REST --> Browser : HTTP 400 {message: "Ce rôle ne peut pas être demandé"}
-end
+ADM -> CLI : myr identity set-role --id alice@org1 --role contributor
+CLI -> Service : SetRole(ctx, "alice@org1", "contributor")
+Service -> CA : UpdateAttributes(ctx, "alice@org1", {"Myr.role": "contributor"})
+CA --> Service : ok
+Service --> CLI : nil
+CLI --> ADM : "Rôle de alice@org1 mis à jour : contributor.\nLe nouveau rôle s'applique au prochain ré-enrôlement."
 @enduml
 ```
 
 ## Règles métier déclenchées
 
-- **RM21** — Le rôle **Lecteur** est le rôle de départ. UCA08 est le seul moyen légal pour un utilisateur d'obtenir un rôle plus élevé.
-- **RM22** — Le contrôle d'accès est systématique : même après attribution d'un nouveau rôle, les droits sont vérifiés à chaque requête via le JWT.
+- **RM22** — Le changement de rôle est réservé à l'administrateur ; aucun utilisateur ne peut se l'auto-attribuer.
 
 ## Exigences non-fonctionnelles
 
-- **ENF12** — L'attribution de rôle est strictement côté serveur — le client ne peut pas s'auto-attribuer un rôle en modifiant son JWT (signature HS256).
-- **ENF27** — Les demandes de rôle en attente sont stockées localement (SQLite) et ne transitent pas en clair.
+- **ENF12** — L'attribution de rôle est strictement côté serveur/CA — le client ne peut pas s'auto-attribuer un rôle (le token de session est opaque, non falsifiable).
 
 ## Notes d'implémentation
 
-**Non implémenté :** Aucun endpoint `POST /api/auth/request-role` n'existe dans le code actuel. `SetUserRole()` existe dans `domain/auth/service.go` et accepte `reader`, `contributor`, `admin` — les rôles `consumer`, `manufacturer`, `developer` sont à ajouter.
+**Commande réelle :** `myr identity set-role --id <pseudo@org> --role <nom>` (`adapters/in/cli/identity.go`) → `IdentityService.SetRole` (`domain/identity/service.go`) → `CAPort.UpdateAttributes`.
 
-**Table `role_requests` :** N'existe pas dans la migration SQLite (`adapters/out/sqlite/db.go`). À créer lors de l'implémentation.
+**⚠️ Écart — pas de canal structuré pour la demande :** `AccountRequest` (`domain/identity/entity.go`) n'a pas de champ « rôle souhaité » — seul un champ `message` libre existe. Une future itération pourrait ajouter un champ `requested_role` et un endpoint/commande d'approbation dédiés (voir écart similaire documenté dans UCA01, absence de flux d'approbation).
 
-**Configuration auto-distribution :** La configuration par réseau (auto vs validation) n'est pas modélisée dans le code actuel. Probablement à stocker dans la table `networks` ou un fichier de config réseau. À concevoir lors de l'implémentation.
+**⚠️ Écart — déconnexion entre rôle CA et rôle de session REST :** tant que `handleIdentitySession` fixera le rôle de session à `"contributor"` en dur (écart documenté dans UCA02), ce use case n'aura aucun effet observable via l'API REST — seul un usage direct de l'identité CA (CLI Fabric, ou un futur code REST corrigé) en bénéficierait.
 
-**Mise à jour du JWT après attribution automatique :** Après `SetUserRole()`, le JWT existant contient toujours l'ancien rôle (il est signé). Le client doit appeler `POST /api/auth/refresh` pour obtenir un JWT avec le nouveau rôle, ou se déconnecter/reconnecter.
-
-**Statut d'implémentation :**
-- `POST /api/auth/request-role` : **non implémenté**
-- `domain/auth.SetUserRole()` : **partiellement implémenté** (manque les nouveaux rôles)
-- Table `role_requests` : **non créée**
-- Interface admin de traitement des demandes : **non implémentée**
+**Pas d'auto-distribution configurée par réseau :** contrairement à un système de règles par réseau (auto vs validation), il n'existe qu'un seul mécanisme aujourd'hui : l'action manuelle de l'administrateur via `myr identity set-role`.

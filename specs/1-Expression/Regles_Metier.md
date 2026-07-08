@@ -51,14 +51,16 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 
 ---
 
-## 5. Modules
+## 5. Modules et cycle de vie des assets
+
+> RM16 et RM19 sont génériques à tout `Model3D` (composant ou module) — RM17 et RM18 restent spécifiques au module (une notion d'« assemblage » ou de « ModuleVersion » n'a pas de sens pour un composant simple). Voir `specs/3-Conception/Conception_intro.md` ADR-02.
 
 | ID | Règle | Déclencheur | Condition | Conséquence | UC |
 |----|-------|------------|-----------|-------------|-----|
-| RM16 | **État draft obligatoire** | Création d'un module | Toujours | Un module nouvellement créé est en état `draft`. Il n'est pas visible sur le réseau. Il peut être modifié librement tant qu'il n'est pas soumis | UCMOD01 |
-| RM17 | **Assemblage requis pour soumission** | Appel de `SubmitModule` | Toujours | Le module doit contenir au moins une liaison entre composants. Si aucune liaison → soumission rejetée avec message explicite | UCMOD06 |
-| RM18 | **ModuleVersion immuable** | Soumission réussie d'un module | Toujours | Une `ModuleVersion` est créée avec un hash de l'assemblage et un horodatage. Ce snapshot est immuable. Toute modification ultérieure exige la création d'une nouvelle version | UCMOD06 |
-| RM19 | **Fork de module** | Modification d'un module publié | Toujours | Un module publié ne peut pas être modifié directement. Une nouvelle version (fork) doit être créée en état `draft` | UCMOD06 |
+| RM16 | **État draft** | Création d'un asset (composant ou module) | Un module est **toujours** créé en `draft` (RM17 l'exige avant soumission). Un composant est créé **directement `submitted`** par défaut, sauf si `draft: true` est explicitement demandé (`myr model add --draft`) | L'asset en `draft` n'est pas visible sur le réseau comme définitif. Ses interfaces et attributs mutables peuvent être modifiés librement (localement) tant qu'il n'est pas soumis (ADR-02) | UCMOD01, UCCE01 |
+| RM17 | **Assemblage requis pour soumission (module uniquement)** | Appel de `SubmitModule` | Toujours | Le module doit contenir au moins une liaison entre composants. Si aucune liaison → soumission rejetée avec message explicite. Ne s'applique pas à un composant : sa soumission ne requiert aucun assemblage | UCMOD06 |
+| RM18 | **ModuleVersion immuable (module uniquement)** | Soumission réussie d'un module | Toujours | Une `ModuleVersion` est créée avec un hash de l'assemblage et un horodatage. Ce snapshot est immuable. Toute modification ultérieure exige la création d'une nouvelle version. Pour un composant, l'équivalent est une entrée `Versions[]` (déjà utilisée par UCCE02) — pas de `ModuleVersion` | UCMOD06 |
+| RM19 | **Fork d'un asset soumis** | Modification d'un asset soumis (composant ou module) | Toujours | Un asset soumis ne peut pas être modifié directement (immuabilité Fabric, règle 7). Une nouvelle version (fork) doit être créée en état `draft`, avec `ParentID` référençant l'asset d'origine | UCMOD06, UCCE06 |
 
 ---
 
@@ -120,10 +122,10 @@ Ces règles complètent les use cases : elles régissent ce que le système DOIT
 | RM13 | Slot virtuel garanti et recréé automatiquement à chaque matérialisation | Interfaces |
 | RM14 | Suppression en cascade des connexions au retrait d'une instance | Composition (instances) |
 | RM15 | Seconde instance indépendante si module déjà instancié dans le module hôte | Composition (instances) |
-| RM16 | Module en état draft à la création | Modules |
-| RM17 | Au moins un assemblage requis pour soumettre | Modules |
-| RM18 | ModuleVersion immuable horodatée à la soumission | Modules |
-| RM19 | Toute modification d'un module publié crée une nouvelle version | Modules |
+| RM16 | État draft générique (module : toujours ; composant : optionnel via `--draft`) | Modules |
+| RM17 | Au moins un assemblage requis pour soumettre (module uniquement) | Modules |
+| RM18 | ModuleVersion immuable horodatée à la soumission (module uniquement) | Modules |
+| RM19 | Toute modification d'un asset soumis (composant ou module) crée un fork | Modules |
 | RM20 | Identité = enrôlement CA — pas de compte email/mot de passe séparé | Compte |
 | RM21 | Rôle Lecteur par défaut à l'auto-enregistrement, sauf rôle explicite | Compte |
 | RM22 | Changement de rôle réservé à l'administrateur (`myr identity set-role`) | Compte |

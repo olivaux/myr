@@ -48,12 +48,12 @@ Ce mécanisme complète la vérification anti-plagiat automatique (RM01 — SHA-
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur consulte un composant et clique sur "Signaler un similaire"
+**Étape initiale :** `POST /api/similarity-reports` est appelée (ou l'équivalent CLI `myr model report-similar`) avec le composant signalé, le composant de référence et une justification
 
 ### Flux nominal — Signalement soumis
 
-1. L'utilisateur sélectionne le composant de référence (similaire existant) via son UUID ou son nom
-2. L'utilisateur saisit une justification textuelle (obligatoire, minimum 20 caractères)
+1. Le composant de référence (similaire existant) est transmis via son UUID
+2. Une justification textuelle est transmise (obligatoire, minimum 20 caractères)
 3. Le système enregistre le signalement localement avec les métadonnées : composantA (signalé), composantB (référence), justification, identité du déclarant, horodatage
 4. Le signalement est soumis à l'administrateur du réseau via notification
 5. Le système confirme : "Signalement enregistré — référence : SIM-{id}"
@@ -67,7 +67,7 @@ Ce mécanisme complète la vérification anti-plagiat automatique (RM01 — SHA-
 ### Flux traitement admin — Signalement examiné (acteur : Administrateur)
 
 1. L'administrateur consulte la liste des signalements en attente
-2. Il compare les deux composants (visualisation côte à côte dans l'interface)
+2. Il compare les deux composants (données récupérées via `GET /api/components/:id` pour chacun)
 3. **Décision A — Plagiat confirmé** : l'administrateur marque le composant signalé comme dérivé du composant de référence, met à jour le `ParentID` sur la blockchain, et notifie le déclarant et les deux auteurs
 4. **Décision B — Faux positif** : l'administrateur rejette le signalement avec une justification, notifie le déclarant
 5. **Décision C — Enquête approfondie** : le signalement est placé en statut `investigating` — les deux auteurs sont notifiés et invités à fournir des preuves de création
@@ -93,7 +93,7 @@ Ce mécanisme complète la vérification anti-plagiat automatique (RM01 — SHA-
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "Fabric\n(adapters/out/fabric/)" as Fabric
@@ -169,4 +169,5 @@ REST --> Browser : 200 {reportID, decision}
 - Les signalements sont stockés **localement** (pas sur la blockchain) — utiliser `adapters/out/localstorage/` ou une table SQLite
 - La mise à jour du `ParentID` est une opération blockchain sensible — l'opération inverse n'existe pas (RM07)
 - La notification admin est un mécanisme non encore défini — email, webhook, ou notification in-app ?
-- L'algorithme de similarité pour l'aide à la décision (visualisation côte à côte) est hors périmètre de ce UC
+- Un algorithme de similarité automatisé pour aider à la décision (au-delà de la simple consultation des deux fiches) est hors périmètre de ce UC
+- **Parité CLI/REST :** conformément au principe de parité (CLAUDE.md), le signalement d'un composant similaire devrait pouvoir être initié en CLI. Comme noté ci-dessus, aucune route REST ni entité de signalement n'existe dans le domaine `model` — une commande CLI (par ex. `myr model report-similar <id> <referenceID> --reason <texte>`) ne pourra être ajoutée qu'une fois ce mécanisme conçu, au même titre que les endpoints REST manquants.

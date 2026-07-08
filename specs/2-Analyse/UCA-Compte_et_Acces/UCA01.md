@@ -16,128 +16,123 @@ etat: analyse
 left to right direction
 
 actor "Visiteur" as V
+actor "Administrateur" as ADM
 
-rectangle "Application MYR" {
-    usecase "Créer un compte" as UC1
-    usecase "Valider le format des données" as UC2
-    usecase "Afficher erreur compte existant" as UC3
+rectangle "API myr" {
+    usecase "Soumettre une demande d'accès" as UC1
+    usecase "Enregistrer automatiquement\n(auto-register réseau)" as UC2
+    usecase "Mettre en attente\n(validation admin)" as UC3
+    usecase "Enregistrer manuellement\nauprès de la CA (hors myr)" as UC4
 }
 
 V --> UC1
-UC1 ..> UC2 : <<include>>
-UC1 .> UC3 : <<extend>>
+UC1 .> UC2 : <<extend>> (AllowAutoRegister=true)
+UC1 .> UC3 : <<extend>> (AllowAutoRegister=false)
+ADM --> UC4
 
 @enduml
 ```
 
 ## Contexte
 
-UCA01 est le point d'entrée obligatoire du système pour tout nouvel utilisateur. Il couvre la couche web (création de compte en base SQLite) mais **pas** la couche blockchain : l'identité Fabric CA (Wallet) est provisionnée à la première connexion (UCA02 — RM20).
+Il n'existe **pas de compte email + mot de passe** dans `myr`. L'identité d'un utilisateur est une identité cryptographique enregistrée auprès de la Fabric CA du réseau (cf. RM20) : « créer un compte » signifie obtenir un secret d'enrôlement CA valide pour un pseudo donné.
 
-Ce découplage est intentionnel : la création du compte est immédiate et ne dépend pas de la disponibilité du réseau Fabric. Si Fabric est temporairement indisponible, le compte est tout de même créé et l'utilisateur peut se connecter dès que Fabric répond.
+Deux chemins existent pour l'obtenir :
 
-La variable d'environnement `JWT_SECRET` doit être définie pour que le service auth soit actif. Sans elle, l'endpoint retourne `501 Not Implemented`.
+1. **Demande d'accès auto-traitée** : `POST /api/identity/request` — si le réseau actif a `AllowAutoRegister=true`, l'identité est enregistrée immédiatement auprès de la CA (rôle = `AutoRegisterRole` du profil réseau, ou `reader` par défaut — RM21) et le secret d'enrôlement est retourné directement dans la réponse.
+2. **Demande d'accès en attente** : si `AllowAutoRegister=false`, la demande est simplement stockée (`AccountRequest`, statut `pending`). **Aucun mécanisme REST ou CLI n'existe aujourd'hui pour qu'un administrateur l'approuve** — seul `GET /api/identity/requests` permet de la consulter. L'administrateur doit créer l'identité manuellement via l'outillage Fabric CA (hors périmètre `myr`) et transmettre le secret à l'utilisateur par un canal hors bande. C'est un écart fonctionnel réel, pas seulement un détail d'implémentation (voir Notes).
+
+Il existe aussi un accès **invité** sans aucune identité CA (voir UCA02, `POST /api/identity/guest`), qui n'entre pas dans ce use case.
 
 ## Pré-conditions
 
-- Le serveur MYR est démarré avec `JWT_SECRET` et `WALLET_ENCRYPT_KEY` configurés
-- Un réseau Fabric configuré est accessible (au moins un `org_id` valide est connu)
-- L'email fourni n'existe pas déjà dans la table `users` (SQLite)
+- Le serveur `myr` est démarré avec un adaptateur Fabric CA configuré (`ca_endpoint` du réseau actif)
+- Un réseau actif est configuré (`networkSvc`) avec un `org_id` valide
 
 ## Scénario
 
-**Étape initiale :** Le visiteur accède à la page d'inscription et soumet le formulaire
+### Flux nominal — Auto-enregistrement (`AllowAutoRegister=true`)
 
-### Flux nominal — Création réussie
+1. Le visiteur soumet `POST /api/identity/request` avec `{pseudo, display_name, email, org_id, message}`
+2. Le handler valide que `pseudo`, `email` et `org_id` sont renseignés
+3. La demande est sauvegardée (`AccountRequest`, statut `pending`)
+4. Le profil réseau actif a `AllowAutoRegister=true` : le service appelle `AutoRegister` → enregistrement CA (rôle = `AutoRegisterRole`, ou `reader` si absent — RM21)
+5. Le statut de la demande passe à `approved`
+6. Réponse `HTTP 201` avec `{id, status:"approved", pseudo, org_id, secret}`
+7. Le visiteur conserve ce secret : il lui servira à se connecter (UCA02)
 
-1. Le visiteur soumet `POST /api/auth/register` avec `{email, password, display_name, org_id}`
-2. Le handler REST valide que le corps JSON est lisible
-3. Le service `domain/auth` effectue les validations :
-   - Email normalisé (minuscules, trimspace) et contient `@`
-   - Mot de passe ≥ 8 caractères
-   - `display_name` non vide
-   - `org_id` par défaut `"Org1MSP"` si absent
-4. Vérification unicité de l'email via `users.FindByEmail`
-5. Hash du mot de passe (bcrypt, cost 12)
-6. Création de l'enregistrement `User` en base SQLite avec le rôle `reader` (RM21)
-7. Réponse `HTTP 201` avec `{user_id, email, display_name, role, org_id}`
-8. L'interface affiche : "Compte créé — rôle Lecteur attribué"
-9. L'utilisateur peut se connecter immédiatement via UCA02
+### Flux alternatif — Demande en attente (`AllowAutoRegister=false`)
 
-### Flux erreur — Compte déjà existant
+1. Étapes 1 à 3 identiques
+2. Le profil réseau n'autorise pas l'auto-enregistrement (ou aucun réseau actif n'est configuré)
+3. Réponse `HTTP 201` avec `{id, pseudo, display_name, email, org_id, message, status:"pending", created_at}`
+4. **Écart connu** : aucun endpoint REST ni commande CLI ne permet à l'administrateur d'approuver cette demande et de déclencher l'enregistrement CA correspondant. Seule la consultation (`GET /api/identity/requests`) existe. Le traitement réel se fait aujourd'hui hors `myr` (CA tooling + communication manuelle du secret).
 
-1. `users.FindByEmail` retourne un utilisateur existant
-2. Le service retourne `"cet email est déjà utilisé"`
-3. Le handler répond `HTTP 400`
-4. L'interface affiche le message d'erreur et conserve le formulaire renseigné
+### Flux erreur — Champs requis manquants
 
-### Flux erreur — Données invalides
+1. `pseudo`, `email` ou `org_id` absent du corps JSON
+2. Réponse `HTTP 400` avec `{"error": "pseudo, email et org_id sont requis"}`
 
-1. Email manquant, sans `@`, ou mot de passe < 8 caractères
-2. Le service retourne le message d'erreur correspondant
-3. `HTTP 400` — le formulaire reste accessible
+### Flux erreur — Trop de tentatives
+
+1. Le client dépasse le quota du rate limiter (`authLimiter`) sur cet endpoint
+2. Réponse `HTTP 429` avec `{"error": "trop de tentatives, réessayez dans une minute"}`
 
 ## Post-conditions
 
-- Un enregistrement `User` existe dans la table `users` (SQLite) avec :
-  - `status = "active"`
-  - `role = "reader"` (RM21)
-  - Mot de passe haché bcrypt (jamais en clair)
-- Aucun Wallet Fabric CA n'existe encore pour cet utilisateur (RM20)
-- L'utilisateur peut immédiatement tenter une connexion (UCA02)
+- Une `AccountRequest` existe (statut `pending` ou `approved`)
+- Si auto-enregistrement : une identité CA existe (statut `pending` côté CA jusqu'au premier enrôlement effectif via UCA02), avec le rôle défini
+- Si en attente : aucune identité CA n'existe encore — le visiteur ne peut pas se connecter tant qu'un administrateur n'a pas agi hors `myr`
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
-participant "REST Handler\n(adapters/in/rest/handlers_auth.go)" as REST
-participant "Auth Service\n(domain/auth/service.go)" as Service
-database "SQLite users\n(adapters/out/sqlite/)" as SQLite
+participant "Client" as Client
+participant "REST Handler\n(adapters/in/rest/handlers_identity.go)" as REST
+participant "Identity Service\n(domain/identity/service.go)" as Service
+participant "Network Service\n(domain/network/)" as NetSvc
+database "AccountRequests\n(adapters/out/localstorage/)" as Store
+participant "Fabric CA" as CA
 
-Browser -> REST : POST /api/auth/register\n{email, password, display_name, org_id}
-REST -> REST : readJSON — valider corps
-REST -> Service : Register(ctx, email, password, displayName, orgID)
-Service -> Service : normaliser email\nvalider longueur password\nvalider display_name
-Service -> SQLite : FindByEmail(email)
-SQLite --> Service : nil (email libre)
-Service -> Service : bcrypt.GenerateFromPassword(cost=12)
-Service -> SQLite : Create(User{role:"reader", status:"active"})
-SQLite --> Service : ok
-Service --> REST : *User
-REST --> Browser : HTTP 201\n{user_id, email, display_name, role:"reader", org_id}
+Client -> REST : POST /api/identity/request\n{pseudo, display_name, email, org_id, message}
+REST -> REST : valider champs requis + rate limiter
+REST -> Service : SubmitRequest(req)
+Service -> Store : Save(AccountRequest{status:"pending"})
+Store --> Service : ok
+Service --> REST : *AccountRequest
 
-alt email déjà utilisé
-  SQLite --> Service : *User existant
-  Service --> REST : error "cet email est déjà utilisé"
-  REST --> Browser : HTTP 400 {message}
-else données invalides
-  Service --> REST : error (email/password/display_name)
-  REST --> Browser : HTTP 400 {message}
+REST -> NetSvc : GetActive()
+NetSvc --> REST : *NetworkProfile
+
+alt AllowAutoRegister == true
+    REST -> Service : AutoRegister(ctx, req, profile.AutoRegisterRole)
+    Service -> CA : Register(ctx, {name, org_id, role})
+    CA --> Service : secret
+    Service --> REST : secret
+    REST --> Client : HTTP 201\n{id, status:"approved", pseudo, org_id, secret}
+else AllowAutoRegister == false
+    REST --> Client : HTTP 201\n{id, pseudo, email, org_id, status:"pending", created_at}
 end
 @enduml
 ```
 
 ## Règles métier déclenchées
 
-- **RM21** — Le rôle **Lecteur** (`reader`) est attribué par défaut à la création du compte. Aucun autre rôle ne peut être assigné lors de cette étape.
-- **RM20** — La création du compte ne provisionne **pas** l'identité blockchain (Wallet Fabric CA). Le Wallet est créé à la première connexion (UCA02).
+- **RM20** — Il n'existe pas de compte séparé de l'identité blockchain : la « création de compte » est l'obtention d'un secret d'enrôlement CA.
+- **RM21** — Une identité auto-enregistrée reçoit le rôle **Lecteur** par défaut, sauf rôle explicite configuré sur le réseau (`AutoRegisterRole`).
 
 ## Exigences non-fonctionnelles
 
-- **ENF27** — Les données personnelles (email, mot de passe haché) sont stockées localement dans SQLite chiffré (`WALLET_ENCRYPT_KEY`).
-- **ENF12** — La validation du rôle attribué est strictement côté serveur — jamais côté client.
-- **ENF18** — Le domaine `domain/auth/` ne connaît pas SQLite directement : il passe par l'interface `UserStore`.
+- **ENF12** — La validation du rôle attribué est strictement côté serveur (le rôle est un attribut du certificat CA, jamais choisi par le client).
+- Rate limiting appliqué (`authLimiter`) pour prévenir l'énumération/spam de demandes.
 
 ## Notes d'implémentation
 
-**Écart E3 (VIOLATION RM21) :** `domain/auth/service.go` ligne 93 assigne `Role: "contributor"` au lieu de `"reader"`. Le comportement décrit dans ce UC est le comportement **cible** (specs). Le code doit être corrigé.
+**Endpoints réels :**
+- `POST /api/identity/request` → `handleIdentityRequest` (`adapters/in/rest/handlers_identity.go`)
+- `GET /api/identity/requests` → `handleIdentityRequests` (lecture seule, protégée par `requireAuth` — pas de contrôle de rôle admin spécifique constaté)
 
-**Écart SQLite :** `adapters/out/sqlite/db.go` déclare `role TEXT NOT NULL DEFAULT 'contributor'` dans la migration — cette valeur par défaut doit aussi être corrigée en `'reader'`.
+**Écart — pas de flux d'approbation :** Il n'existe aucun endpoint REST (`POST /api/identity/requests/{id}/approve`) ni commande CLI équivalente pour transformer une `AccountRequest` en pause en identité CA active. C'est un vrai manque fonctionnel, pas une simplification de cette spec — `myr identity` ne propose que `set-role` (UCA08), qui suppose une identité déjà enregistrée.
 
-**Statut d'implémentation :**
-- Handler `POST /api/auth/register` : **opérationnel** (`adapters/in/rest/handlers_auth.go`)
-- Service `Register()` : **opérationnel** sauf écart rôle
-- Stockage SQLite : **opérationnel** sauf valeur défaut rôle
-
-**`org_id` :** Si absent dans la requête, le service utilise `"Org1MSP"` par défaut. La liste des organisations disponibles n'est pas validée à ce stade — amélioration future.
+**Rôle par défaut :** `RegisterRequest.Role` vide → la Fabric CA applique son propre défaut (probablement `reader` au niveau de la configuration CA, pas garanti par le code `myr`) — à vérifier côté configuration CA plutôt que côté application.

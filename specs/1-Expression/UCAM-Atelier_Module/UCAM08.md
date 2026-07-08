@@ -40,7 +40,7 @@ Toutes les liaisons impliquant cette instance sont supprimées automatiquement e
 
 ## Scénario
 
-**Étape initiale :** `myr module instance remove <moduleID> <instanceID>` est exécutée (ou l'appel API équivalent), sans étape de confirmation interactive
+**Étape initiale :** `myr model instance remove <moduleID> <instanceID>` est exécutée (ou l'appel API équivalent), sans étape de confirmation interactive
 
 ### Flux nominal — Retrait sans liaisons actives
 
@@ -84,7 +84,7 @@ note bottom of (C2) : instance retirée
 skin rose
 title Retirer une instance de composant d'un Module
 start
-:Transmettre moduleID et instanceID (myr module instance remove);
+:Transmettre moduleID et instanceID (myr model instance remove);
 if (Instance a des liaisons actives?) then (oui)
   :Supprimer toutes les liaisons en cascade (RM15);
   :Retirer l'instance du module;

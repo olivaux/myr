@@ -49,25 +49,22 @@ La BOM inclut aussi les fichiers 3D des Composants (référence IPFS via `Model3
 ## Pré-conditions
 
 - Utilisateur authentifié (rôle `Lecteur`, `Concepteur`, `Consommateur`, ou `Manufactureur`)
-- Un Module sélectionné dans l'Explorer UI
+- Un identifiant de Module connu du client
 - Le Module est accessible (état `submitted` ou `draft` si propriétaire)
 
 ## Scénario
 
-**Déclencheur :** L'utilisateur sélectionne un Module et clique **Exporter BOM**.
+**Étape initiale :** `GET /api/modules/:id/bom?format=csv` est appelée (ou l'équivalent CLI `myr module bom export`) avec le format souhaité
 
 ### Flux nominal — BOM complète exportée
 
-1. L'utilisateur clique **Exporter BOM** sur l'Asset UI du Module
-2. L'UI présente un sélecteur de format : `CSV`, `XML`, `PDF`
-3. L'utilisateur choisit le format et clique **Exporter**
-4. Le système appelle `GET /api/modules/:id/bom?format=csv`
-5. Handler : résout récursivement la BOM via `WorkspaceInstances` :
+1. Le format d'export est transmis : `CSV`, `XML`, ou `PDF`
+2. Handler : résout récursivement la BOM via `WorkspaceInstances` :
    - Pour chaque instance : si Composant → ajoute à la BOM (quantité incrémentée si même AssetID)
    - Si sous-Module → récursion dans ses `WorkspaceInstances`
-6. Pour chaque Composant feuille : récupère le nom, catégorie, hash, référence IPFS (`Versions[last].Hash`)
-7. La BOM est générée avec les colonnes : quantité, référence (ID), nom, catégorie, hash SHA-256, URL IPFS
-8. Le fichier est retourné avec l'en-tête `Content-Disposition: attachment` — téléchargement automatique
+3. Pour chaque Composant feuille : récupère le nom, catégorie, hash, référence IPFS (`Versions[last].Hash`)
+4. La BOM est générée avec les colonnes : quantité, référence (ID), nom, catégorie, hash SHA-256, URL IPFS
+5. Le fichier est retourné avec l'en-tête `Content-Disposition: attachment`
 
 ### Flux alternatif — Composants avec fichiers IPFS indisponibles
 
@@ -96,7 +93,7 @@ La BOM inclut aussi les fichiers 3D des Composants (référence IPFS via `Model3
 
 ## Post-conditions
 
-- Le fichier BOM est généré et disponible au téléchargement
+- Le fichier BOM est généré et retourné dans la réponse
 - Aucune modification de la blockchain
 - Les composants sans fichier IPFS sont signalés mais n'empêchent pas l'export
 
@@ -104,7 +101,7 @@ La BOM inclut aussi les fichiers 3D des Composants (référence IPFS via `Model3
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)\n[cible — à implémenter]" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "Fabric\n(adapters/out/fabric/)" as Fabric
@@ -112,7 +109,7 @@ database "IPFS\n(adapters/out/ipfs/)" as IPFS
 
 Browser -> REST : GET /api/modules/:id/bom?format=csv
 note right of REST : Endpoint non implémenté\narchitecture cible
-REST -> REST : Vérifier JWT (ENF12)\n+ accès au module
+REST -> REST : Vérifier session (ENF12)\n+ accès au module
 REST -> Service : GetModule(id)
 Service -> Fabric : GetModelRecord(id, "")
 Fabric --> Service : *Model3D
@@ -152,8 +149,6 @@ else Format XML
 else Format PDF
     REST --> Browser : 200\nContent-Type: application/pdf\n[data PDF binaire]
 end
-
-Browser -> Browser : Téléchargement automatique
 @enduml
 ```
 
@@ -166,8 +161,7 @@ Browser -> Browser : Téléchargement automatique
 ## Exigences non-fonctionnelles
 
 - **ENF03** : Génération BOM ≤ 5 s pour 100 composants — timeout côté handler, récursion avec cache
-- **ENF12** : Authentification JWT obligatoire
-- **ENF22** : Interface compatible navigateurs modernes (téléchargement fichier)
+- **ENF12** : Authentification par session (token opaque) obligatoire
 
 ## Notes d'implémentation
 
@@ -195,3 +189,5 @@ if strings.HasSuffix(rest, "/bom") {
 - La BOM doit-elle inclure les sous-modules comme lignes agrégées, ou uniquement les Composants feuilles ?
 - Faut-il inclure les prix des Composants dans la BOM (si définis — UCPI04/05) ?
 - Le format PDF est-il prioritaire pour v1 ?
+
+**Commande CLI équivalente (point ouvert) :** Aucune méthode `ModelService` de résolution de nomenclature n'existe — ni l'endpoint REST (`GET /api/modules/:id/bom`) ni une commande CLI (`myr module bom-export`, à concevoir) ne sont disponibles tant que ce point n'est pas conçu au niveau du domaine (cf. `specs/3-Conception/DC_CLI_Model.md` § 6 point 3). En attendant, une BOM partielle et manuelle peut être reconstituée par script à partir de `myr module get <id>` (instances) et `myr model get <assetID>` (métadonnées par composant), sans export de fichier ni agrégation automatique des quantités (RM15).

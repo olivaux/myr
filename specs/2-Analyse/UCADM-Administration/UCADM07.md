@@ -43,7 +43,7 @@ La suppression d'un rôle entraîne automatiquement sa révocation pour toutes l
 
 ## Pré-conditions
 
-- L'administrateur est authentifié avec le rôle `admin` (JWT valide).
+- L'administrateur est authentifié avec le rôle `admin` (session SSH sur le serveur).
 
 ## Scénario
 

@@ -24,4 +24,4 @@ Renuméroter UCPI04→UCPI03, UCPI05→UCPI04… aurait cassé toutes les réfé
 
 ## Retrait ultérieur de UCPAR
 
-UCPAR01/02 étaient des use cases 100 % frontend (changement de langue de l'interface, aucune règle métier). Ils ont été supprimés du dépôt `myr` lors de la séparation des dépôts (voir `CLAUDE.md` § Séparation des dépôts) — l'i18n de l'interface relève désormais du dépôt GUI externe. Cet identifiant UCPI03 reste donc définitivement « reclassifié puis retiré » — aucun lien de renvoi actif.
+UCPAR01/02 étaient des use cases 100 % frontend (changement de langue de l'interface, aucune règle métier). Ils ont été supprimés du dépôt `myr` lors de la séparation des dépôts — l'i18n de l'interface relève désormais du dépôt GUI externe. Cet identifiant UCPI03 reste donc définitivement « reclassifié puis retiré » — aucun lien de renvoi actif.

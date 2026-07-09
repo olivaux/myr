@@ -32,7 +32,7 @@ UC1 ..> UC2 : <<include>>
 
 L'utilisateur peut enregistrer par un format XML les modifications liées à un travail sur un modèle 3D (Source Control Management), indépendamment des soumissions blockchain.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), l'enregistrement et la consultation de versions SCM doivent être exposables en CLI au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, l'enregistrement et la consultation de versions SCM doivent être exposables en CLI au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

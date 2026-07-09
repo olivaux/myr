@@ -38,7 +38,7 @@ UC1 ..> UC3 : <<include>>
 
 Commande en ligne d'un asset via l'interface MYR ou une boutique partenaire avec récupération du prix via l'API.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), une commande passée par une boutique partenaire via l'API doit pouvoir être reproduite en CLI pour le compte d'un consommateur, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, une commande passée par une boutique partenaire via l'API doit pouvoir être reproduite en CLI pour le compte d'un consommateur, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

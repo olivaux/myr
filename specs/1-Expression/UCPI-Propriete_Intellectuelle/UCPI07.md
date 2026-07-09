@@ -36,7 +36,7 @@ UC2 ..> UC3 : <<include>>
 
 Un propriétaire peut transférer la propriété intellectuelle d'un composant ou module à un autre utilisateur ou organisation.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), le transfert de propriété d'un asset doit pouvoir être initié en CLI pour le compte d'un propriétaire, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, le transfert de propriété d'un asset doit pouvoir être initié en CLI pour le compte d'un propriétaire, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

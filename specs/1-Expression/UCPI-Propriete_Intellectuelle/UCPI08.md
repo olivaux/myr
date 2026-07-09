@@ -32,7 +32,7 @@ UC1 ..> UC2 : <<include>>
 
 Un composant peut être cloné vers un réseau MYR externe sous réserve de compatibilité de licence.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), le clonage d'un composant vers un réseau externe doit pouvoir être déclenché en CLI, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, le clonage d'un composant vers un réseau externe doit pouvoir être déclenché en CLI, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

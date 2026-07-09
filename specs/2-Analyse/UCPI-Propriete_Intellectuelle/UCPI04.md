@@ -145,7 +145,7 @@ end
 
 - **Non implémenté** : aucun endpoint REST de tarification n'existe dans `adapters/in/rest/`, aucun store de prix dans `adapters/out/localstorage/`
 - **À créer** : structure `AssetPrice{AssetID, OwnerID, Amount, Currency, UpdatedAt}` dans `domain/payment/`, persistée via `adapters/out/localstorage/price_store.go` — **pas** de champ prix dans `Model3D` ni dans le chaincode (RM31 : le prix n'est pas une donnée blockchain)
-- **À créer** : route `PUT /api/components/{id}/price` dans `adapters/in/rest/handlers_payment.go`, appelant le service domaine `payment` — même chemin de code que UCPI11 (modification), pas de duplication (règle hexagonale 4, CLAUDE.md)
+- **À créer** : route `PUT /api/components/{id}/price` dans `adapters/in/rest/handlers_payment.go`, appelant le service domaine `payment` — même chemin de code que UCPI11 (modification), pas de duplication
 - Le taux de commission n'est **pas** saisi par le concepteur : il est lu depuis la configuration du réseau (RM29, `domain/network/`)
 - La devise est celle du réseau (RM33) — pas de sélection ni de conversion côté composant
 - **Parité CLI/REST :** `myr model price set <id> <montant>` doit appeler le même service domaine `payment` que la route REST — aucun accès direct à `localstorage` depuis l'adapter CLI

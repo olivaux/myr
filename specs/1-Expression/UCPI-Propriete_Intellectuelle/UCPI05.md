@@ -32,7 +32,7 @@ UC1 ..> UC2 : <<include>>
 
 L'auteur d'un module peut définir un prix pour l'utilisation commerciale ou la commande de celui-ci.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), la définition d'un prix sur un module doit être exposable en CLI au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, la définition d'un prix sur un module doit être exposable en CLI au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

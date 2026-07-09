@@ -29,7 +29,7 @@ ADM --> UC2
 
 ## Contexte
 
-Le CLI `myr` n'est pas un outil d'administration réseau au sens strict : il expose la **totalité** des capacités du domaine (`domain/`), au même titre que l'API REST — cf. `CLAUDE.md` § Séparation des dépôts (« le CLI n'est pas un citoyen de seconde zone par rapport à l'API »). Toute action métier exposée par l'API (créer un composant, définir une interface, créer une liaison, assembler et soumettre un module, rechercher un asset…) a donc une commande `myr` équivalente, en plus des commandes propres à l'administration réseau (`myr network/org/node`, UCADM01–05).
+Le CLI `myr` n'est pas un outil d'administration réseau au sens strict : il expose la **totalité** des capacités du domaine (`domain/`), au même titre que l'API REST — le CLI n'est pas un citoyen de seconde zone par rapport à l'API. Toute action métier exposée par l'API (créer un composant, définir une interface, créer une liaison, assembler et soumettre un module, rechercher un asset…) a donc une commande `myr` équivalente, en plus des commandes propres à l'administration réseau (`myr network/org/node`, UCADM01–05).
 
 Ce qui distingue le CLI de l'API REST n'est pas le périmètre fonctionnel mais **qui peut l'exécuter et où** : conformément au principe d'exécution distante, `myr` (CLI et serveur d'API) ne tourne jamais sur le poste d'un utilisateur final — uniquement sur le serveur, via une connexion SSH de l'administrateur. Un Concepteur ou un Consommateur n'ouvre donc jamais lui-même un terminal `myr` ; c'est l'administrateur du serveur qui, le cas échéant, exécute une commande domaine **pour le compte** d'une identité (scripts d'import en masse, migration, support, restauration après incident).
 

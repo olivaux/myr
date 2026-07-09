@@ -4,8 +4,6 @@ Ce document centralise les règles de gestion métier du projet Myr. Chaque règ
 
 Ces règles complètent les use cases : elles régissent ce que le système DOIT faire indépendamment du scénario emprunté. Elles servent de référence pour les tests de validation.
 
-> Les règles d'architecture (isolation hexagonale, routing adapters) restent dans `CLAUDE.md`.
-
 ---
 
 ## 1. Assets et composants

@@ -176,7 +176,7 @@ CLIHandler --> Dev : "Réseau démantelé."
 - **EF56** (ENF56) : CLI d'administration disponible pour les opérations serveur
 - **RM01** : Anti-plagiat SHA-256 déclenché lors de `myr model add` (via service domaine)
 - **RM07** : Validation côté service avant soumission Fabric (même pipeline que l'API REST)
-- Règle 9 du CLAUDE.md : Fabric ne supporte pas la suppression — `ErrNotSupported` retourné, pas de panic
+- Fabric ne supporte pas la suppression — `ErrNotSupported` retourné, pas de panic
 
 ## Exigences non-fonctionnelles
 
@@ -209,6 +209,6 @@ CLIHandler --> Dev : "Réseau démantelé."
 
 **Mode simulation :** En l'absence de réseau Fabric configuré, les adapters `out/localstorage/` sont injectés à la place de `out/fabric/`. Les commandes `myr org add`, `myr node add`, `myr node remove` retournent `ErrFabricUnavailable` sans adapter Fabric — le reste fonctionne en mode local.
 
-**Domaines manquants dans le CLI :** `identity`, `session`, `auth` n'ont pas de commandes CLI (tableau d'état CLAUDE.md). Ces domaines sont priorité HAUTE pour l'exposition REST — leur exposition CLI est MOYENNE.
+**Domaines manquants dans le CLI :** `identity`, `session`, `auth` n'ont pas de commandes CLI. Ces domaines sont priorité HAUTE pour l'exposition REST — leur exposition CLI est MOYENNE.
 
 **Man pages :** `cmd/mangen/` — `go run ./cmd/mangen` → `docs/man/`. Consultables via `man myr-model`, `man myr-channel`, etc.

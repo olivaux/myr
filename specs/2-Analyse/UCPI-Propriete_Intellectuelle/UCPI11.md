@@ -36,7 +36,7 @@ Contrairement à UCPI04/UCPI05 (définition initiale du prix), ce use case couvr
 
 Point structurant (RM31/RM33) : **le prix n'est pas une donnée blockchain**. Contrairement au reste du domaine `payment` (commissions, transferts), le prix d'un asset est stocké **localement** côté serveur et reste **mutable** — seule la devise est fixée par réseau et non modifiable par l'auteur. La modification n'a d'effet que sur les commandes créées après la mise à jour ; les commandes déjà passées ou livrées conservent le prix figé dans `OrderItem.UnitPrice` à leur création.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), la modification doit être exposable identiquement en CLI (`myr model price update` / `myr module price update`) et via l'API REST.
+Conformément au principe de parité CLI/REST, la modification doit être exposable identiquement en CLI (`myr model price update` / `myr module price update`) et via l'API REST.
 
 ## Pré-conditions
 
@@ -149,5 +149,5 @@ end
 
 - **Non implémenté** : aucun champ `AssetPrice`/`Price`/`Currency` sur `Model3D`, aucune route REST ni sous-commande `price` en CLI
 - **À créer** : structure `AssetPrice{AssetID, OwnerID, Amount, Currency, UpdatedAt}` dans `domain/payment/`, persistée via un nouveau store `adapters/out/localstorage/price_store.go` — même store que UCPI04/UCPI05 (définition initiale du prix), pas de duplication
-- **À créer** : routes `PUT /api/components/{id}/price` et `PUT /api/modules/{id}/price`, réutilisées par UCPI04/UCPI05 pour la première définition et par UCPI11 pour la modification — un seul chemin de code, pas de duplication (règle hexagonale 4, CLAUDE.md)
+- **À créer** : routes `PUT /api/components/{id}/price` et `PUT /api/modules/{id}/price`, réutilisées par UCPI04/UCPI05 pour la première définition et par UCPI11 pour la modification — un seul chemin de code, pas de duplication
 - **Parité CLI/REST :** `myr model price update <id> <montant>` et `myr module price update <id> <montant>` doivent appeler le même service domaine `payment` que la route REST — aucun accès direct à `localstorage` depuis l'adapter CLI

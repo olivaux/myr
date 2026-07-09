@@ -37,7 +37,7 @@ UC1 .> UC3 : <<extend>>
 
 Commande d'un module complet via le réseau MYR, impliquant soit l'achat sur une boutique existante, soit la fabrication par un manufactureur agréé.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md — « le CLI n'est pas un citoyen de seconde zone par rapport à l'API »), une commande de ce type doit pouvoir être reproduite en CLI pour le compte d'un consommateur, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST (« le CLI n'est pas un citoyen de seconde zone par rapport à l'API »), une commande de ce type doit pouvoir être reproduite en CLI pour le compte d'un consommateur, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

@@ -32,7 +32,7 @@ C --> UC2
 
 Les composants et modules peuvent être soumis à des normes d'écoconception définies par l'administrateur du réseau pour promouvoir l'économie circulaire.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), la définition de normes d'écoconception par l'administrateur ainsi que la vérification de conformité doivent être exposables en CLI, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, la définition de normes d'écoconception par l'administrateur ainsi que la vérification de conformité doivent être exposables en CLI, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

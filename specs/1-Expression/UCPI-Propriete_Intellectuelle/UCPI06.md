@@ -34,7 +34,7 @@ UC1 .> UC2 : <<extend>>
 
 Signaler un composant similaire à un autre non pris en compte par le système. Forme de protection communautaire pour garantir la pertinence et l'intégrité du réseau, complémentaire à RM01.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), le signalement d'un composant similaire doit pouvoir être initié en CLI pour le compte d'un utilisateur, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, le signalement d'un composant similaire doit pouvoir être initié en CLI pour le compte d'un utilisateur, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

@@ -35,7 +35,7 @@ UC2 ..> UC3 : <<include>>
 
 L'auteur d'un module ou composant reçoit automatiquement une commission à chaque commande ou utilisation commerciale, gérée par smart contract.
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), la consultation des commissions reçues doit aussi être possible en CLI pour le compte d'un concepteur, au même titre que via l'interface graphique.
+Conformément au principe de parité CLI/REST, la consultation des commissions reçues doit aussi être possible en CLI pour le compte d'un concepteur, au même titre que via l'interface graphique.
 
 ## Pré-conditions
 

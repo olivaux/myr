@@ -69,7 +69,7 @@ Les exigences sont dérivées des objectifs du projet (section 2.1), des contrai
 | EF45                                             | Automatiser la commande en ligne d'un asset                             | UCAUT02                   |
 | EF46                                             | Intégrer un modèle 3D depuis un logiciel CAO (plugin)                 | UCAUT03                   |
 | EF47                                             | Gérer les versions SCM d'un modèle 3D                                 | UCAUT04                   |
-| **Interface Graphique, Paramètres, Documentation** | EF48–EF54 : retirés — use cases 100 % frontend (UCIG, UCPAR, UCDOC), sans contrat REST propre à `myr`, désormais spécifiés dans le dépôt GUI externe (voir `CLAUDE.md` § Séparation des dépôts) | —                         |
+| **Interface Graphique, Paramètres, Documentation** | EF48–EF54 : retirés — use cases 100 % frontend (UCIG, UCPAR, UCDOC), sans contrat REST propre à `myr`, désormais spécifiés dans le dépôt GUI externe | —                         |
 | **Développement autour de MYR**                 |                                                                         |                           |
 | EF55                                             | Exposer une API REST pour les intégrations tierces                     | UCDEV01                   |
 | EF56                                             | Proposer un CLI d'administration serveur                                | UCDEV02                   |

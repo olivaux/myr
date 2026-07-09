@@ -165,7 +165,7 @@ end
 
 - **Non implémenté** : aucun endpoint REST de tarification module dans `adapters/in/rest/`, aucun store de prix dans `adapters/out/localstorage/`
 - **À créer** : routes `GET /api/modules/{id}/price-estimate` et `PUT /api/modules/{id}/price` dans `adapters/in/rest/handlers_payment.go`, appelant le service domaine `payment` — **pas** de champ `Price`/`PriceBreakdown[]` dans `Model3D` ni dans le chaincode (RM31 : le prix n'est pas une donnée blockchain)
-- **À créer** : structure `AssetPrice{AssetID, OwnerID, Amount, Currency, Breakdown[], UpdatedAt}` dans `domain/payment/`, persistée via `adapters/out/localstorage/price_store.go` — même store que UCPI04/UCPI11, pas de duplication (règle hexagonale 4, CLAUDE.md)
+- **À créer** : structure `AssetPrice{AssetID, OwnerID, Amount, Currency, Breakdown[], UpdatedAt}` dans `domain/payment/`, persistée via `adapters/out/localstorage/price_store.go` — même store que UCPI04/UCPI11, pas de duplication
 - L'algorithme de calcul du prix plancher traverse la chaîne de composants du module (identité via Fabric, prix via le store local) — une traversée profonde peut être coûteuse (prévoir mise en cache, ENF03)
 - La règle « price >= prixPlancher » est une contrainte métier à discuter avec le PO — un concepteur pourrait vouloir brader intentionnellement (open-source + prix symbolique), voire fixer 0 (RM32)
 - **Parité CLI/REST :** `myr module price set <id> <montant>` / `myr module price estimate <id>` doivent appeler le même service domaine `payment` que la route REST — aucun accès direct à `localstorage` depuis l'adapter CLI

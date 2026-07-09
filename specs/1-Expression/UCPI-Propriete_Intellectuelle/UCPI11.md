@@ -32,7 +32,7 @@ UC1 ..> UC2 : <<include>>
 
 L'auteur d'un composant ou d'un module peut modifier son prix à tout moment. Contrairement aux transactions blockchain (immuables), le prix est stocké localement et est mutable. La modification n'affecte que les commandes passées après la mise à jour — les commandes existantes conservent le prix enregistré à leur création (voir RM31).
 
-Conformément au principe de parité CLI/REST (CLAUDE.md), la modification du prix d'un asset doit être exposable en CLI au même titre que sa définition initiale (UCPI04/UCPI05) et que l'interface graphique.
+Conformément au principe de parité CLI/REST, la modification du prix d'un asset doit être exposable en CLI au même titre que sa définition initiale (UCPI04/UCPI05) et que l'interface graphique.
 
 ## Pré-conditions
 

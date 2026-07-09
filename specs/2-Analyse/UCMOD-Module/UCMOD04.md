@@ -37,7 +37,7 @@ Cette lecture est une opération en **lecture seule** qui ne modifie pas l'état
 - `Model3D.Assemblies` : IDs des Liaisons internes
 - `GetModuleInterfaces()` : calcule les interfaces exposées (non connectées en interne) de façon récursive
 
-> La présentation (navigation hiérarchique, fil d'Ariane, rendu 3D) relève du dépôt GUI externe — hors périmètre de ce document. Seuls les contrats REST et CLI ci-dessous font partie de `myr` — le CLI n'est pas un citoyen de seconde zone par rapport à l'API (`CLAUDE.md`).
+> La présentation (navigation hiérarchique, fil d'Ariane, rendu 3D) relève du dépôt GUI externe — hors périmètre de ce document. Seuls les contrats REST et CLI ci-dessous font partie de `myr` — le CLI n'est pas un citoyen de seconde zone par rapport à l'API.
 
 ## Pré-conditions
 

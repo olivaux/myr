@@ -24,4 +24,4 @@ Renuméroter UCPI04 → UCPI03, UCPI05 → UCPI04… aurait cassé toutes les r�
 
 ## Retrait ultérieur de UCPAR (ex-D10)
 
-UCPAR01/02 étaient des use cases 100 % frontend (changement de langue de l'interface, aucune règle métier). Le domaine D10 a été retiré du périmètre `myr` lors de la séparation des dépôts (voir `CLAUDE.md` § Séparation des dépôts) — l'i18n de l'interface relève désormais du dépôt GUI externe. Cet identifiant UCPI03 reste donc définitivement « reclassifié puis retiré » — aucun lien de renvoi actif.
+UCPAR01/02 étaient des use cases 100 % frontend (changement de langue de l'interface, aucune règle métier). Le domaine D10 a été retiré du périmètre `myr` lors de la séparation des dépôts — l'i18n de l'interface relève désormais du dépôt GUI externe. Cet identifiant UCPI03 reste donc définitivement « reclassifié puis retiré » — aucun lien de renvoi actif.

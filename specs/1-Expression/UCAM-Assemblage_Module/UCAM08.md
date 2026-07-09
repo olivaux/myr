@@ -1,5 +1,5 @@
 ﻿---
-categorie: Atelier Module
+categorie: Assemblage Module
 titre: "Retirer une instance de composant d'un Module"
 probabilite: 4
 impact: 4

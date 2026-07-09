@@ -1,5 +1,5 @@
 ﻿---
-categorie: Atelier Module
+categorie: Assemblage Module
 titre: "Créer une interface sur un composant"
 probabilite: 3
 impact: 5

@@ -188,7 +188,7 @@ Entité membre d'un réseau (entreprise, association, individu). Chaque utilisat
 
 ## Instance (composition d'un Module)
 
-Un module rassemble des composants et modules existants sous forme d'instances constituant sa composition, avant toute soumission à la blockchain. Une instance est ajoutée ou retirée par une action directe et brute sur le module (`AddAssetToWorkspace` / `RemoveAssetFromWorkspace` au niveau du domaine, `myr model instance add` / `remove` côté CLI, appel API équivalent) — ce n'est jamais la navigation dans un espace (« atelier » ou « workspace »), qui relève exclusivement de l'ergonomie du dépôt GUI externe.
+Un module rassemble des composants et modules existants sous forme d'instances constituant sa composition, avant toute soumission à la blockchain. Une instance est ajoutée ou retirée par une action directe et brute sur le module (`AddAssetToWorkspace` / `RemoveAssetFromWorkspace` au niveau du domaine, `myr model instance add` / `remove` côté CLI, appel API équivalent).
 
 Une instance dispose toujours d'au moins un slot virtuel permettant de l'ancrer dans la composition (RM13).
 
@@ -369,7 +369,7 @@ rectangle "Application MYR" {
     package "Administration\n(UCADM01–03)" as UCADM
     package "Composant — Écriture\n(UCCE01–06)" as UCCE
     package "Composant — Lecture\n(UCCL01)" as UCCL
-    package "Atelier Module\n(UCAM01–05, 07–08)" as UCAM
+    package "Assemblage Module\n(UCAM01–05, 07–08)" as UCAM
     package "Module\n(UCMOD01–06)" as UCMOD
     package "Propriété Intellectuelle\n(UCPI01–10, hors UCPI03†)" as UCPI
     package "Recherche\n(UCREC01–05)" as UCREC
@@ -422,7 +422,7 @@ D --> UCDEV
 | UCADM | Administration | UCADM01 Ajouter organisation · UCADM02 Créer réseau · UCADM03 Ajouter nœud |
 | UCCE | Composant — Écriture | UCCE01 Composant physique · UCCE02 Configurer composant · UCCE03 Composant numérique · UCCE04 Améliorer composant · UCCE05 Extension composant · UCCE06 Ajouter interface |
 | UCCL | Composant — Lecture | UCCL01 Recherche par filtre |
-| UCAM | Atelier Module | UCAM01 Liaison interfaces · UCAM02 Visualiser interfaces · UCAM03 Créer interface · UCAM05 Transformer en module · UCAM07 Asset d'accroche · UCAM08 Retirer composant |
+| UCAM | Assemblage Module | UCAM01 Liaison interfaces · UCAM02 Visualiser interfaces · UCAM03 Créer interface · UCAM05 Transformer en module · UCAM07 Asset d'accroche · UCAM08 Retirer instance |
 | UCMOD | Module | UCMOD01 Créer module · UCMOD02 Ajouter module existant · UCMOD03 Lien URL module · UCMOD04 Visualiser composants · UCMOD06 Soumettre blockchain |
 | UCPI | Propriété Intellectuelle | UCPI01 Commander module · UCPI02 Commission · UCPI03† Reclassifié puis retiré · UCPI04 Prix composant · UCPI05 Prix module · UCPI06 Composant similaire · UCPI07 Transfert PI · UCPI08 Cloner composant réseau · UCPI09 Cloner module réseau · UCPI10 Écoconception |
 | UCREC | Recherche | UCREC01 Référence existante · UCREC02 Composants compatibles · UCREC03 Versions composants · UCREC04 Modules utilisant composant · UCREC05 Exporter BOM |

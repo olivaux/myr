@@ -1,5 +1,5 @@
 ﻿---
-categorie: Atelier Module
+categorie: Assemblage Module
 titre: "Visualiser les interfaces physiques de composants"
 probabilite: 3
 impact: 5

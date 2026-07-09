@@ -1,5 +1,5 @@
 ﻿---
-categorie: Atelier Module
+categorie: Assemblage Module
 titre: "Liaison entre interfaces"
 probabilite: 4
 impact: 5

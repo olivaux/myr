@@ -189,7 +189,7 @@ end
 **Endpoints REST utilisés :**
 - `POST /api/modules/:id/submit` → `SubmitModule()` (handlers.go:~1181)
 
-**Commande CLI équivalente (cible) :** `myr module submit <moduleID> [--note <texte>]` appelle le même `SubmitModule(moduleID, note)` que `POST /api/modules/:id/submit` — mêmes vérifications RM17 (assemblage requis) et RM18 (ModuleVersion immuable), même message d'erreur en cas de rejet. Voir `specs/3-Conception/DC_CLI_Model.md` § 3.6 et § 5.
+**Commande CLI équivalente :** `myr module submit <moduleID> [--note <texte>]` appelle le même `SubmitModule(moduleID, note)` que `POST /api/modules/:id/submit` — mêmes vérifications RM17 (assemblage requis) et RM18 (ModuleVersion immuable), même message d'erreur en cas de rejet. Voir `specs/3-Conception/DC_CLI_Model.md` § 3.6 et § 5.
 
 **Hash du module :** `computeModuleHash()` (service.go:~730) calcule `SHA-256` sur la chaîne `"<moduleID>|v<n>|<connID1>,<connID2>,..."` avec les IDs triés. Ce hash est déterministe et permet la vérification d'intégrité ultérieure.
 

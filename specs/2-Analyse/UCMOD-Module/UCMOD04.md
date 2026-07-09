@@ -142,4 +142,4 @@ REST --> Client : 200 [Connection ...]
 
 **Récursivité `GetModuleInterfaces()` :** La fonction `getModuleInterfacesInto()` (service.go:~640) parcourt récursivement les `WorkspaceInstances` pour calculer les interfaces non connectées en interne. Un cache par `assetID` évite les appels blockchain redondants. Les modules profondément imbriqués peuvent générer de nombreux appels — un mécanisme de profondeur maximale est à envisager pour les cas extrêmes.
 
-**Commande CLI équivalente (cible) :** `myr module get <id>` (méthode `GetModule`) est le strict équivalent en lecture seule de `GET /api/modules/:id`. `myr module interfaces <id>` (méthode `GetModuleInterfaces`) couvre `GET /api/modules/:id/interfaces`. Voir `specs/3-Conception/DC_CLI_Model.md` § 5.
+**Commande CLI équivalente :** `myr module get <id>` (méthode `GetModule`) est le strict équivalent en lecture seule de `GET /api/modules/:id`. `myr module interfaces <id>` (méthode `GetModuleInterfaces`) couvre `GET /api/modules/:id/interfaces`. Voir `specs/3-Conception/DC_CLI_Model.md` § 5.

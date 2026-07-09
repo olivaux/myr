@@ -225,7 +225,7 @@ end
 
 **Écart E1 (catégorie `decoupage` absente) :** `domain/model/entity.go` ne définit pas `CategoryDecoupage`. À ajouter : `CategoryDecoupage Category = "decoupage"`. Cette catégorie est la seule qui transforme un composant en module (UCAM05).
 
-**Écart E8 (`Status` composant, cf. `Conception_intro.md` §9) :** `domain/model/entity.go` ne traite `Status` que pour les modules aujourd'hui. À corriger pour permettre `AddFull(AddRequest{Draft: true, ...})` de créer un composant avec `Status: draft`, et pour exposer une méthode de soumission (réutilisation de la logique de `SubmitModule`, généralisée à tout `Model3D`) qui embarque `Interfaces` et passe `Status` à `submitted`.
+**Écart E8 (`Status` composant, cf. `specs/roadmap_dev.md` § Écarts structurels — modèle & chaincode) :** `domain/model/entity.go` ne traite `Status` que pour les modules aujourd'hui. À corriger pour permettre `AddFull(AddRequest{Draft: true, ...})` de créer un composant avec `Status: draft`, et pour exposer une méthode de soumission (réutilisation de la logique de `SubmitModule`, généralisée à tout `Model3D`) qui embarque `Interfaces` et passe `Status` à `submitted`.
 
 **Analyse SCM :** L'algorithme de similarité structurelle (SCM > 50%) est un service domaine indépendant à créer dans `domain/model/` — il n'est pas encore implémenté.
 

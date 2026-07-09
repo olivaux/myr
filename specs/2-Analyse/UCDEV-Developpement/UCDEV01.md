@@ -36,7 +36,7 @@ UC1 .> UC3 : <<include>>
 
 Les développeurs tiers peuvent utiliser l'API REST MYR pour intégrer ses fonctionnalités dans leurs applications (boutiques, éditeurs 3D, plugins CAO, systèmes de gestion). L'API REST est exposée sous le préfixe `/api/` par `myr-app`.
 
-L'API est **implémentée** et opérationnelle (`adapters/in/rest/`). Elle couvre les opérations sur les composants, modules, liaisons, canaux, réseaux, licences et l'identité (enrôlement CA, sessions par token opaque — pas de JWT, voir `specs/3-Conception/DC_D1_Auth_Identity.md`).
+L'API (`adapters/in/rest/`) couvre les opérations sur les composants, modules, liaisons, canaux, réseaux, licences et l'identité (enrôlement CA, sessions par token opaque — pas de JWT, voir `specs/3-Conception/DC_D1_Auth_Identity.md`).
 
 L'acteur "Développeur" est distinct de l'Administrateur : il accède à MYR exclusivement via l'API REST depuis son environnement (jamais via le CLI qui est réservé au serveur). Il possède un compte avec un rôle approprié (minimum Lecteur pour les lectures, Concepteur pour les écritures).
 
@@ -62,7 +62,7 @@ L'acteur "Développeur" est distinct de l'Administrateur : il accède à MYR exc
 
 ### Flux nominal — Écriture de données (invoke)
 
-1. Le développeur dispose d'un token de session dont le rôle porte la permission `write` (rôle `contributor` par défaut — voir écart sur le rôle figé, `DC_D1_Auth_Identity.md`)
+1. Le développeur dispose d'un token de session dont le rôle porte la permission `write` (rôle `contributor` par défaut — voir `specs/3-Conception/DC_D1_Auth_Identity.md` et `specs/roadmap_dev.md` § Écarts Identité & Session pour l'état de la synchronisation avec le rôle CA)
 2. Il effectue un appel POST/PUT/PATCH/DELETE avec l'en-tête `X-Myr-Token`
 3. Exemple : `POST /api/components` avec body JSON
 4. Le serveur vérifie le token ET la permission (`requireRole(rbac.PermWrite, ...)`)
@@ -148,7 +148,7 @@ end
 
 ## Notes d'implémentation
 
-**État actuel :** Implémenté. Routes exposées dans `adapters/in/rest/server.go` :
+**Routes exposées** dans `adapters/in/rest/server.go` :
 - Identité : `/api/identity/policy`, `/api/identity/enroll`, `/api/identity/session`, `/api/identity/guest`, `/api/identity/request`, `/api/identity/requests`, `/api/identity/wallets`, `/api/identity/status`
 - Données : `/api/components`, `/api/components/`, `/api/connections`, `/api/connections/`, `/api/assembly-links`, `/api/virtual-connect`, `/api/modules`, `/api/modules/`, `/api/interfaces/`
 - Référentiel : `/api/refs`, `/api/refs/categories`, `/api/refs/types`, `/api/refs/units`

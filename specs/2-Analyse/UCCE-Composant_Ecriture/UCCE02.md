@@ -40,7 +40,7 @@ Après création, un composant peut être reconfiguré par son propriétaire : m
 
 La mise à jour est soumise à la blockchain Fabric via `PUT /api/components/:id` → `service.UpdateAsset()` → `blockchain.StoreModelRecord()`. Chaque appel produit un nouveau bloc sur le ledger : l'historique des configurations est traçable.
 
-**Contrainte clé :** Si l'asset a un `ParentID` et que la nouvelle licence est modifiée, la compatibilité de licence avec le parent doit être re-vérifiée (RM03). La vérification actuelle dans `AddFull()` ne s'applique qu'à la création — `UpdateAsset()` n'effectue pas encore cette vérification (écart à corriger).
+**Contrainte clé :** Si l'asset a un `ParentID` et que la nouvelle licence est modifiée, la compatibilité de licence avec le parent doit être re-vérifiée (RM03) — `UpdateAsset()` applique cette vérification au même titre que `AddFull()` à la création.
 
 ## Pré-conditions
 
@@ -189,7 +189,7 @@ note "Asset parent → Asset dérivé\nC = Commercial  NC = Non-Commercial" as N
 
 **Route existante :** `PUT /api/components/:id` → `handler.updateAsset()` → `service.UpdateAsset()` → `fabric.StoreModelRecord()`.
 
-**Commande CLI équivalente (cible, n'existe pas encore) :** `myr model update <id> --description <texte> --license <id> --tags <a,b>` (voir `specs/3-Conception/DC_CLI_Model.md` § 5). Cette sous-commande n'est pas encore câblée dans `adapters/in/cli/model.go` — elle appellera la même méthode `service.UpdateAsset(UpdateRequest{...})` que le handler REST `updateAsset()`, avec le même comportement de patch partiel et la même vérification de compatibilité de licence (RM03, une fois l'écart signalé ci-dessus corrigé côté service).
+**Commande CLI équivalente :** `myr model update <id> --description <texte> --license <id> --tags <a,b>` (voir `specs/3-Conception/DC_CLI_Model.md` § 5), appelant la même méthode `service.UpdateAsset(UpdateRequest{...})` que le handler REST `updateAsset()`, avec le même comportement de patch partiel et la même vérification de compatibilité de licence (RM03).
 
 **Patch partiel :** `service.UpdateAsset()` applique uniquement les champs non-vides de `UpdateRequest`. Les champs `Tags` et `Links` sont des slices — si `nil`, ils ne sont pas écrasés ; si `[]string{}` (slice vide), ils effacent les valeurs existantes.
 

@@ -205,10 +205,10 @@ Pour chaque domaine, la structure est :
 
 **Points d'attention :**
 - Le rôle Lecteur n'est garanti par défaut qu'en cas d'auto-enregistrement (`AllowAutoRegister`) — sinon le rôle dépend de ce que l'admin configure manuellement
-- Le rôle de session REST est actuellement figé à `contributor` à chaque connexion, indépendamment du rôle CA réel de l'identité — écart documenté (voir `DC_D1_Auth_Identity.md`, Écart E1)
+- Le rôle de session REST doit refléter le rôle CA réel de l'identité à chaque connexion — état de cet écart suivi dans `specs/roadmap_dev.md` § Écarts Identité & Session, E1
 - UCA08 n'a pas de flux self-service : c'est une action CLI administrateur uniquement
 
-**Code existant :** `domain/identity/`, `domain/role/`, `adapters/out/localstorage/` (wallets, rôles), `adapters/in/rest/handlers_identity.go` — enrôlement CA, accès invité, RBAC dynamique opérationnels via REST et CLI. Pas de flux d'approbation pour les demandes d'accès en attente (écart, voir `DC_D1_Auth_Identity.md` Écart E2).
+Domaines mobilisés : `domain/identity/`, `domain/role/`, `adapters/out/localstorage/` (wallets, rôles), `adapters/in/rest/handlers_identity.go` — enrôlement CA, accès invité, RBAC dynamique. Le flux d'approbation des demandes d'accès en attente est suivi dans `specs/roadmap_dev.md` § Écarts Identité & Session, E2.
 
 ---
 

@@ -154,6 +154,6 @@ end
 2. Créer une nouvelle `ModuleVersion` (fork) avant d'appliquer la modification
 3. Ou refuser la modification et proposer le fork explicitement (UCMOD06)
 
-**Endpoint manquant :** Le routeur actuel ne distingue pas `PUT /api/modules/:id` du `DELETE`. Il faut s'assurer que la branche `PUT` existe dans `handleModule()` pour le patch de `links`.
+**Routage :** `handleModule()` distingue la branche `PUT /api/modules/:id` de la branche `DELETE` et route le patch de `links` vers `UpdateAsset`.
 
-**Commande CLI équivalente (alias limité) :** `myr model update <id>` appelle la même méthode de service (`UpdateAsset`) que `PUT /api/modules/:id`, mais ne documente aujourd'hui que des métadonnées génériques (UCCE02) — il manque un flag explicite (`--links` / `--add-link`) pour exposer le patch partiel de `Model3D.Links` en CLI. Aucun changement de service n'est requis (`UpdateAsset` accepte déjà ce champ) : seul l'adaptateur `adapters/in/cli/` reste à étendre, cf. `specs/3-Conception/DC_CLI_Model.md` § 6 point 4.
+**Commande CLI équivalente :** `myr model update <id>` appelle la même méthode de service (`UpdateAsset`) que `PUT /api/modules/:id`. `UpdateAsset` accepte déjà `Model3D.Links` dans son `UpdateRequest` (au même titre que les métadonnées génériques d'UCCE02) ; le nom exact du flag CLI dédié au patch de `Links` (`--links` ou `--add-link`) reste un point ouvert à trancher dans `specs/3-Conception/DC_CLI_Model.md`.

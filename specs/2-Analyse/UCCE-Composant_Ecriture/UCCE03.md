@@ -44,32 +44,31 @@ L'entité produite est identique à un composant physique : un `Model3D` avec `H
 
 ## Pré-conditions
 
-- Le Concepteur est authentifié avec le rôle `contributor` (JWT valide).
+- Le Concepteur est authentifié avec le rôle `contributor` (session REST valide).
 - Un canal Fabric est opérationnel et accessible.
 - Le Concepteur dispose du fichier numérique à intégrer (binaire, archive, source…).
 - Pour une catégorie non-`base` : l'asset parent existe sur le canal et son ID est connu.
 
 ## Scénario
 
-**Étape initiale :** Le Concepteur accède à la création de composant et sélectionne le type "Numérique".
+**Étape initiale :** `POST /api/components` est appelée (ou l'équivalent CLI `myr model add`) avec la catégorie `base`, le tag numérique (`software`/`firmware`) et le fichier
 
 ### Flux nominal — Composant numérique nouveau
 
-1. Le Concepteur sélectionne la catégorie `base` et indique le type numérique (via tag `software` ou `firmware`).
-2. Il importe son fichier numérique via l'interface (champ `file` — multipart/form-data).
-3. Il renseigne les métadonnées : nom, description, version, licence, auteur, tags.
-4. Il soumet → `POST /api/components` (multipart/form-data).
-5. Le REST Handler valide les champs obligatoires.
-6. Le handler appelle `service.AddFull(AddRequest{...})`.
-7. Le service calcule le SHA-256 du fichier.
-8. **[Cible RM01]** Le service interroge Fabric et compare le hash avec les assets existants.
-9. Si aucun doublon : le service téléverse le fichier vers IPFS.
-10. Le service construit le `Model3D` et soumet `StoreModel` sur Fabric.
-11. L'API retourne `201 Created` avec le `Model3D` JSON.
+1. La catégorie `base` et le type numérique (tag `software` ou `firmware`) sont transmis
+2. Le fichier numérique est transmis (champ `file` — multipart/form-data)
+3. Les métadonnées sont transmises : nom, description, version, licence, auteur, tags
+4. Le REST Handler valide les champs obligatoires.
+5. Le handler appelle `service.AddFull(AddRequest{...})`.
+6. Le service calcule le SHA-256 du fichier.
+7. **[Cible RM01]** Le service interroge Fabric et compare le hash avec les assets existants.
+8. Si aucun doublon : le service téléverse le fichier vers IPFS.
+9. Le service construit le `Model3D` et soumet `StoreModel` sur Fabric.
+10. L'API retourne `201 Created` avec le `Model3D` JSON.
 
 ### Flux alternatif — Composant numérique dérivé (firmware basé sur un firmware existant)
 
-1. Le Concepteur sélectionne une catégorie dérivée (ex : `amelioration`) et fournit le `parent_id`.
+1. Une catégorie dérivée (ex : `amelioration`) et un `parent_id` sont transmis.
 2. Si une `license_id` est fournie : vérification de compatibilité de licence avec le parent.
 3. L'analyse SCM n'est pas déclenchée (non applicable aux fichiers numériques).
 4. La transaction est soumise avec `ParentID` renseigné.
@@ -101,7 +100,7 @@ L'entité produite est identique à un composant physique : un `Model3D` avec `H
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "IPFS\n(adapters/out/ipfs/)" as IPFS
@@ -178,6 +177,8 @@ end
 ## Notes d'implémentation
 
 **Route existante :** `POST /api/components` — même route que UCCE01. La distinction physique/numérique est portée par les `Tags` (`software`, `firmware`…) et/ou par la catégorie. Aucun changement de route n'est nécessaire.
+
+**Commande CLI équivalente (existante, à étendre) :** `myr model add <file> --name <nom> --channel <id> --category base --tags software [--description <texte>] [--owner-id <id>]` — même commande que UCCE01, la distinction physique/numérique étant portée par `--tags` et non par la commande elle-même. Aujourd'hui seuls `--name`/`--channel`/`--tags` sont câblés via `modelSvc.Add()` ; la cible `modelSvc.AddFull()` (même méthode que le handler REST `createAsset()`) reste à câbler pour exposer `--category`, `--parent`, `--license` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.1).
 
 **Différence avec UCCE01 :** Seule la vérification hash SHA-256 est requise. L'analyse SCM (similarité géométrique 3D) n'est pas applicable à un fichier binaire ou source — le service doit détecter le type de composant (via tags ou extension de fichier) pour sélectionner la bonne stratégie de vérification.
 

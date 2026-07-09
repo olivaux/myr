@@ -46,36 +46,34 @@ L'intérêt de ce UC est la traçabilité fine des évolutions d'un design — s
 
 ## Scénario
 
-**Étape initiale :** Le concepteur travaille sur un modèle 3D et décide d'enregistrer une version
+**Étape initiale :** `POST /api/components/{id}/versions` est appelée (ou l'équivalent CLI `myr model version save`) avec un message de version
 
 ### Flux nominal — Enregistrement d'une version
 
-1. Le concepteur déclenche "Enregistrer une version" depuis l'interface ou le plugin CAO
+1. Le message de version descriptif est transmis (ex. : "Ajout interface USB-C sur face avant")
 2. Le système calcule un diff par rapport à la version précédente (modifications géométriques, interfaces, attributs)
 3. Les modifications sont exportées en format XML structuré
-4. Le concepteur saisit un message de version descriptif (ex. : "Ajout interface USB-C sur face avant")
-5. La version est enregistrée avec : hash du fichier courant, message, horodatage, numéro de version incrémental
-6. La version est stockée localement (pas sur la blockchain — c'est un outil de travail)
-7. Confirmation : "Version {N} enregistrée"
+4. La version est enregistrée avec : hash du fichier courant, message, horodatage, numéro de version incrémental
+5. La version est stockée localement (pas sur la blockchain — c'est un outil de travail)
+6. Confirmation : "Version {N} enregistrée"
 
 ### Flux alternatif — Consultation de l'historique
 
-1. Le concepteur accède à l'historique des versions d'un composant
-2. La liste des versions est affichée avec : numéro, message, horodatage, auteur, statut (local ou soumis blockchain)
-3. Le concepteur peut ouvrir une version précédente en lecture seule
+1. `GET /api/components/{id}/versions` est appelée (ou l'équivalent CLI `myr model version list`)
+2. La liste des versions est retournée avec : numéro, message, horodatage, auteur, statut (local ou soumis blockchain)
+3. Une version précédente peut être consultée individuellement en lecture seule
 
-### Flux alternatif — Comparaison de deux versions (diff visuel)
+### Flux alternatif — Comparaison de deux versions
 
-1. Le concepteur sélectionne deux versions à comparer
+1. `GET /api/components/{id}/versions/diff` est appelée avec les deux numéros de version (ou l'équivalent CLI `myr model version diff`)
 2. Le système génère un diff XML entre les deux versions
-3. Les modifications sont affichées : éléments ajoutés, supprimés, modifiés
+3. Les modifications sont retournées : éléments ajoutés, supprimés, modifiés
 4. Un score de similarité SCM est calculé (utilisé par RM01 pour l'anti-plagiat)
 
 ### Flux alternatif — Export XML pour portabilité
 
-1. Le concepteur exporte les modifications d'une version en fichier XML
-2. Le fichier XML est téléchargeable depuis l'interface
-3. Le concepteur peut importer ce fichier dans un autre outil compatible
+1. Les modifications d'une version sont exportées en fichier XML via la réponse de l'API
+2. Ce fichier peut être importé dans un autre outil compatible
 
 ### Flux erreur A — Aucune version précédente (premier enregistrement)
 
@@ -100,14 +98,14 @@ L'intérêt de ce UC est la traçabilité fine des évolutions d'un design — s
 
 ```plantuml
 @startuml
-participant "Navigateur\n(ou Plugin CAO)" as Browser
+participant "Client\n(CLI, API REST ou plugin CAO)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 
-Browser -> REST : POST /api/components/{id}/versions\n{modelData (XML ou binaire), message}\nAuthorization: Bearer {jwt}
-REST -> REST : Vérifier auth + rôle designer (RM22)
+Browser -> REST : POST /api/components/{id}/versions\n{modelData (XML ou binaire), message}\nX-Myr-Token: {token}
+REST -> REST : Vérifier session + permission write (RM22)
 
 REST -> ModelSvc : GetVersionHistory(componentID)
 ModelSvc -> Local : QueryLocalVersions(componentID)
@@ -170,3 +168,4 @@ REST --> Browser : 200 {diffXML, similarityScore, added[], removed[], modified[]
 - L'algorithme SCM de similarité structurelle (> 50% = plagiat potentiel — RM01) est mentionné dans les specs mais non implémenté — ce UC est l'occasion de définir précisément cet algorithme
 - Ce UC est de faible priorité dans la roadmap (priorité "Could have" en MoSCoW) — à implémenter après les UC de plus haute importance
 - Question ouverte : les versions SCM sont-elles stockées uniquement localement (serveur) ou aussi sur la blockchain ? Les stocker sur la blockchain alourdirait les transactions pour un usage intermédiaire de travail
+- **Parité CLI/REST :** conformément au principe de parité, l'enregistrement et la consultation de versions SCM devraient être exposables en CLI. Comme noté ci-dessus, l'entité `SCMVersion` et le store local correspondant n'existent pas encore — des commandes CLI (par ex. `myr model version save/list/diff <id>`) ne pourront être ajoutées qu'une fois ce domaine conçu, en parallèle des routes REST manquantes.

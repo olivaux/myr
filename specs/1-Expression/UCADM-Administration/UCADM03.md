@@ -1,6 +1,7 @@
 ﻿---
 categorie: Administration
 titre: "Ajouter un nœud à un réseau existant"
+etat: "RELIRE"
 ---
 
 # Ajouter un nœud à un réseau existant

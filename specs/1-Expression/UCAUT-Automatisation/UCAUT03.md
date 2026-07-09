@@ -32,7 +32,9 @@ UC1 ..> UC3 : <<include>>
 
 ## Contexte
 
-L'utilisateur peut depuis son logiciel CAO (Fusion360, AutoCAD, SolidWorks...) intégrer ses composants directement dans un réseau dont il à un compte renseigné.
+L'utilisateur peut depuis son logiciel CAO (Fusion360, AutoCAD, SolidWorks...) intégrer ses composants directement dans un réseau dont il a un compte renseigné.
+
+Le plugin CAO constitue un canal non-GUI équivalent en esprit à un script CLI : il appelle l'API REST MYR de façon programmatique, sans navigateur. Conformément au principe de parité CLI/REST, la soumission effectuée par le plugin doit avoir un équivalent CLI complet (`myr model add`), exposant les mêmes champs (catégorie, parent, licence) que l'API et le plugin, au même titre que pour UCCE01/03.
 
 ## Pré-conditions
 

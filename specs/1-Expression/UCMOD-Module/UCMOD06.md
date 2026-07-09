@@ -45,29 +45,28 @@ Un module en état **draft** (voir UCMOD01) peut être soumis à la blockchain p
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur clique sur "Soumettre" dans l'atelier (bouton de soumission du module)
+**Étape initiale :** `myr module submit <moduleID> [--note <texte>]` est exécutée (ou l'appel API équivalent), pour le compte du propriétaire du module
 
 ### Flux nominal — Soumission réussie
 
-1. Le système vérifie que le module contient au moins un assemblage
+1. Le service vérifie que le module contient au moins un assemblage (RM17)
 2. Un hash de la composition est calculé
 3. Une `ModuleVersion` immuable est créée avec le hash et l'horodatage
 4. La transaction est soumise sur la blockchain
 5. Le module passe de l'état **draft** à l'état **publié**
-6. Une confirmation est affichée à l'utilisateur
+6. Une confirmation est retournée
 
 ### Flux alternatif — Module avec composants sous licences parentales
 
 1. Le module contient des composants dérivés d'assets parents avec des licences définies
-2. Avant la soumission, le système vérifie automatiquement la compatibilité des licences entre tous les composants du module
+2. Avant la soumission, le service vérifie automatiquement la compatibilité des licences entre tous les composants du module
 3. Toutes les licences sont compatibles : la soumission se poursuit normalement
 4. La transaction blockchain inclut la liste des dépendances de licences vérifiées
 
 ### Flux erreur — Aucun assemblage
 
-1. Le système détecte l'absence de liaison entre composants
-2. Message d'erreur : "Le module doit contenir au moins une liaison pour être soumis"
-3. L'utilisateur est renvoyé vers l'atelier (voir UCMOD01)
+1. Le service détecte l'absence de liaison entre composants
+2. Message d'erreur : "Le module doit contenir au moins une liaison pour être soumis" (RM17)
 
 ### Flux erreur — Échec de la transaction blockchain
 
@@ -102,7 +101,7 @@ publie --> draft : Nouvelle version\n(fork du module)
 skin rose
 title Soumettre un module à la blockchain
 start
-:Cliquer sur "Soumettre" dans l'atelier;
+:Transmettre la demande de soumission (myr module submit);
 if (Module contient au moins un assemblage?) then (oui)
   if (Composants avec licences parentales?) then (oui)
     :Vérifier la compatibilité des licences entre tous les composants;
@@ -113,16 +112,15 @@ if (Module contient au moins un assemblage?) then (oui)
   :Soumettre la transaction sur la blockchain;
   if (Transaction réussie?) then (oui)
     :Passer le module de draft à publié;
-    :Afficher une confirmation à l'utilisateur;
+    :Retourner une confirmation;
     stop
   else (non)
-    :Afficher le motif d'erreur (réseau indisponible ou droits insuffisants);
+    :Retourner le motif d'erreur (réseau indisponible ou droits insuffisants);
     :Conserver le module en état draft;
     stop
   endif
 else (non)
-  :Afficher "Le module doit contenir au moins une liaison pour être soumis";
-  :Renvoyer l'utilisateur vers l'atelier;
+  :Refuser — "Le module doit contenir au moins une liaison pour être soumis";
   stop
 endif
 @enduml

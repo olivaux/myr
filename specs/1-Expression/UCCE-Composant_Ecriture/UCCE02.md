@@ -41,14 +41,13 @@ Un composant doit pouvoir être configuré selon un nom et une licence par son p
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne son composant et accède à la configuration
+**Étape initiale :** `myr model update <id> --name <nom> --license <id-licence>` est exécutée (ou l'appel API équivalent), pour le compte du propriétaire du composant
 
 ### Flux nominal — Configuration réussie
 
-1. L'utilisateur définit ou modifie le nom du composant
-2. L'utilisateur sélectionne ou renseigne la licence applicable
-3. L'utilisateur valide les modifications
-4. La transaction de mise à jour est soumise sur la blockchain
+1. Le nom du composant est défini ou modifié
+2. La licence applicable est sélectionnée ou renseignée
+3. La transaction de mise à jour est soumise sur la blockchain — les règles de compatibilité de licence s'appliquent
 
 ## Post-conditions
 
@@ -84,10 +83,7 @@ skin rose
 skin rose
 title Configurer un Composant
 start
-:Sélectionner le composant et accéder à la configuration;
-:Définir ou modifier le nom du composant;
-:Sélectionner ou renseigner la licence applicable;
-:Valider les modifications;
+:Transmettre nom et/ou licence à modifier (myr model update);
 :Soumettre la transaction de mise à jour sur la blockchain;
 stop
 @enduml

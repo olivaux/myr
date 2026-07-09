@@ -49,17 +49,16 @@ L'opération modifie le champ `Links []string` de l'entité `Model3D`. Elle néc
 
 ## Scénario
 
-**Déclencheur :** L'utilisateur sélectionne un Module et accède à la section **Liens** dans l'Asset UI.
+**Étape initiale :** `PUT /api/modules/:id` est appelée (ou l'équivalent CLI `myr model update --add-link`) avec l'URL de référence
 
 ### Flux nominal — URL ajoutée avec succès
 
-1. L'utilisateur clique **Ajouter un lien URL** dans la section Liens
-2. Il saisit l'URL de référence dans le champ dédié
-3. Le système valide le format (doit commencer par `http://` ou `https://`)
-4. Le système appelle `PUT /api/modules/:id` avec `{links: [...existing, newURL]}`
-5. Service : `UpdateAsset(UpdateRequest{ID, Links: [...]})` — patch partiel
-6. L'adapter blockchain met à jour le record `Model3D` (`StoreModelRecord`)
-7. Confirmation affichée — l'URL apparaît dans la liste des liens du Module
+1. L'URL de référence est transmise
+2. Le service valide le format (doit commencer par `http://` ou `https://`)
+3. `PUT /api/modules/:id` est appelée avec `{links: [...existing, newURL]}`
+4. Service : `UpdateAsset(UpdateRequest{ID, Links: [...]})` — patch partiel
+5. L'adapter blockchain met à jour le record `Model3D` (`StoreModelRecord`)
+6. La réponse confirme — l'URL apparaît dans la liste des liens du Module
 
 ### Flux alternatif — Module en état draft
 
@@ -75,14 +74,13 @@ L'opération modifie le champ `Links []string` de l'entité `Model3D`. Elle néc
 
 ### Flux erreur — Format URL invalide
 
-1. L'utilisateur saisit une chaîne ne respectant pas le format HTTP/HTTPS
-2. Validation côté client bloquée — le formulaire indique "URL invalide"
-3. Si la validation client est contournée, le serveur retourne `400 Bad Request`
-4. Aucune modification persistée
+1. La chaîne transmise ne respecte pas le format HTTP/HTTPS
+2. Le serveur retourne `400 Bad Request`
+3. Aucune modification persistée
 
 ### Flux erreur — Droits insuffisants
 
-1. L'utilisateur n'est pas propriétaire du Module (`OwnerID != userID`)
+1. L'identité n'est pas propriétaire du Module (`OwnerID != userID`)
 2. Le serveur retourne `403 Forbidden`
 3. Message : "Vous n'êtes pas propriétaire de ce module"
 
@@ -96,20 +94,20 @@ L'opération modifie le champ `Links []string` de l'entité `Model3D`. Elle néc
 
 - L'URL est ajoutée à `Model3D.Links` sur la blockchain
 - Le Module reste dans son état (`draft` ou `submitted`) — le statut n'est pas modifié par cet UC
-- L'URL est visible immédiatement dans l'Asset UI
+- L'URL est visible immédiatement via `GET /api/modules/:id`
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 
 Browser -> REST : PUT /api/modules/:id\n{links: ["https://..."]}
-REST -> REST : Vérifier JWT + OwnerID (ENF12)
+REST -> REST : Vérifier session + OwnerID (ENF12)
 REST -> Service : UpdateAsset(UpdateRequest{ID, Links})
 Service -> Fabric : GetModelRecord(id, "")
 Fabric --> Service : *Model3D
@@ -156,4 +154,6 @@ end
 2. Créer une nouvelle `ModuleVersion` (fork) avant d'appliquer la modification
 3. Ou refuser la modification et proposer le fork explicitement (UCMOD06)
 
-**Endpoint manquant :** Le routeur actuel ne distingue pas `PUT /api/modules/:id` du `DELETE`. Il faut s'assurer que la branche `PUT` existe dans `handleModule()` pour le patch de `links`.
+**Routage :** `handleModule()` distingue la branche `PUT /api/modules/:id` de la branche `DELETE` et route le patch de `links` vers `UpdateAsset`.
+
+**Commande CLI équivalente :** `myr model update <id>` appelle la même méthode de service (`UpdateAsset`) que `PUT /api/modules/:id`. `UpdateAsset` accepte déjà `Model3D.Links` dans son `UpdateRequest` (au même titre que les métadonnées génériques d'UCCE02) ; le nom exact du flag CLI dédié au patch de `Links` (`--links` ou `--add-link`) reste un point ouvert à trancher dans `specs/3-Conception/DC_CLI_Model.md`.

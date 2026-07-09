@@ -32,6 +32,8 @@ UC1 ..> UC2 : <<include>>
 
 Un composant peut être cloné vers un réseau MYR externe sous réserve de compatibilité de licence.
 
+Conformément au principe de parité CLI/REST, le clonage d'un composant vers un réseau externe doit pouvoir être déclenché en CLI, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau source
@@ -40,24 +42,23 @@ Un composant peut être cloné vers un réseau MYR externe sous réserve de comp
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant et choisit "Cloner sur un autre réseau"
+**Étape initiale :** `myr model clone <id> --target-network <id>` est exécutée (ou l'appel API équivalent)
 
 ### Flux nominal — Clonage autorisé
 
-1. L'utilisateur sélectionne le réseau de destination
+1. Le réseau de destination est transmis
 2. Le système vérifie la compatibilité de licence
 3. La transaction de clonage est soumise sur les deux réseaux
 
 ### Flux alternatif — Réseau cible déjà connu (profil de connexion existant)
 
 1. Le réseau cible est déjà référencé dans les profils de connexion locaux
-2. L'utilisateur sélectionne directement le réseau cible dans la liste des réseaux connus
-3. Le clonage est initié sans saisie manuelle des informations du réseau cible
-4. Le composant est publié sur le réseau cible avec le même UUID et les métadonnées originales
+2. Le clonage est initié directement, sans saisie manuelle des informations du réseau cible
+3. Le composant est publié sur le réseau cible avec le même UUID et les métadonnées originales
 
 ### Flux erreur — Licence incompatible
 
-1. Message d'erreur : "La licence du composant ne permet pas le clonage vers ce réseau"
+1. Erreur métier : "La licence du composant ne permet pas le clonage vers ce réseau"
 
 ## Post-conditions
 
@@ -71,18 +72,13 @@ Un composant peut être cloné vers un réseau MYR externe sous réserve de comp
 skin rose
 title Cloner un Composant sur un réseau extérieur
 start
-:Sélectionner un composant et choisir "Cloner sur un autre réseau";
-if (Réseau cible déjà connu dans les profils locaux?) then (oui)
-  :Sélectionner le réseau dans la liste des réseaux connus;
-else (non)
-  :Saisir manuellement les informations du réseau de destination;
-endif
+:Transmettre l'identifiant du composant et le réseau cible (myr model clone);
 :Vérifier la compatibilité de licence;
 if (Licence compatible?) then (oui)
   :Soumettre la transaction de clonage sur les deux réseaux;
   stop
 else (non)
-  :Afficher "La licence du composant ne permet pas le clonage vers ce réseau";
+  :Retourner "La licence du composant ne permet pas le clonage vers ce réseau";
   stop
 endif
 @enduml

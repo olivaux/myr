@@ -47,44 +47,41 @@ Le système interroge la blockchain via `GET /api/components` avec des paramètr
 - Le serveur Myr est démarré et joignable
 - La blockchain (ou le stockage local JSON en mode développement) est accessible
 - Pour un visiteur : aucune authentification requise (comportement cible — voir écart ci-dessus)
-- Pour un utilisateur authentifié : token JWT valide dans l'en-tête `Authorization: Bearer <token>` ou token legacy `X-Myr-Token`
+- Pour un utilisateur authentifié : token de session opaque valide dans l'en-tête `X-Myr-Token`
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur ouvre l'application et accède à la vue Recherche depuis la MenuBar
+> La présentation des résultats (MenuBar, Search UI, Explorer UI) relève du dépôt GUI externe — hors périmètre de ce document. Seuls les contrats REST et CLI ci-dessous font partie de `myr`.
 
 ### Flux nominal — Résultats trouvés
 
-1. L'utilisateur sélectionne un ou plusieurs critères de filtre dans la Search UI :
+1. Le client fournit un ou plusieurs critères de filtre :
    - texte libre (`q`) : recherche dans nom, description, tags
    - catégories (`categories`) : `base`, `amelioration`, `variation`, `adaptation`, `derivation`, `extension`, `regression`
    - auteur (`owner_id`), parent (`parent_id`), hash exact (`hash`), tags (`tags`)
    - limite de résultats (`limit`, défaut 200, max 1000)
-2. Le navigateur envoie `GET /api/components?q=...&categories=...&limit=...`
+2. Le client envoie `GET /api/components?q=...&categories=...&limit=...`
 3. Le handler `listGraph` interroge le service domaine via `svcFor(r).List(channel)`
 4. Le service appelle `blockchain.ListModelRecords(channelID)` — retourne tous les assets du canal
 5. Le handler filtre côté serveur (catégorie, texte, owner, parent, hash, tags) et exclut les modules
 6. Les DTOs `componentDTO` sont construits avec miniatures (thumbnails)
 7. Les connexions entre assets chargés sont incluses dans la réponse
-8. Le navigateur reçoit `{ components: [...], connections: [...], total: N }` et affiche la liste
+8. Le client reçoit `{ components: [...], connections: [...], total: N }`
 
 ### Flux nominal — Aucun résultat
 
 1. Le filtrage ne retourne aucun asset correspondant
 2. La réponse est `{ components: [], connections: [], total: 0 }`
-3. Un message "Aucun composant ne correspond aux critères" est affiché
 
 ### Flux alternatif — Affinement des filtres
 
-1. L'utilisateur modifie un ou plusieurs critères sans quitter la vue
+1. Le client fournit un ou plusieurs critères mis à jour
 2. Une nouvelle requête `GET /api/components` est émise avec les critères mis à jour
-3. La liste est rechargée (pas de rechargement de page — SPA)
 
 ### Flux erreur — Blockchain indisponible
 
 1. `blockchain.ListModelRecords()` retourne une erreur
 2. Le handler renvoie HTTP 500 avec `{ "error": "..." }`
-3. L'UI affiche un message d'erreur technique
 
 ### Flux erreur — Accès refusé (écart actuel)
 
@@ -94,15 +91,15 @@ Le système interroge la blockchain via `GET /api/components` avec des paramètr
 
 ## Post-conditions
 
-- La liste des composants correspondant aux critères est affichée dans l'Explorer UI
-- Les connexions entre les composants affichés sont visibles
+- La liste des composants correspondant aux critères est retournée au client
+- Les connexions entre les composants retournés sont incluses
 - L'état du système est inchangé (lecture seule)
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI, API REST ou dépôt GUI externe)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
@@ -110,12 +107,12 @@ database "Fabric\n(adapters/out/fabric/)" as Fabric
 
 Browser -> REST : GET /api/components?q=...&categories=...
 
-alt Mode simulation locale (MYR_DEV / pas de réseau Fabric)
+alt Mode simulation locale (netInfo.Network == "" / pas de réseau Fabric actif)
     REST -> REST : injecter session fictive admin\n(requireAuth bypass)
 else Visiteur non authentifié (comportement cible)
     REST -> REST : pas de middleware auth\n(route publique à implémenter)
 else Utilisateur authentifié
-    REST -> REST : valider JWT / X-Myr-Token\n→ myrSession injectée dans contexte
+    REST -> REST : valider X-Myr-Token\n→ myrSession injectée dans contexte
 end
 
 REST -> Service : svcFor(r).List(channelID)
@@ -168,7 +165,6 @@ Aucune règle métier de modification n'est déclenchée (lecture seule). Points
 ## Exigences non-fonctionnelles
 
 - **ENF01 / ENF14** — Temps de réponse : `< 2 s` pour 100 assets (objectif charge nominale)
-- **ENF22** — Compatibilité navigateur : Chrome 120+, Firefox 120+, Safari 17+, Edge 120+
 - **ENF12** — Contrôle d'accès vérifié côté serveur (pas côté client uniquement)
 - La pagination côté serveur (paramètre `limit`) protège contre les réponses trop volumineuses (max 1000)
 
@@ -204,3 +200,5 @@ mux.HandleFunc("/api/components", func(w http.ResponseWriter, r *http.Request) {
 **Miniatures :** Récupérées depuis `ThumbnailStore` (SQLite ou local JSON). Si absente, `thumbnail` est une chaîne vide dans le DTO.
 
 **Connexions :** Seules les connexions dont `From` ET `To` font partie des assets filtrés sont incluses dans la réponse — évite les connexions orphelines côté client.
+
+**Commande CLI équivalente (alias limité) :** `myr model list [--channel <id>]` appelle la même méthode `List(channelID)` que `GET /api/components` avant filtrage. Le filtrage par critère (`q`, `categories`, `owner_id`, `parent_id`, `hash`, `tags`) est effectué aujourd'hui dans le handler REST (`adapters/in/rest/`), pas dans `ModelService` — il n'existe donc pas de méthode de filtre serveur réutilisable directement par le CLI. Une commande `myr model search --filter <critère>` est documentée comme cible ouverte : elle devra reproduire côté adaptateur CLI la même logique de filtrage que `listGraph`, sans changement de domaine requis (voir `specs/3-Conception/DC_CLI_Model.md` § 6 point 2). En l'absence de cette commande, `myr model search` reste un simple alias de `myr model list`.

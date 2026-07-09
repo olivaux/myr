@@ -1,8 +1,8 @@
-﻿---
+---
 categorie: Administration
 titre: "Ajouter une organisation au réseau"
+etat : "LU"
 ---
-
 # Ajouter une organisation au réseau
 
 ## Diagramme d'acteurs
@@ -15,18 +15,16 @@ actor "Administrateur" as ADM
 
 rectangle "Application MYR" {
     usecase "Ajouter une organisation" as UC1
-    usecase "Configurer les droits d'accès" as UC2
 }
 
 ADM --> UC1
-UC1 ..> UC2 : <<include>>
 
 @enduml
 ```
 
 ## Contexte
 
-L'administrateur peut ajouter une organisation (Fabricant, vendeur, association...) au réseau avec son rôle et ses droits d'accès.
+L'administrateur peut ajouter une organisation (fabricant, vendeur, association…) au réseau. Une organisation est identifiée par un **identifiant d'organisation** unique au sein du réseau. Les rôles et droits d'accès sont attribués séparément, dans un second temps (voir UCADM06 et UCADM07).
 
 ## Pré-conditions
 
@@ -35,26 +33,24 @@ L'administrateur peut ajouter une organisation (Fabricant, vendeur, association.
 
 ## Scénario
 
-**Étape initiale :** L'administrateur accède à la gestion des organisations
+**Étape initiale :** Sur le serveur (SSH), l'administrateur exécute `myr org add --id <orgID> --name <nom>` (équivalent `POST /api/networks/orgs`)
 
 ### Flux nominal — Organisation ajoutée
 
-1. Il clique sur "Ajouter une organisation"
-2. Il renseigne les informations : nom, MSP ID, rôle par défaut
-3. Il configure les droits d'accès de l'organisation
-4. Il valide : la configuration du channel est mise à jour
-5. L'organisation peut désormais gérer ses propres utilisateurs
+1. L'identifiant et le nom de l'organisation sont transmis
+2. La configuration du réseau est mise à jour
+3. L'organisation peut désormais gérer ses propres utilisateurs
 
 ### Flux alternatif — Organisation déjà membre du réseau
 
-1. L'administrateur saisit un MSP ID déjà enregistré sur le réseau
-2. Le système détecte que l'organisation existe et propose de mettre à jour ses informations (rôle par défaut, politique d'accès)
-3. L'administrateur modifie les informations souhaitées et valide
-4. La configuration du channel est mise à jour sans recréation de l'organisation
+1. L'identifiant d'organisation transmis est déjà enregistré sur le réseau
+2. Le système détecte que l'organisation existe et met à jour ses informations (nom) plutôt que de la recréer
+3. La configuration du réseau est mise à jour sans recréation de l'organisation
 
 ## Post-conditions
 
-- L'organisation est disponible sur le réseau avec les droits définis
+- L'organisation est disponible sur le réseau
+- Des rôles peuvent lui être attribués via UCADM06
 - L'administrateur de l'organisation peut créer des comptes pour ses membres
 
 ## Diagramme d'activités
@@ -64,19 +60,12 @@ L'administrateur peut ajouter une organisation (Fabricant, vendeur, association.
 skin rose
 title Ajouter une organisation au réseau
 start
-:Accéder à la gestion des organisations;
-:Cliquer sur "Ajouter une organisation";
-:Renseigner les informations (nom, MSP ID, rôle par défaut);
-if (MSP ID déjà membre du réseau?) then (oui)
-  :Proposer la mise à jour des informations existantes;
-  :Modifier le rôle ou la politique d'accès;
-  :Valider la mise à jour;
-  :Mettre à jour la configuration du channel;
+:Transmettre nom et identifiant d'organisation (myr org add);
+if (Identifiant d'organisation déjà membre du réseau?) then (oui)
+  :Mettre à jour les informations existantes (nom);
   stop
 else (non)
-  :Configurer les droits d'accès de l'organisation;
-  :Valider la configuration;
-  :Mettre à jour la configuration du channel;
+  :Créer l'organisation et mettre à jour la configuration du réseau;
   stop
 endif
 @enduml

@@ -1,4 +1,4 @@
-﻿---
+---
 categorie: Propriété Intellectuelle
 titre: "Cloner un Module sur un réseau exterieur"
 probabilite: 1
@@ -32,6 +32,8 @@ UC1 ..> UC2 : <<include>>
 
 Un module peut être cloné vers un réseau MYR externe, ce qui implique la vérification de licence de tous ses composants constitutifs.
 
+Conformément au principe de parité CLI/REST, le clonage d'un module vers un réseau externe doit pouvoir être déclenché en CLI, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau source
@@ -40,17 +42,17 @@ Un module peut être cloné vers un réseau MYR externe, ce qui implique la vér
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un module et choisit "Cloner sur un autre réseau"
+**Étape initiale :** `myr model clone <id> --target-network <id>` est exécutée (ou l'appel API équivalent)
 
 ### Flux nominal — Clonage autorisé
 
-1. Le système vérifie la compatibilité de licence de chaque composant du module
-2. L'utilisateur sélectionne le réseau de destination
-3. La transaction de clonage est soumise pour le module et ses composants
+1. Le réseau de destination est transmis
+2. Le système vérifie la compatibilité de licence de chaque composant du module
+3. La transaction de clonage est soumise pour le module et ses composants sur les deux réseaux
 
 ### Flux erreur — Licence incompatible sur un composant
 
-1. Message d'erreur listant les composants dont la licence bloque le clonage
+1. Erreur métier : liste des composants dont la licence bloque le clonage
 
 ## Post-conditions
 
@@ -63,14 +65,13 @@ Un module peut être cloné vers un réseau MYR externe, ce qui implique la vér
 skin rose
 title Cloner un Module sur un réseau extérieur
 start
-:Sélectionner un module et choisir "Cloner sur un autre réseau";
+:Transmettre l'identifiant du module et le réseau cible (myr model clone);
 :Vérifier la compatibilité de licence de chaque composant du module;
 if (Toutes les licences compatibles?) then (oui)
-  :Sélectionner le réseau de destination;
   :Soumettre la transaction de clonage pour le module et ses composants;
   stop
 else (non)
-  :Afficher la liste des composants dont la licence bloque le clonage;
+  :Retourner la liste des composants dont la licence bloque le clonage;
   stop
 endif
 @enduml

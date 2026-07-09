@@ -41,27 +41,25 @@ Un utilisateur connecté (rôle Lecteur ou autre) peut demander un rôle supplé
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur ouvre son profil et clique sur "Demander un rôle"
+**Étape initiale :** Le client transmet une demande de rôle pour l'identité connectée (`POST /api/identity/roles/request` — rôle souhaité)
 
 ### Flux nominal — Attribution automatique
 
-1. L'utilisateur sélectionne le rôle souhaité
+1. Le rôle souhaité est transmis
 2. Le rôle cible est configuré en auto-distribution sur ce réseau
-3. Le rôle est attribué immédiatement
-4. Message de confirmation : "Rôle [X] attribué"
+3. Le rôle est attribué immédiatement — la réponse indique le nouveau rôle actif
 
 ### Flux alternatif — Validation manuelle par l'administrateur
 
-1. L'utilisateur sélectionne le rôle souhaité
+1. Le rôle souhaité est transmis
 2. Le rôle cible nécessite une validation admin
-3. La demande est transmise à l'administrateur
-4. Message : "Demande envoyée — en attente de validation"
-5. L'utilisateur conserve son rôle courant jusqu'à la décision
+3. La demande est enregistrée en attente (`202 Accepted`)
+4. Le rôle courant est conservé jusqu'à la décision de l'administrateur (`myr identity set-role`)
 
 ### Flux erreur — Rôle déjà attribué
 
-1. Le rôle sélectionné est déjà détenu par l'utilisateur
-2. Message : "Vous possédez déjà ce rôle"
+1. Le rôle demandé est déjà détenu par l'identité
+2. Réponse d'erreur : « Vous possédez déjà ce rôle » (`400 Bad Request`)
 
 ## Post-conditions
 
@@ -74,19 +72,16 @@ Un utilisateur connecté (rôle Lecteur ou autre) peut demander un rôle supplé
 skin rose
 title Demander un rôle
 start
-:Ouvrir le profil — cliquer "Demander un rôle";
-:Sélectionner le rôle souhaité;
+:Transmettre la demande de rôle (POST /api/identity/roles/request);
 if (Rôle déjà attribué?) then (oui)
-  :Afficher "Vous possédez déjà ce rôle";
+  :Retourner l'erreur "Vous possédez déjà ce rôle" (400);
   stop
 else (non)
   if (Auto-distribution activée pour ce rôle?) then (oui)
     :Attribuer le rôle immédiatement;
-    :Afficher "Rôle [X] attribué";
     stop
   else (non)
-    :Transmettre la demande à l'administrateur;
-    :Afficher "Demande envoyée — en attente de validation";
+    :Enregistrer la demande en attente (202);
     stop
   endif
 endif

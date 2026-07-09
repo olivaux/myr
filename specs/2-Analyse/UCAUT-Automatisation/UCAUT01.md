@@ -118,8 +118,8 @@ La livraison confirmée → distribution des commissions est une opération **at
 
 ```plantuml
 @startuml
-participant "Navigateur\n(Manufactureur)" as BrowserMfr
-participant "Navigateur\n(Consommateur)" as BrowserCons
+participant "Client\n(Manufactureur)" as BrowserMfr
+participant "Client\n(Consommateur)" as BrowserCons
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Payment Service\n(domain/payment/)" as PaySvc
 participant "Model Service\n(domain/model/)" as ModelSvc
@@ -195,5 +195,6 @@ REST --> BrowserCons : 200 {status: delivered, timestamp}
 - **À créer** : Routes `PUT /api/orders/{id}/status` et `POST /api/orders/{id}/deliver` dans `adapters/in/rest/handlers_payment.go`
 - **À créer** : Fonction chaincode `ConfirmDelivery(orderID)` qui encapsule le calcul et la distribution des commissions dans un seul bloc Fabric (atomicité)
 - **À créer** : Entité `Order` dans le domaine payment — l'entité `Payment` actuelle ne modélise pas le cycle commande/livraison
-- Le rôle `manufacturer` n'existe pas encore dans le code (`domain/auth/`) — à créer (voir note §3.1 de l'Analyse des besoins)
+- Le rôle `manufacturer` n'existe pas encore par défaut dans le RBAC dynamique (`domain/role`) — à créer via `myr role create manufacturer --permission ...` (voir note §3.1 de l'Analyse des besoins)
 - L'atomicité livraison + commissions dans un seul bloc Fabric est une contrainte forte — Hyperledger Fabric supporte plusieurs écritures dans une seule transaction, mais les limites de taille de bloc sont à surveiller pour les modules avec de nombreux co-auteurs
+- **Parité CLI/REST :** conformément au principe de parité, la confirmation de livraison par un manufactureur devrait être déclenchable en CLI pour son compte. Comme noté ci-dessus, l'entité `Order` et la fonction chaincode `ConfirmDelivery` n'existent pas encore — une commande CLI (par ex. `myr order deliver <id>`) ne pourra être ajoutée qu'une fois ce domaine conçu, en parallèle des routes REST manquantes.

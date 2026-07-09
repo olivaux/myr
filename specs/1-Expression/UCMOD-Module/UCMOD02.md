@@ -32,7 +32,7 @@ UC1 ..> UC2 : <<include>>
 
 ## Contexte
 
-Ajouter un Module déjà existant dans des boutiques ou sur le réseau (Contrôleurs, Caméra, Visserie...) à son espace de travail.
+Un Module déjà existant (Contrôleurs, Caméra, Visserie...) peut être ajouté comme instance dans un module hôte, par une action directe sur ce dernier.
 
 ## Pré-conditions
 
@@ -41,26 +41,21 @@ Ajouter un Module déjà existant dans des boutiques ou sur le réseau (Contrôl
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur recherche un module existant par référence ou par filtre
+**Étape initiale :** Un module existant est recherché par référence ou par filtre (`myr module list` / `myr model list`, ou l'appel API équivalent — voir UCREC01/UCCL01), pour le compte du Concepteur ou du Consommateur
 
 ### Flux nominal — Module ajouté
 
-1. L'utilisateur sélectionne le module dans les résultats
-2. Il choisit "Ajouter à l'atelier"
-3. Le module est chargé dans l'espace de travail
+1. `myr model instance add <moduleID> <assetID>` (ou l'appel API équivalent) est exécutée avec le module trouvé — une nouvelle instance est créée dans le module hôte
+2. Une fois les liaisons créées (`myr model link add`, voir UCAM01), elles sont rattachées au module hôte avec `myr module add-assembly <moduleID> <connID>`
 
-### Flux alternatif — Module déjà présent dans l'atelier
+### Flux alternatif — Module déjà instancié dans le module hôte
 
-1. L'utilisateur sélectionne un module déjà instancié dans l'atelier
-2. Le système détecte la présence d'une instance existante et propose deux options :
-   - Ajouter une seconde instance indépendante du même module
-   - Naviguer vers l'instance déjà présente
-3. L'utilisateur choisit "Ajouter une seconde instance"
-4. Une nouvelle instance est créée dans l'atelier avec ses propres connexions indépendantes
+1. Le module ciblé possède déjà une instance dans le module hôte
+2. `myr model instance add` crée une nouvelle instance indépendante à chaque appel, y compris si le module est déjà présent — chaque instance a ses propres connexions indépendantes
 
 ## Post-conditions
 
-- Le module est disponible dans l'espace de travail de l'utilisateur
+- Le module est disponible en tant qu'instance dans le module hôte
 
 ## Diagramme d'activités
 
@@ -69,20 +64,13 @@ Ajouter un Module déjà existant dans des boutiques ou sur le réseau (Contrôl
 skin rose
 title Ajouter un Module existant
 start
-:Rechercher un module par référence ou par filtre;
-:Sélectionner le module dans les résultats;
-if (Module déjà présent dans l'atelier?) then (oui)
-  :Proposer "Ajouter une seconde instance" ou "Naviguer vers l'instance existante";
-  if (Ajouter une seconde instance?) then (oui)
-    :Créer une nouvelle instance indépendante dans l'atelier;
-    stop
-  else (non)
-    :Naviguer vers l'instance existante;
-    stop
-  endif
+:Rechercher un module par référence ou par filtre (myr module list);
+:Transmettre le module trouvé (myr model instance add);
+if (Module déjà instancié dans le module hôte?) then (oui)
+  :Créer une nouvelle instance indépendante;
+  stop
 else (non)
-  :Choisir "Ajouter à l'atelier";
-  :Charger le module dans l'espace de travail;
+  :Créer l'instance dans le module hôte;
   stop
 endif
 @enduml

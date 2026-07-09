@@ -32,6 +32,8 @@ UC1 ..> UC2 : <<include>>
 
 L'auteur d'un composant ou d'un module peut modifier son prix à tout moment. Contrairement aux transactions blockchain (immuables), le prix est stocké localement et est mutable. La modification n'affecte que les commandes passées après la mise à jour — les commandes existantes conservent le prix enregistré à leur création (voir RM31).
 
+Conformément au principe de parité CLI/REST, la modification du prix d'un asset doit être exposable en CLI au même titre que sa définition initiale (UCPI04/UCPI05) et que l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -40,33 +42,29 @@ L'auteur d'un composant ou d'un module peut modifier son prix à tout moment. Co
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur accède à son asset (composant ou module) et ouvre la section "Tarification"
+**Étape initiale :** `myr model price update <id> <montant>` (ou `myr module price update <id> <montant>`) est exécutée (ou l'appel API équivalent), pour le compte du propriétaire
 
 ### Flux nominal — Prix mis à jour
 
-1. Le prix actuel est affiché (ou "non défini" si premier paramétrage)
-2. L'utilisateur saisit le nouveau prix unitaire
-3. La devise est affichée en lecture seule (devise du réseau — RM33)
-4. L'utilisateur valide
-5. Le nouveau prix est enregistré localement avec la date de mise à jour (`AssetPrice.UpdatedAt`)
-6. Un message de confirmation indique : "Prix mis à jour — applicable aux prochaines commandes"
+1. Le prix actuel est retourné (ou "non défini" si premier paramétrage)
+2. Le nouveau prix unitaire est transmis — la devise est celle du réseau, non modifiable (RM33)
+3. Le nouveau prix est enregistré localement avec la date de mise à jour (`AssetPrice.UpdatedAt`)
+4. La réponse confirme : "Prix mis à jour — applicable aux prochaines commandes"
 
 ### Flux nominal — Passage à gratuit (prix = 0)
 
-1. L'utilisateur saisit 0 comme nouveau prix
-2. Le système affiche un avertissement : "En définissant un prix nul, aucune commission ne sera générée pour les commandes futures (RM32)"
-3. L'utilisateur confirme
-4. L'asset passe en libre accès — aucune commission future
+1. Le nouveau prix transmis est 0
+2. Le service avertit : "En définissant un prix nul, aucune commission ne sera générée pour les commandes futures (RM32)"
+3. L'asset passe en libre accès — aucune commission future
 
 ### Flux erreur — Utilisateur non propriétaire
 
-1. Le bouton "Tarification" n'est pas affiché
-2. En cas de tentative directe via API : erreur `ErrForbidden`
+1. Erreur `ErrForbidden`
 
 ### Flux erreur — Commandes en cours
 
 1. Des commandes sont en cours pour cet asset (`OrderItem.Status != delivered`)
-2. Le système affiche un avertissement informatif : "X commande(s) en cours conserveront l'ancien prix"
+2. Le service retourne un avertissement informatif : "X commande(s) en cours conserveront l'ancien prix"
 3. La modification est autorisée — les commandes en cours ne sont pas bloquées
 
 ## Post-conditions
@@ -88,27 +86,21 @@ L'auteur d'un composant ou d'un module peut modifier son prix à tout moment. Co
 skin rose
 title Modifier le prix d'un asset
 start
-:Accéder à l'asset et ouvrir "Tarification";
+:Transmettre le nouveau prix (myr model price update);
 if (Utilisateur propriétaire?) then (non)
   :Erreur ErrForbidden;
   stop
 else (oui)
-  :Afficher le prix actuel et la devise du réseau (lecture seule);
-  :Saisir le nouveau prix;
   if (Prix = 0 ?) then (oui)
-    :Afficher avertissement "Aucune commission future (RM32)";
-    if (Utilisateur confirme?) then (non)
-      stop
-    else (oui)
-    endif
+    :Retourner avertissement "Aucune commission future (RM32)";
   else (non)
   endif
   if (Commandes en cours pour cet asset?) then (oui)
-    :Afficher avertissement informatif "X commandes conservent l'ancien prix";
+    :Retourner avertissement informatif "X commandes conservent l'ancien prix";
   else (non)
   endif
   :Enregistrer le nouveau prix (AssetPrice.UpdatedAt = now);
-  :Afficher "Prix mis à jour — applicable aux prochaines commandes";
+  :Retourner "Prix mis à jour — applicable aux prochaines commandes";
   stop
 endif
 @enduml

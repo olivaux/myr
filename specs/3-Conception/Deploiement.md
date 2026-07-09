@@ -6,15 +6,17 @@
 
 ## 1. Vue d'ensemble
 
-Myr se déploie comme un binaire Go autonome (`myr-app.exe`) qui embarque le frontend (SPA) et sert l'API REST. Il se connecte à une infrastructure HyperLedger Fabric externe gérée par chaque organisation.
+Myr se déploie comme un binaire Go autonome (`myr-app`) qui sert exclusivement l'API REST — aucune interface graphique n'est embarquée dans ce binaire. Il se connecte à une infrastructure blockchain externe gérée par chaque organisation (implémentation par défaut : HyperLedger Fabric via `adapters/out/fabric/`).
+
+> Le site web (SPA) qui pilote `myr` vit dans un dépôt séparé, consommateur exclusif de cette API REST.
 
 ```plantuml
 @startuml
 skinparam componentStyle rectangle
 
 rectangle "Organisation A\n(Paris)" {
-  [myr-app\nmyr.db\ndata/] as AppA
-  database "SQLite + JSON" as DBA
+  [myr-app\ndata/] as AppA
+  database "JSON files\n(pas de BDD SQL)" as DBA
   [peer0.org1.com:7051] as PeerA
   [Fabric CA\n:7054] as CAA
   AppA --> DBA
@@ -70,12 +72,11 @@ end note
 
 | Binaire | Description | Commande de build |
 |---------|-------------|------------------|
-| `bin/myr-app.exe` | Serveur HTTP + GUI embarqué + API REST | `make app` |
-| `bin/myr.exe` | CLI d'administration | `make cli` |
+| `bin/myr-app-linux` | Serveur HTTP — API REST uniquement (Linux amd64) | `make app` |
+| `bin/myr-linux` | CLI d'administration (Linux amd64) | `make cli` |
 
-**Cross-compilation Linux :**
 ```bash
-make deploy  # compile Linux + déploie via scripts/deploy.ps1
+make deploy  # compile + déploie les deux sur le serveur distant via scripts/deploy.ps1
 ```
 
 ---
@@ -86,18 +87,15 @@ Chaque instance `myr-app` est configurée via un `NetworkProfile` (JSON dans `da
 
 ### Variables d'environnement obligatoires
 
-| Variable | Description |
-|----------|-------------|
-| `JWT_SECRET` | Clé de signature JWT (≥ 32 bytes aléatoires) |
-| `WALLET_ENCRYPT_KEY` | Clé AES-256 pour les wallets SQLite (32 bytes en hex) |
+Aucune variable n'est strictement obligatoire pour démarrer `myr-app` — les variables Fabric (`fabric.env` ou équivalent) sont nécessaires pour une connexion blockchain réelle, sinon le mode simulation JSON local s'active automatiquement.
+
+> ⚠️ `JWT_SECRET` et `WALLET_ENCRYPT_KEY` ne sont lues nulle part dans le code actuel — il n'y a pas de JWT, et les wallets (fichiers PEM sous `~/.Myr/wallets/`) ne sont pas chiffrés au repos (écart de sécurité connu, voir `Securite.md` et `Conception_intro.md` ADR-03).
 
 ### Variables optionnelles
 
 | Variable | Défaut | Description |
 |----------|--------|-------------|
-| `MYR_DB_PATH` | `<data>/myr.db` | Chemin SQLite |
-| `REDIS_URL` | — | Sessions Redis (multi-instances) |
-| `MYR_DEV` | — | `=1` : hot-reload frontend (développement uniquement) |
+| `REDIS_URL` | — | Sessions REST partagées Redis (multi-instances) |
 
 ### Profil de connexion Fabric
 
@@ -107,25 +105,18 @@ Chaque instance `myr-app` est configurée via un `NetworkProfile` (JSON dans `da
 
 ## 5. Lancement
 
-### Mode développement (hot-reload frontend)
-
-```bash
-MYR_DEV=1 ./bin/myr-app.exe --open
-# Sert ui/static/ depuis le disque — pas besoin de recompiler pour les changements JS/CSS
-```
-
 ### Mode production
 
 ```bash
-JWT_SECRET=<secret> WALLET_ENCRYPT_KEY=<key> ./bin/myr-app.exe
+./myr-app --addr 0.0.0.0:8080 --data /var/myr
 ```
 
-### CLI admin
+### CLI admin (via SSH sur le serveur)
 
 ```bash
-./bin/myr.exe --help
-./bin/myr.exe channel list
-./bin/myr.exe model add --file ./mypart.stl --name "Vis M3" --channel greenchannel
+myr --help
+myr channel list
+myr model add --file ./mypart.stl --name "Vis M3" --channel greenchannel
 ```
 
 ---
@@ -169,7 +160,7 @@ end note
 Pour déployer plusieurs instances `myr-app` derrière un load balancer :
 
 ```bash
-REDIS_URL=redis://localhost:6379 ./bin/myr-app.exe
+REDIS_URL=redis://localhost:6379 ./myr-app
 ```
 
 Avec `REDIS_URL`, les sessions sont partagées entre instances via Redis. Sans `REDIS_URL`, chaque instance a ses propres sessions (mode standalone).
@@ -181,7 +172,7 @@ skinparam componentStyle rectangle
 [Load Balancer\n(nginx/HAProxy)] as LB
 [myr-app #1] as A1
 [myr-app #2] as A2
-database "SQLite\n(partagé NFS ou réplication)" as DB
+database "JSON files\n(data/, ~/.Myr/ — partagé NFS)" as DB
 database "Redis\nSessions" as Redis
 [HyperLedger Fabric] as Fabric
 
@@ -196,7 +187,7 @@ A2 --> Fabric
 @enduml
 ```
 
-> ⚠️ SQLite n'est pas conçu pour les accès concurrents multi-processus. En mode multi-instances, PostgreSQL est recommandé (non implémenté en v1 — adapter SQLite).
+> ⚠️ Le stockage JSON local (`adapters/out/localstorage/` — pas de BDD SQL, ni en v1 ni en cible) n'est pas conçu pour les accès concurrents multi-processus : un partage par NFS expose à des écritures concurrentes non arbitrées. Seules les sessions REST ont un mécanisme multi-instances dédié et éprouvé (`REDIS_URL`). Le partage cohérent de l'état JSON (connexions, interfaces en brouillon, rôles…) entre plusieurs instances `myr-app` reste une question de conception ouverte — voir § Informations manquantes.
 
 ---
 
@@ -221,8 +212,8 @@ go run ./cmd/mangen  # génère les man pages dans docs/man/
 
 ## 10. Informations manquantes
 
-- **SQLite multi-instances** : SQLite n'est pas adapté pour plusieurs processus en écriture simultanée — migration PostgreSQL à prévoir si besoin de scalabilité horizontale
-- **Rotation de clé WALLET_ENCRYPT_KEY** : aucun mécanisme de re-chiffrement des wallets existants lors d'un changement de clé
-- **Sauvegardes** : stratégie de backup de `myr.db` et `data/` non documentée
+- **Chiffrement des wallets au repos** : aucun mécanisme n'existe actuellement (fichiers PEM en clair, `0600`) — décision à prendre (voir `Securite.md`, `Conception_intro.md` ADR-03)
+- **Partage de l'état JSON en mode multi-instances** : `adapters/out/localstorage/` (connexions, interfaces en brouillon, rôles, profils réseau…) n'a pas de mécanisme de cohérence multi-processus — contrairement aux sessions REST (Redis). Un partage NFS naïf (§7) expose à des écritures concurrentes non arbitrées. Aucune base de données relationnelle n'est envisageable comme solution — la solution reste à concevoir (verrouillage fichier, backend clé-valeur distribué, ou autre mécanisme cohérent avec l'absence de BDD SQL).
+- **Sauvegardes** : stratégie de backup de `data/` et `~/.Myr/` non documentée
 - **TLS pour myr-app** : le serveur HTTP de `myr-app` ne fait pas TLS lui-même — à placer derrière un reverse proxy (nginx, Caddy) avec certificat Let's Encrypt
 - **Procédure de mise à jour du chaincode** : le versionnement et l'upgrade du chaincode en production (lifecycle Fabric v2) n'est pas documenté

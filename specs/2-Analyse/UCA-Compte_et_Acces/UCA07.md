@@ -15,106 +15,68 @@ etat: analyse
 @startuml
 left to right direction
 
-actor "Utilisateur\n(tout rôle authentifié)" as U
+actor "Client\n(dépôt GUI externe)" as U
 
-rectangle "Application MYR" {
-    usecase "Voir son rôle attribué" as UC1
-    usecase "Lire les claims JWT\nou appeler /api/auth/me" as UC2
+rectangle "API myr" {
+    usecase "Mettre en cache le rôle\nreçu à la connexion" as UC1
 }
 
 U --> UC1
-UC1 ..> UC2 : <<include>>
 
 @enduml
 ```
 
 ## Contexte
 
-UCA07 est un use case d'information pure : l'utilisateur consulte son rôle actif pour comprendre ses droits dans le système. C'est un mécanisme de visibilité, pas d'autorisation.
+Comme pour UCA04, **il n'existe aucun endpoint permettant à un client de (re)demander son rôle courant au serveur.** Le rôle n'est communiqué qu'une seule fois : dans la réponse de `POST /api/identity/session` ou `POST /api/identity/guest` (UCA02), sous la forme `{role, pseudo, channel, ...}`. Le client doit le mettre en cache lui-même pour toute la durée de vie de sa session (jusqu'à 7 jours).
 
-Deux sources d'information sont disponibles :
-
-1. **Côté client (immédiat)** : le payload JWT est décodable sans clé secrète (base64). Le client peut lire le champ `role` directement depuis le token stocké localement — sans requête serveur.
-
-2. **Côté serveur (référence)** : `GET /api/auth/me` retourne `{role, ...}` avec les données fraîches de la base.
-
-L'interface expose cette information via une infobulle au survol du nom d'utilisateur. C'est le seul point d'entrée décrit dans l'Expression.
+> La restitution de cette information à l'utilisateur (infobulle, libellé traduit, etc.) est un choix d'interface qui relève du dépôt GUI externe — hors périmètre de ce document. Seul le fait que le rôle soit une donnée serveur, non falsifiable côté client, fait partie de `myr`.
 
 ## Pré-conditions
 
-- L'utilisateur est authentifié (JWT valide)
+- Le client s'est connecté au moins une fois (UCA02) et a reçu un `role` dans la réponse
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur survole son nom d'utilisateur affiché dans l'interface (MenuBar)
+### Flux nominal — Rôle connu depuis la connexion
 
-### Flux nominal — Affichage du rôle
+1. Le client lit le champ `role` reçu lors de `POST /api/identity/session` ou `POST /api/identity/guest`
+2. Il n'y a rien d'autre à faire — cette valeur reste valable tant que le token n'est pas expiré ou révoqué
 
-1. L'interface lit le rôle depuis les claims JWT stockés localement
-2. Une infobulle affiche le rôle humain lisible correspondant :
-   - `reader` → "Lecteur"
-   - `contributor` → "Concepteur"
-   - `admin` → "Administrateur"
-   - `consumer` → "Consommateur"
-   - `manufacturer` → "Manufactureur"
-   - `developer` → "Développeur"
-3. L'infobulle disparaît au retrait de la souris
+### Flux alternatif — Vérification indirecte par tentative d'action
 
-### Flux alternatif — Rafraîchissement depuis le serveur
-
-1. Si les claims locaux sont absents ou suspects, le client appelle `GET /api/auth/me`
-2. `withJWTAuth` valide le JWT
-3. Le handler retourne `{role, display_name, org_id, ...}`
-4. L'interface met à jour l'infobulle avec les données fraîches
+1. Le client tente une action nécessitant une permission donnée
+2. Si `HTTP 403` est retourné, le client peut en déduire que son rôle en cache ne porte pas (ou plus) cette permission — sans que le serveur ne lui indique explicitement son rôle actuel
 
 ## Post-conditions
 
-- L'utilisateur connaît son rôle actuel — aucune modification de l'état du système
+- Le client dispose (ou non) d'une information de rôle en cache — aucune source de vérité consultable à la demande côté serveur
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur\n(SPA)" as Browser
-participant "REST Handler\n(adapters/in/rest/handlers_auth.go)" as REST
-participant "withJWTAuth" as Middleware
-participant "Auth Service\n(domain/auth/service.go)" as Service
-database "SQLite users\n(adapters/out/sqlite/)" as SQLite
+participant "Client\n(dépôt GUI externe)" as Client
+participant "REST Handler\n(adapters/in/rest/handlers_identity.go)" as REST
 
-Browser -> Browser : survol nom utilisateur\nlire claims.role depuis JWT local
-Browser -> Browser : afficher infobulle\n"Rôle : Lecteur / Concepteur / ..."
+Client -> REST : POST /api/identity/session\n{name, secret, org_id}
+REST --> Client : HTTP 200 {token, role, pseudo, channel}
+Client -> Client : mettre en cache {role, pseudo, channel}
 
-alt rafraîchissement depuis serveur
-  Browser -> REST : GET /api/auth/me\nAuthorization: Bearer <token>
-  REST -> Middleware : withJWTAuth
-  Middleware -> Service : ValidateToken(tokenStr)
-  Service --> Middleware : *Claims
-  Middleware -> REST : ctx avec claims
-  REST -> Service : GetUser(ctx, claims.UserID)
-  Service -> SQLite : FindByID(userID)
-  SQLite --> Service : *User
-  Service --> REST : *User {role, ...}
-  REST --> Browser : HTTP 200 {role, display_name, org_id, status}
-  Browser -> Browser : mise à jour infobulle
-end
+note over Client : Aucun endpoint ultérieur ne permet\nde revérifier ce rôle auprès du serveur
 @enduml
 ```
 
 ## Règles métier déclenchées
 
-- **RM22** — Le rôle affiché correspond exactement à la valeur en base — il est lu depuis le JWT (signé par le serveur) ou confirmé par `GET /api/auth/me`. L'utilisateur ne peut pas modifier l'affichage de son rôle.
-
-## Exigences non-fonctionnelles
-
-- **ENF22** — L'infobulle de survol doit fonctionner sur Chrome 120+, Firefox 120+, Safari 17+, Edge 120+.
+- **RM22** — Le rôle communiqué au client provient exclusivement du serveur (session REST) — aucun mécanisme ne permet à un client de le modifier lui-même.
 
 ## Notes d'implémentation
 
-**Lecture locale des claims JWT :** Le payload JWT (partie centrale) est encodé en base64 non chiffré — lisible par le JS client sans appel serveur. Cette approche est standard et ne constitue pas une faille de sécurité (le JWT est signé, pas chiffré — il ne contient pas de données sensibles au-delà du rôle et de l'email).
+**Pas d'endpoint de consultation :** aucune route REST ne retourne le rôle courant en dehors de la réponse initiale de connexion. Voir aussi l'écart similaire documenté dans UCA04.
 
-**Mapping rôle → libellé :** Ce mapping (ex. `contributor` → "Concepteur") doit être défini dans le JS frontend (`ui/static/`). Il doit être mis à jour lors de l'ajout des nouveaux rôles (`consumer`, `manufacturer`, `developer`).
+**Rôle figé, potentiellement obsolète :** le rôle mis en cache par le client ne reflète que l'état au moment de la connexion. Si un administrateur modifie le rôle de l'identité entre-temps (`myr identity set-role`, UCA08), le client n'en sera informé qu'à sa prochaine connexion — voir aussi l'écart documenté dans UCA02 sur le rôle de session actuellement figé à `"contributor"`.
 
 **Statut d'implémentation :**
-- `GET /api/auth/me` : **opérationnel** (retourne le rôle)
-- Infobulle de survol : à vérifier dans `ui/static/`
-- Mapping rôle → libellé français : à vérifier dans le JS frontend
+- Transmission du rôle à la connexion : **opérationnelle** (`POST /api/identity/session`, `POST /api/identity/guest`)
+- Endpoint de re-consultation du rôle courant : **inexistant** — écart réel, pas une simplification de cette spec

@@ -12,6 +12,7 @@ Le chaincode est le composant exécuté dans HyperLedger Fabric qui garantit :
 - La **distribution automatique des commissions** à la livraison (RM23, RM24)
 - La **traçabilité des transferts PI** et du clonage inter-réseaux (RM25, RM26)
 
+Il convient de prendre en compte le fait que Fabric est l'adapteur Blockchain par défaut et qu'il pourra être complété par d'autres blockchain.
 ---
 
 ## 2. État actuel — `chaincode/model/entity.go`
@@ -53,9 +54,28 @@ type Model3D struct {
     Links       []string  `json:"links,omitempty"`
     BlockID     string    `json:"block_id,omitempty"`    // renseigné par le chaincode
     CreatedAt   time.Time `json:"created_at"`
+    Interfaces  []AssetInterface `json:"interfaces,omitempty"` // ADR-02 : interfaces physiques/virtuelles embarquées
     // Champs module
     Status      string    `json:"status,omitempty"`      // draft|submitted
     ModuleVersions []ModuleVersion `json:"module_versions,omitempty"`
+}
+
+// AssetInterface — point de connexion physique ou virtuel d'un Model3D (ADR-02 : enregistrée sur la blockchain,
+// jamais dans un store local séparé). Voir domain/model/entity.go pour la struct domaine de référence.
+type AssetInterface struct {
+    ID        string  `json:"id"`
+    AssetID   string  `json:"asset_id"`
+    Name      string  `json:"name,omitempty"`
+    Category  string  `json:"category"`
+    Tag       string  `json:"tag,omitempty"`
+    Type      string  `json:"type"`
+    Direction string  `json:"direction"` // in|out|bidir
+    ValueMin  float64 `json:"value_min"`
+    ValueMax  float64 `json:"value_max,omitempty"`
+    IsRange   bool    `json:"is_range"`
+    Unit      string  `json:"unit,omitempty"`
+    Virtual   bool    `json:"virtual"`
+    Removed   bool    `json:"removed,omitempty"` // Fabric ne supporte pas la suppression (règle 9) — marquage logique
 }
 
 type ModuleVersion struct {
@@ -73,6 +93,8 @@ type Version struct {
     CreatedAt time.Time `json:"created_at"`
 }
 ```
+
+> **ADR-02 (`Conception_intro.md`) :** `Interfaces` étant un champ de `Model3D` comme `Versions` ou `ModuleVersions`, aucune fonction chaincode dédiée n'est nécessaire. Mais contrairement à un champ mis à jour à chaque appel, `Interfaces` n'est écrit **qu'une seule fois par soumission** : tant que l'asset reste en brouillon (`draft`), ses interfaces sont éditées côté service domaine dans le store local (`InterfaceStore`) — le chaincode n'est sollicité (`StoreModel`) qu'au moment de la soumission (création du composant, ou `SubmitModule`), qui embarque alors l'état final du tableau `Interfaces`.
 
 ---
 

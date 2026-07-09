@@ -18,16 +18,12 @@ left to right direction
 actor "Concepteur" as C
 actor "Consommateur" as CL
 
-rectangle "Application MYR" {
+rectangle "API myr" {
     usecase "Rechercher les versions\nd'un Composant" as UC1
-    usecase "Explorer l'arbre\nde dépendances" as UC2
-    usecase "Consulter une version\nspécifique" as UC3
 }
 
 C --> UC1
 CL --> UC1
-UC1 ..> UC2 : <<include>>
-UC1 .> UC3 : <<extend>>
 
 @enduml
 ```
@@ -42,67 +38,56 @@ Cette fonctionnalité permet au Concepteur de naviguer dans la lignée d'un Comp
 
 **Statut d'implémentation :** `GetChildren(parentID)` est implémenté dans le service (service.go:~251). Aucun endpoint dédié à l'arbre de versions n'existe — à implémenter.
 
+> Le rendu de l'arbre (navigation, mise en évidence, layout graphique) relève du dépôt GUI externe — hors périmètre de ce document. Seuls les contrats REST et CLI ci-dessous font partie de `myr`.
+
 ## Pré-conditions
 
 - Utilisateur authentifié (rôle `Lecteur` minimum)
-- Un Composant sélectionné dans l'Explorer UI ou l'Asset UI
+- Un Composant identifié (ID connu du client)
 - Le Composant est accessible sur la blockchain
 
 ## Scénario
 
-**Déclencheur :** L'utilisateur sélectionne un Composant et accède à **Versions** depuis l'Asset UI.
+### Flux nominal — Arbre de versions retourné
 
-### Flux nominal — Arbre de versions affiché
-
-1. L'utilisateur clique **Versions** sur l'Asset UI d'un Composant
-2. Le système appelle `GET /api/components/:id/versions`
-3. Handler : remonte la chaîne ascendante via `ParentID` jusqu'à la racine (`ParentID == ""`)
-4. Handler : descend récursivement via `GetChildren()` pour trouver tous les enfants
-5. L'arbre est construit : nœud racine → branches par type de dérivation
-6. Chaque nœud affiche : nom, catégorie de dérivation, date de création
-7. Le Composant courant est mis en évidence dans l'arbre
-
-### Flux alternatif — Navigation dans l'arbre
-
-1. L'utilisateur clique sur un nœud de l'arbre (version parente ou enfant)
-2. L'Asset UI du Composant sélectionné s'ouvre
-3. L'arbre se recentre sur le nouveau Composant
+1. Le client appelle `GET /api/components/:id/versions`
+2. Handler : remonte la chaîne ascendante via `ParentID` jusqu'à la racine (`ParentID == ""`)
+3. Handler : descend récursivement via `GetChildren()` pour trouver tous les enfants
+4. L'arbre est construit : nœud racine → branches par type de dérivation
+5. Chaque nœud contient : nom, catégorie de dérivation, date de création
 
 ### Flux alternatif — Composant racine (aucun parent)
 
 1. Le Composant a `ParentID == ""` — il est une `base` ou une racine orpheline
-2. L'arbre n'affiche que le nœud courant et ses enfants (descend seulement)
-3. Message : "Ce composant est une version racine"
+2. L'arbre ne contient que le nœud courant et ses enfants (descend seulement)
 
 ### Flux alternatif — Composant feuille (aucun enfant)
 
 1. `GetChildren(id)` retourne une liste vide
-2. L'arbre affiche uniquement la chaîne ascendante jusqu'à la racine
-3. Message : "Aucune version dérivée de ce composant"
+2. L'arbre ne contient que la chaîne ascendante jusqu'à la racine
 
 ### Flux erreur — Composant introuvable
 
 1. L'ID ne correspond à aucun asset sur la blockchain
-2. Message : "Composant introuvable"
+2. Le système retourne une erreur "Composant introuvable"
 
 ## Post-conditions
 
-- L'arbre complet des versions du Composant est visible (ancêtres + descendants)
+- L'arbre complet des versions du Composant est retourné (ancêtres + descendants)
 - Aucune modification de la blockchain
-- L'utilisateur peut naviguer vers n'importe quelle version depuis l'arbre
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(dépôt GUI externe)" as Client
 participant "REST Handler\n(adapters/in/rest/)\n[cible — à implémenter]" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 
-Browser -> REST : GET /api/components/:id/versions?channel=<channelID>
+Client -> REST : GET /api/components/:id/versions?channel=<channelID>
 note right of REST : Endpoint non implémenté\narchitecture cible
-REST -> REST : Vérifier JWT (ENF12)
+REST -> REST : Vérifier session (ENF12)
 
 ' Remonter la chaîne ascendante
 REST -> Service : Get(id, channelID)
@@ -128,9 +113,7 @@ loop Pour chaque enfant (récursif)
 end
 
 REST -> REST : Construire arbre :\n{id, name, category, derivationType,\n createdAt, children: [...]}
-REST --> Browser : 200 {root: {...}, tree: {...}}
-
-Browser -> Browser : Afficher arbre avec\nnœud courant mis en évidence
+REST --> Client : 200 {root: {...}, tree: {...}}
 @enduml
 ```
 
@@ -143,8 +126,7 @@ Browser -> Browser : Afficher arbre avec\nnœud courant mis en évidence
 
 ## Exigences non-fonctionnelles
 
-- **ENF12** : Authentification JWT obligatoire
-- **ENF22** : Interface compatible navigateurs modernes
+- **ENF12** : Authentification par session (token opaque) obligatoire
 
 ## Notes d'implémentation
 
@@ -156,6 +138,6 @@ Browser -> Browser : Afficher arbre avec\nnœud courant mis en évidence
 
 **Catégorie `decoupage` absente (E1) :** La catégorie `decoupage` (RM02) n'est pas définie dans `entity.go`. Les Composants créés via UCAM05 n'auront pas cette catégorie dans le code actuel. L'arbre doit prévoir ce cas.
 
-**Rendu UI :** D3.js est disponible dans `ui/static/js/` — il est adapté pour le rendu d'arbres de dépendances (force-directed graph ou tree layout). Le rendu hiérarchique est à implémenter côté frontend.
+**Distinction `Versions []Version` vs arbre `ParentID` :** `Model3D.Versions` liste les fichiers CAO successifs d'un même asset (historique de fichier IPFS). L'arbre de cet UC est basé sur `ParentID` (généalogie inter-assets). Le contrat REST doit garder les deux structures clairement distinctes dans sa réponse.
 
-**Distinction `Versions []Version` vs arbre `ParentID` :** `Model3D.Versions` liste les fichiers CAO successifs d'un même asset (historique de fichier IPFS). L'arbre de cet UC est basé sur `ParentID` (généalogie inter-assets). Les deux doivent être clairement distincts dans l'UI.
+**Commande CLI équivalente (alias limité) :** `myr model children <parentID>` (méthode `GetChildren`, déjà exposée par `ModelService`) couvre la branche descendante. La remontée ascendante n'a pas de méthode dédiée côté service — ni le REST ni le CLI n'offrent aujourd'hui de commande unique pour l'arbre complet ; elle se reconstitue par appels itérés à `myr model get <parentID>`, à l'image de ce que ferait le futur handler REST (voir Notes d'implémentation ci-dessus).

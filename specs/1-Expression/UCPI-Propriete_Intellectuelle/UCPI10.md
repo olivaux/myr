@@ -32,6 +32,8 @@ C --> UC2
 
 Les composants et modules peuvent être soumis à des normes d'écoconception définies par l'administrateur du réseau pour promouvoir l'économie circulaire.
 
+Conformément au principe de parité CLI/REST, la définition de normes d'écoconception par l'administrateur ainsi que la vérification de conformité doivent être exposables en CLI, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Normes d'écoconception définies par l'administrateur du réseau
@@ -39,16 +41,16 @@ Les composants et modules peuvent être soumis à des normes d'écoconception d�
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur crée ou modifie un composant
+**Étape initiale :** Un composant ou module est créé ou modifié (`myr model add`/`myr model update`, ou l'appel API équivalent)
 
 ### Flux nominal — Conforme
 
 1. Le système vérifie automatiquement la conformité aux normes d'écoconception
-2. Un rapport de conformité positif est affiché
+2. Un rapport de conformité positif est retourné
 
 ### Flux nominal — Non conforme
 
-1. Le système avertit l'utilisateur des critères non respectés
+1. Le système retourne les critères non respectés
 2. Des recommandations d'amélioration sont proposées
 
 ## Post-conditions
@@ -62,13 +64,13 @@ Les composants et modules peuvent être soumis à des normes d'écoconception d�
 skin rose
 title Norme de conception écoconception
 start
-:Créer ou modifier un composant;
+:Créer ou modifier un composant ou module;
 :Vérifier automatiquement la conformité aux normes d'écoconception;
 if (Conforme?) then (oui)
-  :Afficher un rapport de conformité positif;
+  :Retourner un rapport de conformité positif;
   stop
 else (non)
-  :Avertir l'utilisateur des critères non respectés;
+  :Retourner les critères non respectés;
   :Proposer des recommandations d'amélioration;
   stop
 endif

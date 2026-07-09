@@ -51,26 +51,23 @@ La licence du composant doit autoriser le clonage — certaines licences peuvent
 
 ## Scénario
 
-**Étape initiale :** Le concepteur accède à la fiche de son composant et choisit "Cloner sur un autre réseau"
+**Étape initiale :** `POST /api/components/{id}/clone` est appelée (ou l'équivalent CLI `myr model clone`) avec l'identifiant du réseau cible
 
 ### Flux nominal A — Réseau cible connu (profil de connexion existant)
 
-1. Le système affiche la liste des réseaux connus (depuis `connection-profiles/`)
-2. Le concepteur sélectionne le réseau de destination
-3. Le système vérifie la compatibilité de licence (règle 8 : RM03 — si licence restrictive, bloquer)
-4. Le système affiche un récapitulatif : composant, réseau cible, UUID préservé, traçabilité activée
-5. Le concepteur confirme le clonage
-6. La transaction de clonage est soumise sur le **réseau source** : `{assetID, clonedToNetwork, timestamp}`
-7. Le composant (UUID + métadonnées + hash CAO) est transmis au réseau cible
-8. La transaction de réception est enregistrée sur le **réseau cible** : `{assetID, clonedFromNetwork, originalOwnerID, timestamp}`
-9. Confirmation : "Composant cloné — disponible sur {réseau cible}"
+1. Le réseau de destination transmis est déjà référencé dans `connection-profiles/`
+2. Le système vérifie la compatibilité de licence (règle 8 : RM03 — si licence restrictive, bloquer)
+3. La transaction de clonage est soumise sur le **réseau source** : `{assetID, clonedToNetwork, timestamp}`
+4. Le composant (UUID + métadonnées + hash CAO) est transmis au réseau cible
+5. La transaction de réception est enregistrée sur le **réseau cible** : `{assetID, clonedFromNetwork, originalOwnerID, timestamp}`
+6. Confirmation : "Composant cloné — disponible sur {réseau cible}"
 
 ### Flux nominal B — Réseau cible non encore référencé (saisie manuelle)
 
-1. Le concepteur choisit "Nouveau réseau" et saisit les informations de connexion (URL gateway, MSP ID, certificat CA)
+1. Les informations de connexion du nouveau réseau sont transmises (URL gateway, MSP ID, certificat CA)
 2. Le système tente une connexion au réseau cible
 3. Connexion réussie — le nouveau profil est enregistré localement dans `connection-profiles/`
-4. La suite suit le flux nominal A à partir de l'étape 3
+4. La suite suit le flux nominal A à partir de l'étape 2
 
 ### Flux erreur A — Licence incompatible
 
@@ -102,13 +99,13 @@ La licence du composant doit autoriser le clonage — certaines licences peuvent
 - Le composant est disponible sur le réseau de destination avec le **même UUID** (RM26)
 - Les métadonnées originales (auteur, licence, hash CAO) sont préservées sur les deux réseaux (RM26)
 - Une transaction de traçabilité est enregistrée sur le réseau source et sur le réseau cible
-- Le concepteur voit le composant dans sa liste "Réseaux où ce composant est présent"
+- La liste des réseaux où ce composant est présent est consultable via l'API
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 participant "Network Service\n(domain/network/)" as NetSvc
@@ -184,3 +181,4 @@ end
 - L'échec partiel (source OK, cible KO) est un cas difficile — la transaction source est immuable. Envisager un mécanisme de "clone en attente" avec retry automatique
 - La gestion des `connection-profiles/` (dossier existant) doit être exposée via le `Network Service` — actuellement c'est un dossier statique sans service dédié
 - Question ouverte : le clonage est-il réservé au propriétaire ou tout utilisateur avec licence compatible peut-il cloner ?
+- **Parité CLI/REST :** conformément au principe de parité, le clonage d'un composant vers un réseau externe devrait être exposable en CLI. Comme noté ci-dessus, ni `domain/model` ni `domain/network` n'exposent d'opération de clonage inter-réseaux, et aucune route REST n'existe — une commande CLI (par ex. `myr model clone <id> --target-network <id>`) ne pourra être ajoutée qu'une fois ce domaine conçu.

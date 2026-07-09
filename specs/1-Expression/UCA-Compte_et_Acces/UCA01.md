@@ -1,4 +1,4 @@
-﻿---
+---
 categorie: Compte et Accès
 titre: "Création d'un compte"
 probabilite: 5
@@ -16,21 +16,29 @@ etat: relire
 left to right direction
 
 actor "Visiteur" as V
+actor "Administrateur" as ADM
 
 rectangle "Application MYR" {
-    usecase "Créer un compte" as UC1
+    usecase "Soumettre une demande d'accès" as UC1
+    usecase "Enregistrer manuellement\nauprès de la CA (hors périmètre applicatif)" as UC2
 }
 
 V --> UC1
+ADM --> UC2
 
 @enduml
 ```
 
 ## Contexte
 
-L'utilisateur crée un compte sur le réseau désiré rattaché à une organisation. Le compte est validé automatiquement — aucune approbation manuelle n'est requise. Le rôle **Lecteur** est attribué par défaut, ce qui donne un accès en lecture seule au réseau.
+Il n'y a pas de compte email + mot de passe : l'identité est une paire de clés cryptographiques enregistrée auprès de l'autorité de certification (CA) du réseau blockchain. « Créer un compte » signifie obtenir un **secret d'enrôlement** valide pour un pseudo donné.
 
-Pour obtenir un rôle supplémentaire (Concepteur, Consommateur…), l'utilisateur soumet une demande depuis son profil après connexion (voir UCA08).
+Deux chemins existent :
+
+1. **Demande d'accès auto-traitée** : si le réseau autorise l'auto-enregistrement, la demande de l'utilisateur est immédiatement transformée en identité active — le secret d'enrôlement lui est retourné directement, avec le rôle **Lecteur** attribué par défaut.
+2. **Demande d'accès en attente** : sinon, la demande est simplement enregistrée. Un administrateur doit alors créer l'identité manuellement (hors de cette application) et transmettre le secret à l'utilisateur par un autre canal.
+
+Pour obtenir un rôle supplémentaire (Concepteur, Consommateur…), une action de l'administrateur reste nécessaire — voir UCA08.
 
 ## Pré-conditions
 
@@ -38,26 +46,27 @@ Pour obtenir un rôle supplémentaire (Concepteur, Consommateur…), l'utilisate
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur va sur le site du réseau et clique sur "Créer un compte"
+**Étape initiale :** Un client (interface graphique tierce, script, plugin...) soumet une demande d'accès via `POST /api/identity/request` — ou, pour le compte d'un utilisateur, un administrateur exécute la commande CLI équivalente
 
-### Flux nominal
+### Flux nominal — Auto-enregistrement
 
-1. Il saisit son adresse e-mail et choisit un mot de passe
-2. Il sélectionne l'organisation souhaitée
-3. Le compte est créé et validé automatiquement
-4. Un message de confirmation est affiché : "Compte créé — rôle Lecteur attribué"
-5. L'utilisateur peut se connecter immédiatement
+1. Le pseudo, l'e-mail et l'organisation souhaitée sont transmis (`POST /api/identity/request` — pseudo, email, org_id)
+2. Le réseau autorise l'auto-enregistrement : l'identité est créée immédiatement avec le rôle Lecteur
+3. Un secret d'enrôlement est retourné dans la réponse
+4. Ce secret permet de se connecter immédiatement (voir UCA02)
 
-### Flux erreur — Compte déjà existant
+### Flux alternatif — Demande en attente
 
-1. Message d'erreur : "Compte déjà existant"
-2. Redirection vers la page de connexion
+1. Étapes identiques, mais le réseau n'autorise pas l'auto-enregistrement
+2. La demande est enregistrée avec le statut « en attente » (réponse sans secret)
+3. **Un administrateur doit intervenir manuellement** pour créer l'identité et transmettre le secret — aucune notification ni file d'attente de traitement n'est proposée par l'API elle-même
 
 ## Post-conditions
 
-- Compte actif avec le rôle **Lecteur** (lecture seule)
+- Une demande d'accès existe (traitée ou en attente)
+- Si traitée : une identité active existe avec le rôle Lecteur, et l'utilisateur dispose d'un secret d'enrôlement
 
-> **Note architecture :** La création du compte ne provisionne **pas** l'identité blockchain. L'identité Fabric CA (certificat X.509) est créée automatiquement lors de la **première connexion** (voir UCA02). Cette séparation permet d'automatiser le provisionnement Fabric sans action manuelle.
+> **Note architecture :** Il n'existe pas d'étape séparée de « provisionnement de l'identité blockchain » — l'identité *est* le compte, et se connecter (UCA02) *est* l'action qui l'enrôle auprès de la CA.
 
 ## Diagramme d'activités
 
@@ -66,15 +75,14 @@ Pour obtenir un rôle supplémentaire (Concepteur, Consommateur…), l'utilisate
 skin rose
 title Création d'un compte
 start
-:Accéder à la page "Créer un compte";
-if (Compte déjà existant?) then (oui)
-  :Afficher "Compte déjà existant";
-  :Rediriger vers la page de connexion;
+:Soumettre POST /api/identity/request (pseudo, e-mail, organisation souhaitée);
+if (Réseau en auto-enregistrement ?) then (oui)
+  :Créer l'identité — attribuer le rôle Lecteur;
+  :Transmettre le secret d'enrôlement;
   stop
 else (non)
-  :Saisir e-mail, mot de passe et organisation;
-  :Créer le compte — attribuer le rôle Lecteur;
-  :Afficher "Compte créé — rôle Lecteur attribué";
+  :Enregistrer la demande en attente;
+  :Un administrateur doit intervenir manuellement (hors application);
   stop
 endif
 @enduml

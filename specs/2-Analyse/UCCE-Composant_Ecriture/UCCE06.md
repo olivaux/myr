@@ -20,25 +20,27 @@ actor "Concepteur" as C
 rectangle "Application MYR" {
     usecase "Ajouter une interface à un composant" as UC1
     usecase "Définir catégorie, tag, type, sens et valeur" as UC2
-    usecase "Sauvegarder l'interface localement" as UC3
-    usecase "Mettre à jour sur la blockchain" as UC4
+    usecase "Sauvegarder l'interface en brouillon (local)" as UC3
+    usecase "Créer un fork si le composant\nest déjà soumis" as UC4
 }
 
 C --> UC1
 UC1 ..> UC2 : <<include>>
 UC1 ..> UC3 : <<include>>
-UC1 ..> UC4 : <<include>>
+UC1 .> UC4 : <<extend>>
 
 @enduml
 ```
 
 ## Contexte
 
-Une **interface** (`AssetInterface`) est un point de connexion physique d'un composant — elle définit comment ce composant peut être assemblé avec d'autres dans l'Atelier. Exemples : alimentation 5 V (`ELEC/USB-C/out`), fixation par vis M3 (`MECA/Vis M3/in`), sortie fluide (`HYD/Push-fit 6mm/out`).
+Une **interface** (`AssetInterface`) est un point de connexion physique d'un composant — elle définit comment ce composant peut être assemblé avec d'autres. Exemples : alimentation 5 V (`ELEC/USB-C/out`), fixation par vis M3 (`MECA/Vis M3/in`), sortie fluide (`HYD/Push-fit 6mm/out`).
 
 Les interfaces sont détectées automatiquement à l'import du fichier 3D lorsque la géométrie le permet. Quand la détection automatique est insuffisante ou absente, le Concepteur les ajoute manuellement via ce use case.
 
-**Les interfaces sont stockées localement** (côté serveur, dans `adapters/out/localstorage/`) et non directement sur Fabric — elles font partie des métadonnées de l'Atelier. Elles sont référencées dans les transactions Fabric lors de la soumission d'une liaison ou d'un module.
+**Les interfaces suivent le cycle brouillon → soumission (ADR-02, `specs/3-Conception/Conception_intro.md`), généralisé du module (RM16/RM19) à tout asset.** Tant que le composant qui les porte est en brouillon, ses interfaces sont éditées librement en local (`InterfaceStore`, `adapters/out/localstorage/`) — aucune transaction Fabric par édition. Elles ne rejoignent la blockchain (`Model3D.Interfaces`) qu'à la soumission du composant. **Un composant déjà soumis est immuable (règle 7, RM19)** : ce use case ne peut alors pas lui ajouter directement une interface — l'opération doit passer par un **fork** (nouveau `Model3D` en brouillon, `ParentID` = composant d'origine, catégorie `amelioration`/`extension`/… selon RM02) qui démarre avec les interfaces copiées du parent et reçoit la nouvelle interface, avant sa propre soumission ultérieure.
+
+**Décision de conception (RM16/RM19 généralisées, `Regles_Metier.md` §5 ; ADR-02, `Conception_intro.md`) :** un composant est `submitted` par défaut dès sa création (UCCE01 nominal, comportement actuel inchangé) — ce use case ne s'applique alors qu'en créant un **fork** (flux alternatif ci-dessous). Il ne s'applique directement, sans fork, que si le composant a été créé avec `draft: true` (UCCE01, « Flux alternatif — Création en brouillon ») et n'a pas encore été soumis. **Écart de code restant (E8, `specs/roadmap_dev.md` § Écarts structurels — modèle & chaincode) :** `domain/model/entity.go`/`service.go` ne portent pas encore cette distinction — c'est une tâche d'implémentation, la décision de conception est prise.
 
 **Écart code connu (E2) :** Le champ `Tag` est défini dans les specs (RM11) comme l'un des 6 attributs d'une `AssetInterface`, mais il est **absent de la struct `AssetInterface` dans `domain/model/entity.go`**. Il doit être ajouté. Sans ce champ, la vérification de compatibilité (`ifacesCompatible`) ne peut pas vérifier le 5e critère de RM11.
 
@@ -57,45 +59,50 @@ Les interfaces sont détectées automatiquement à l'import du fichier 3D lorsqu
 | `ValueMax` | float64 | Borne haute (si `IsRange`) |
 | `IsRange` | bool | `true` si plage de valeurs |
 | `Unit` | string | `V`, `mm`, `bar`… |
-| `Virtual` | bool | `true` = slot cliquable non encore matérialisé |
+| `Virtual` | bool | `true` = slot non encore matérialisé |
 
 ## Pré-conditions
 
-- Le Concepteur est authentifié avec le rôle `contributor` (JWT valide).
+- Le Concepteur est authentifié avec le rôle `contributor` (session REST valide).
 - Le composant existe (créé via UCCE01, UCCE03, UCCE04 ou UCCE05).
 - Le Concepteur est propriétaire du composant ou dispose des droits d'édition.
 
 ## Scénario
 
-**Étape initiale :** Le Concepteur sélectionne son composant dans l'Asset UI et accède à la gestion des interfaces.
+**Étape initiale :** `POST /api/components/:id/interfaces` est appelée (ou l'équivalent CLI `myr model interface add`) avec les attributs de l'interface
 
-### Flux nominal — Interface ajoutée avec succès
+### Flux nominal — Composant en brouillon : interface ajoutée localement
 
-1. Le Concepteur clique sur "Ajouter une interface".
-2. Il sélectionne la **catégorie** depuis le référentiel (`ELEC`, `MECA`, `HYD` ou personnalisée via `GetRefs()`).
-3. Il sélectionne ou saisit le **tag** : type de connecteur physique (ex : `Câble`, `Vis`, `Connecteur`, `Push-fit`).
-4. Il sélectionne ou saisit le **type** : standard précis (ex : `USB-C`, `Vis M3`, `BSP 1/4"`).
-5. Il définit le **sens** : `in`, `out`, ou `bidir`.
-6. Il renseigne la **valeur** ou plage de valeurs (`ValueMin`, `ValueMax`) et l'**unité** (`Unit`).
-7. Il valide → `POST /api/components/:id/interfaces` (JSON body).
-8. Le REST Handler valide les champs obligatoires (`Category`, `Type`, `Direction`).
-9. Le handler appelle `service.AddInterface(iface)`.
-10. Le service génère un UUID pour l'interface si absent.
-11. Le service sauvegarde l'interface localement via `ifaceStore.SaveInterface(iface)`.
-12. La transaction de mise à jour est soumise sur Fabric via `blockchain.StoreModelRecord(m)` (mise à jour des métadonnées de l'asset).
-13. L'API retourne `201 Created` avec l'`AssetInterface` créée.
+1. La **catégorie** est transmise (`ELEC`, `MECA`, `HYD` ou personnalisée — référentiel via `GetRefs()`)
+2. Le **tag** est transmis : type de connecteur physique (ex : `Câble`, `Vis`, `Connecteur`, `Push-fit`)
+3. Le **type** est transmis : standard précis (ex : `USB-C`, `Vis M3`, `BSP 1/4"`)
+4. Le **sens** est transmis : `in`, `out`, ou `bidir`
+5. La **valeur** ou plage de valeurs (`ValueMin`, `ValueMax`) et l'**unité** (`Unit`) sont transmises
+6. Le REST Handler valide les champs obligatoires (`Category`, `Type`, `Direction`).
+7. Le handler appelle `service.AddInterface(iface)`.
+8. Le service vérifie que le composant est encore en `draft` (pas encore soumis).
+9. Le service génère un UUID pour l'interface si absent et la sauvegarde localement via `ifaceStore.SaveInterface(iface)` — **aucune transaction Fabric à cette étape**.
+10. L'API retourne `201 Created` avec l'`AssetInterface` créée (en brouillon). Elle rejoindra la blockchain à la prochaine soumission du composant.
+
+### Flux alternatif — Composant déjà soumis : création d'un fork
+
+1. Le composant identifié par `:id` a `Status: submitted` — il est immuable (règle 7, RM19).
+2. Le service refuse la mutation directe et propose de créer un fork : un nouveau `Model3D` en brouillon avec `ParentID = <id>` et une catégorie parmi `amelioration`, `extension`, `variation`, `adaptation`, `derivation`, `regression` (RM02).
+3. Le fork démarre avec les interfaces du parent dupliquées localement (nouveaux `ID`, `AssetID` du fork).
+4. La nouvelle interface est ajoutée au brouillon du fork (flux nominal ci-dessus, appliqué au fork).
+5. Le fork suit son propre cycle brouillon → soumission (voir UCCE04/UCCE05) ; ses interfaces (parent copiées + nouvelle) ne rejoignent la blockchain qu'à **sa** soumission.
 
 ### Flux alternatif — Interface virtuelle (slot de connexion non encore typé)
 
-1. Le Concepteur ajoute une interface sans préciser la catégorie, le type ou le sens.
-2. L'interface est créée avec `Virtual: true` — elle représente un point de connexion disponible dans l'Atelier.
-3. Lors d'une liaison dans l'Atelier, le slot virtuel sera matérialisé en interface physique via `ConnectVirtualToPhysical()`.
+1. Une interface est créée sans préciser la catégorie, le type ou le sens
+2. L'interface est créée avec `Virtual: true` — elle représente un point de connexion disponible sur le composant
+3. Lors d'une liaison (UCAM01/UCAM03), le slot virtuel sera matérialisé en interface physique via `ConnectVirtualToPhysical()`.
 
 ### Flux alternatif — Mise à jour d'une interface existante (UpdateInterface)
 
-1. Le Concepteur modifie une interface existante (ex : change la plage de valeurs).
-2. Il soumet → `PUT /api/components/:id/interfaces/:ifaceID`.
-3. `service.UpdateInterface(iface)` met à jour l'interface et vérifie les connexions existantes dans l'Atelier.
+1. Une modification d'une interface existante est demandée (ex : changer la plage de valeurs) — uniquement possible tant que le composant reste en brouillon (sinon flux fork ci-dessus)
+2. `PUT /api/components/:id/interfaces/:ifaceID` est appelée
+3. `service.UpdateInterface(iface)` met à jour l'interface localement et vérifie les connexions existantes du composant
 4. Si une connexion utilisant cette interface n'est plus compatible, elle est marquée `Incompatible: true` (RM12).
 5. L'API retourne `200 OK` avec l'interface mise à jour.
 
@@ -111,20 +118,21 @@ Les interfaces sont détectées automatiquement à l'import du fichier 3D lorsqu
 
 ### Flux erreur — Composant introuvable
 
-1. Le composant identifié par `:id` n'existe pas localement ni sur Fabric.
+1. Le composant identifié par `:id` n'existe ni localement (brouillon) ni sur Fabric (soumis).
 2. L'API retourne `404 Not Found` : `{ "error": "Composant introuvable." }`.
 
 ## Post-conditions
 
-- L'interface est sauvegardée localement et associée au composant (`AssetID`).
-- Elle est disponible pour créer des liaisons dans l'Atelier.
-- Les connexions existantes dans l'Atelier sont vérifiées pour compatibilité si l'interface est mise à jour.
+- L'interface est sauvegardée en brouillon local et associée au composant (`AssetID`) — ou, si le composant était déjà soumis, un fork est créé en brouillon avec l'interface incluse.
+- Elle est disponible pour créer des liaisons (UCAM01) même avant soumission.
+- Elle ne rejoint la blockchain qu'à la soumission du composant (ou du fork) qui la porte.
+- Les connexions existantes du composant sont vérifiées pour compatibilité si l'interface est mise à jour.
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "Fabric\n(adapters/out/fabric/)" as Fabric
@@ -138,47 +146,38 @@ alt Champ obligatoire absent
 else Champs valides
     REST -> ModelSvc : AddInterface(&AssetInterface{AssetID, Category, Tag, Type, Direction, ...})
 
-    ModelSvc -> ModelSvc : generateID() si ID absent
-    ModelSvc -> Local : SaveInterface(iface)
+    ModelSvc -> ModelSvc : resolveAsset(assetID)\n[brouillon local, sinon Fabric]
 
-    alt Erreur stockage local
-        Local --> ModelSvc : ErrStorage
-        ModelSvc --> REST : ErrInternal
-        REST --> Browser : 500 Erreur stockage
-    else Sauvegarde OK
+    alt Composant introuvable (ni brouillon ni Fabric)
+        ModelSvc --> REST : ErrNotFound
+        REST --> Browser : 404 Composant introuvable
+    else Composant en brouillon (draft)
+        ModelSvc -> ModelSvc : generateID() si ID absent
+        ModelSvc -> Local : ifaceStore.SaveInterface(iface)
         Local --> ModelSvc : ok
-
-        ModelSvc -> Fabric : GetModelRecord(assetID, "")
-        Fabric --> ModelSvc : model3D
-
-        ModelSvc -> Fabric : StoreModelRecord(model3D_updated)
-
-        alt Échec Fabric
-            Fabric --> ModelSvc : ErrEndorsement
-            note right : Interface locale sauvegardée\nmais metadata Fabric non synchronisée
-            ModelSvc --> REST : WarnFabricSync
-            REST --> Browser : 201 Created (avec avertissement sync)
-        else Succès
-            Fabric --> ModelSvc : ok
-            ModelSvc --> REST : AssetInterface{ID, AssetID, Category, Tag, Type, ...}
-            REST --> Browser : 201 Created { interface }
-        end
+        note right : Aucune transaction Fabric ici —\nrejoindra la blockchain à la soumission du composant
+        ModelSvc --> REST : AssetInterface{ID, AssetID, Category, Tag, Type, ...}
+        REST --> Browser : 201 Created { interface }
+    else Composant déjà soumis (immuable, RM19)
+        ModelSvc --> REST : ErrAssetSubmitted\n("créer un fork — voir flux alternatif")
+        REST --> Browser : 409 Conflict\n{ error: "composant soumis, créer un fork (amelioration/extension/...)" }
     end
 end
 
 Browser -> REST : PUT /api/components/<assetID>/interfaces/<ifaceID>\n{ ValueMin?, ValueMax?, IsRange?, Unit? }
 REST -> ModelSvc : UpdateInterface(&AssetInterface{updated fields})
 
-ModelSvc -> Local : SaveInterface(iface)
-ModelSvc -> Local : ListConnections()
+ModelSvc -> ModelSvc : vérifier composant en brouillon (sinon ErrAssetSubmitted, cf. ci-dessus)
+ModelSvc -> Local : ifaceStore.SaveInterface(iface)
+ModelSvc -> Local : connStore.ListConnections()
 Local --> ModelSvc : connections[]
 
 loop Pour chaque connexion utilisant cet ifaceID
-    ModelSvc -> Local : GetInterface(fromIfaceID ou toIfaceID)
+    ModelSvc -> Local : ifaceStore.GetInterface(fromIfaceID ou toIfaceID)
     Local --> ModelSvc : otherIface
     ModelSvc -> ModelSvc : ifacesCompatible(iface, otherIface)
     alt Incompatible
-        ModelSvc -> Local : UpdateConnection(conn{Incompatible: true})
+        ModelSvc -> Local : connStore.UpdateConnection(conn{Incompatible: true})
     end
 end
 
@@ -194,7 +193,7 @@ REST --> Browser : 200 OK { interface }
 |-------|-------------|
 | **RM11** | Une interface est définie par 6 attributs : Catégorie + **Tag** + Type + Sens + ValeurMin/Max + Unité |
 | **RM12** | Lors de la mise à jour d'une interface : les connexions devenues incompatibles reçoivent `Incompatible: true` sans suppression automatique |
-| **RM13** | Chaque asset dans l'Atelier dispose toujours d'au moins un slot virtuel (`EnsureVirtualSlot`) |
+| **RM13** | Chaque asset dispose toujours d'au moins un slot virtuel (`EnsureVirtualSlot`) |
 
 ## Exigences non-fonctionnelles
 
@@ -205,7 +204,9 @@ REST --> Browser : 200 OK { interface }
 
 ## Notes d'implémentation
 
-**Route existante :** `POST /api/components/:id/interfaces` → `handler.handleComponentInterfaces()` → `service.AddInterface()` → `ifaceStore.SaveInterface()`. Implémenté et opérationnel.
+**Écart code connu (E8, décision de conception prise — voir `specs/roadmap_dev.md` § Écarts structurels — modèle & chaincode) :** Le code actuel persiste l'interface localement via `ifaceStore.SaveInterface()` (`adapters/out/localstorage/`) — ce qui est correct pour un composant en brouillon — mais synchronise ensuite Fabric de façon **facultative** (`StoreModelRecord()` optionnel, jamais lié à un véritable événement de soumission), et les composants standalone n'ont pas de champ `Status` (`draft`/`submitted`) dans `domain/model/entity.go` (contrairement au module). À corriger : rendre `Status` disponible pour les composants (`AddFull(AddRequest{Draft: true, ...})`), refuser toute mutation d'interface si `Status == submitted` (proposer un fork à la place, RM19), et déclencher l'écriture Fabric de `Interfaces` uniquement à la soumission explicite du composant (`myr model submit <id>`, voir UCCE01) — jamais de façon facultative ou par appel individuel.
+
+**Commande CLI équivalente :** `myr model interface add <assetID> --category <ELEC|MECA|HYD|...> --type <type> --direction <in|out|bidir> [--value-min <f>] [--value-max <f>] [--unit <u>] --tag <tag> [--name <label>]` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.2), appelant `service.AddInterface(*AssetInterface)` — la même méthode domaine que le handler REST `handleComponentInterfaces()`, avec le même comportement (génération d'UUID, sauvegarde en brouillon local via `ifaceStore.SaveInterface()`, refus si le composant est déjà soumis). Le flag `--tag` dépend du champ `Tag` sur `AssetInterface` (écart E2 ci-dessous) et doit rester cohérent entre CLI et REST.
 
 **Écart E2 — Champ `Tag` absent :** `AssetInterface` dans `domain/model/entity.go` ne contient pas de champ `Tag`. À ajouter :
 ```go
@@ -218,8 +219,8 @@ if a.Tag != "" && b.Tag != "" && a.Tag != b.Tag {
 }
 ```
 
-**Référentiel des catégories, tags, types et unités :** `service.GetRefs()` retourne un `InterfaceRefs` avec les listes prédéfinies. L'interface peut proposer des suggestions depuis ce référentiel (autocomplétion). L'ajout de nouvelles catégories/types/unités est possible via `AddRefCategory()`, `AddRefType()`, `AddRefUnit()`.
+**Référentiel des catégories, tags, types et unités :** `service.GetRefs()` retourne un `InterfaceRefs` avec les listes prédéfinies, consultable par tout client avant de transmettre une interface. L'ajout de nouvelles catégories/types/unités est possible via `AddRefCategory()`, `AddRefType()`, `AddRefUnit()`.
 
-**Slot virtuel :** Chaque asset ajouté dans l'Atelier possède automatiquement au moins un slot virtuel (`Virtual: true`) créé par `EnsureVirtualSlot()`. Ce slot devient une interface physique lors de la première liaison via `ConnectVirtualToPhysical()`.
+**Slot virtuel :** Chaque asset possède automatiquement au moins un slot virtuel (`Virtual: true`) créé par `EnsureVirtualSlot()`. Ce slot devient une interface physique lors de la première liaison via `ConnectVirtualToPhysical()`.
 
-**Synchronisation Fabric :** Les interfaces sont stockées localement (non sur Fabric directement). La mise à jour de Fabric via `StoreModelRecord()` après `SaveInterface()` est facultative en v1 — les interfaces locales suffisent pour l'Atelier. La synchronisation complète vers Fabric est à planifier pour la publication d'un module (UCMOD06).
+**Synchronisation Fabric :** Les interfaces restent en brouillon local tant que le composant n'est pas soumis — aucune écriture Fabric par action individuelle (ajout, mise à jour, matérialisation de slot virtuel). La synchronisation vers `Model3D.Interfaces` a lieu **une seule fois**, à la soumission du composant (sa création finale, ou celle d'un fork si le composant d'origine était déjà soumis) — jamais de façon facultative après coup.

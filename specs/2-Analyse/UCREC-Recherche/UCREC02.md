@@ -34,7 +34,7 @@ UC1 .> UC3 : <<extend>>
 
 ## Contexte
 
-À partir d'un Composant sélectionné, lister tous les Composants du réseau dont les Interfaces sont compatibles avec au moins une Interface libre du Composant source. Cette fonctionnalité est essentielle pour guider la composition dans l'Atelier : elle permet au Concepteur de découvrir les Composants complémentaires avant d'assembler un Module.
+À partir d'un Composant identifié, lister tous les Composants du réseau dont les Interfaces sont compatibles avec au moins une Interface libre du Composant source. Cette fonctionnalité est essentielle pour guider la composition d'un module : elle permet au Concepteur de découvrir les Composants complémentaires avant d'assembler un Module.
 
 La compatibilité est déterminée par l'algorithme `ifacesCompatible()` (RM11) : même catégorie + même tag (manquant — E2) + même type + sens complémentaires + plages de valeurs se chevauchant.
 
@@ -42,37 +42,32 @@ La compatibilité est déterminée par l'algorithme `ifacesCompatible()` (RM11) 
 
 ## Pré-conditions
 
-- Utilisateur authentifié (rôle `Concepteur` ou `Consommateur`)
-- Un Composant sélectionné dans l'Explorer UI ou l'Asset UI
+- Identité authentifiée (rôle `Concepteur` ou `Consommateur`)
+- Un Composant identifié (ID connu du client)
 - Le Composant possède au moins une Interface définie (non virtuelle)
 - La blockchain est accessible
 
 ## Scénario
 
-**Déclencheur :** L'utilisateur sélectionne un Composant et accède à **Composants compatibles** depuis l'Asset UI.
+**Étape initiale :** `GET /api/components/:id/compatible` est appelée avec l'identifiant du Composant source
 
 ### Flux nominal — Composants compatibles trouvés
 
-1. L'utilisateur clique **Composants compatibles** sur l'Asset UI d'un Composant
-2. Le système appelle `GET /api/components/:id/compatible`
-3. Handler : récupère les Interfaces du Composant source via `ListInterfacesForAsset(sourceID)` — filtre les virtuelles
-4. Handler : récupère tous les Composants du réseau via `List(channelID)` — exclut les modules
-5. Pour chaque Composant candidat, récupère ses Interfaces et applique `ifacesCompatible()` entre chaque paire (source libre ↔ candidat libre)
-6. La liste des Composants ayant au moins une Interface compatible est retournée
-7. Les résultats sont affichés avec : nom, catégorie, type d'interface compatible
-8. L'utilisateur peut ajouter directement un Composant compatible à l'Atelier depuis les résultats
+1. Le service récupère les Interfaces du Composant source via `ListInterfacesForAsset(sourceID)` — filtre les virtuelles
+2. Le service récupère tous les Composants du réseau via `List(channelID)` — exclut les modules
+3. Pour chaque Composant candidat, il récupère ses Interfaces et applique `ifacesCompatible()` entre chaque paire (source libre ↔ candidat libre)
+4. La liste des Composants ayant au moins une Interface compatible est retournée, avec pour chacun : nom, catégorie, type d'interface compatible
 
 ### Flux nominal — Aucun Composant compatible
 
 1. Aucun Composant du réseau n'a d'Interface compatible avec les interfaces libres du Composant source
 2. Message : "Aucun composant compatible trouvé sur ce réseau"
-3. L'Asset UI reste affichée
 
 ### Flux alternatif — Filtrage par catégorie d'interface
 
-1. L'utilisateur filtre les résultats par catégorie d'interface (`ELEC`, `MECA`, `HYD`)
-2. La liste est mise à jour pour n'afficher que les Composants avec une compatibilité dans cette catégorie
-3. L'utilisateur peut combiner plusieurs catégories
+1. Un filtre par catégorie d'interface (`ELEC`, `MECA`, `HYD`) est transmis en paramètre
+2. Seuls les Composants avec une compatibilité dans cette catégorie sont retournés
+3. Plusieurs catégories peuvent être combinées
 
 ### Flux erreur — Composant sans interface définie
 
@@ -87,23 +82,22 @@ La compatibilité est déterminée par l'algorithme `ifacesCompatible()` (RM11) 
 
 ## Post-conditions
 
-- La liste des Composants compatibles est affichée
+- La liste des Composants compatibles est retournée
 - Aucune modification de la blockchain
-- L'utilisateur peut initier un ajout à l'Atelier depuis les résultats
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Client
 participant "REST Handler\n(adapters/in/rest/)\n[cible — à implémenter]" as REST
 participant "Model Service\n(domain/model/)" as Service
 database "LocalStorage\n(adapters/out/localstorage/)" as Local
 database "Fabric\n(adapters/out/fabric/)" as Fabric
 
-Browser -> REST : GET /api/components/:id/compatible?channel=<channelID>
+Client -> REST : GET /api/components/:id/compatible?channel=<channelID>
 note right of REST : Endpoint non implémenté\narchitecture cible
-REST -> REST : Vérifier JWT (ENF12)
+REST -> REST : Vérifier session (ENF12)
 REST -> Service : ListInterfacesForAsset(sourceID)
 Service -> Local : GetInterface(sourceID)
 Local --> Service : []*AssetInterface
@@ -122,11 +116,10 @@ loop Pour chaque Composant candidat
 end
 
 REST -> REST : Collecter Composants avec\nau moins 1 paire compatible
-REST --> Browser : 200 [{id, name, category,\ncompatibleInterfaces: [{srcIfaceID, candidateIfaceID}]}]
+REST --> Client : 200 [{id, name, category,\ncompatibleInterfaces: [{srcIfaceID, candidateIfaceID}]}]
 
 alt Aucun résultat
-    REST --> Browser : 200 []
-    Browser -> Browser : Afficher "Aucun composant compatible"
+    REST --> Client : 200 []
 end
 @enduml
 ```
@@ -140,8 +133,7 @@ end
 
 ## Exigences non-fonctionnelles
 
-- **ENF12** : Authentification JWT obligatoire
-- **ENF22** : Interface compatible navigateurs modernes
+- **ENF12** : Authentification par session (token opaque) obligatoire
 
 ## Notes d'implémentation
 
@@ -154,3 +146,5 @@ end
 **Réutilisation de `ifacesCompatible()`** : La fonction est déjà implémentée dans `service.go:~211`. Elle doit être rendue accessible depuis le handler ou encapsulée dans une méthode de service publique comme `FindCompatibleAssets(sourceID, channelID string) ([]*Model3D, error)`.
 
 **Écart E2 (tag manquant) :** L'algorithme actuel compare catégorie + type + sens + valeurs (4 critères). RM11 en définit 5. Le champ `Tag` doit être ajouté à `AssetInterface` avant l'implémentation complète.
+
+**Commande CLI équivalente (point ouvert) :** Aucune méthode `ModelService` de type `FindCompatibleAssets` n'existe aujourd'hui — ni l'endpoint REST ni une commande CLI ne peuvent donc offrir cette fonctionnalité tant que ce point n'est pas conçu au niveau du domaine. En attendant, `myr model interface list <assetID>` (méthode `ListInterfacesForAsset`) et `myr model list` permettent une reconstitution manuelle côté script, sans appliquer `ifacesCompatible()` automatiquement.

@@ -8,7 +8,7 @@
 
 - **Base URL :** `http(s)://<host>:<port>/api/`
 - **Format :** JSON — `Content-Type: application/json`
-- **Auth :** Bearer JWT — `Authorization: Bearer <token>`
+- **Auth :** token opaque de session — en-tête `X-Myr-Token: <token>` ( voir `specs/3-Conception/DC_D1_Auth_Identity.md`)
 - **Erreurs :** `{ "error": "<code>", "message": "<description>" }`
 - **Succès :** objet ou tableau JSON directement (pas d'enveloppe `{ data: ... }`)
 
@@ -17,51 +17,42 @@
 | Niveau | Middleware | Condition |
 |--------|-----------|-----------|
 | Public | aucun | Toujours accessible |
-| Auth | `requireAuth` | JWT valide requis |
-| Contributor | `requireRole("contributor")` | JWT + rôle `contributor` ou `admin` |
-| Admin | `requireRole("admin")` | JWT + rôle `admin` uniquement |
+| Auth | `requireAuth` | Token de session valide requis (`X-Myr-Token`) |
+| Write | `requireRole(rbac.PermWrite)` | Session valide + permission `write` (rôle `contributor` par défaut) |
+| Admin | `requireRole(rbac.PermAdmin)` | Session valide + permission `admin` uniquement |
 
-> Pour les routes mixtes (lecture libre, écriture protégée), le middleware vérifie le rôle uniquement sur `POST`, `PUT`, `PATCH`, `DELETE`.
+> Pour les routes mixtes (lecture libre, écriture protégée), le middleware vérifie la permission uniquement sur `POST`, `PUT`, `PATCH`, `DELETE`.
 
----
-
-## 2. D1 — Compte & Accès (Auth JWT)
-
-| Méthode | Route | Accès | Corps | Réponse |
-|---------|-------|-------|-------|---------|
-| POST | `/api/auth/register` | Public | `{email, password, displayName, orgID?}` | `{accessToken, refreshToken, user}` |
-| POST | `/api/auth/login` | Public | `{email, password}` | `{accessToken, refreshToken, user}` |
-| POST | `/api/auth/refresh` | Public | `{refreshToken}` | `{accessToken}` |
-| POST | `/api/auth/logout` | Public | `{refreshToken}` | `204` |
-| GET | `/api/auth/me` | Auth | — | `{user}` |
-| POST | `/api/auth/enroll-wallet` | Auth | `{name, secret, orgID}` | `{wallet}` |
-
-**Codes d'erreur auth :**
+**Codes d'erreur identité/session :**
 
 | Code HTTP | Cas |
 |-----------|-----|
-| 400 | Format invalide, email déjà pris |
-| 401 | Identifiants incorrects, token expiré |
-| 403 | Compte suspendu |
+| 400 | Corps invalide, champs requis manquants |
+| 401 | Secret d'enrôlement CA invalide, token de session absent/expiré |
+| 403 | Permission insuffisante, accès invité refusé (réseau privé) |
+| 429 | Trop de tentatives (`authLimiter`, 10/min/IP) |
 
 ---
 
-## 3. D1 — Identité Blockchain
+## 2. D1 — Identité & RBAC
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
 | GET | `/api/identity/policy` | Public | Politique du réseau actif (AllowAutoGuest, AllowAutoRegister) |
-| POST | `/api/identity/enroll` | Public | Enrôlement Fabric CA avec secret d'enrollment |
-| GET/POST | `/api/identity/session` | Public | Session locale active |
-| POST | `/api/identity/guest` | Public | Token Lecteur automatique (si AllowAutoGuest=true) |
-| POST | `/api/identity/request` | Public | Demande de compte (si AllowAutoRegister=false → mise en attente admin) |
-| GET | `/api/identity/requests` | Admin | Liste des demandes de compte en attente |
-| GET | `/api/identity/wallets` | Auth | Wallets de l'utilisateur connecté |
-| GET | `/api/identity/status` | Auth | Statut de l'identité Fabric CA |
+| POST | `/api/identity/enroll` | Public | Enrôlement Fabric CA avec secret d'enrollment (sans créer de session REST) |
+| POST | `/api/identity/session` | Public | (Ré-)enrôlement + création d'une session REST (token opaque) |
+| POST | `/api/identity/guest` | Public | Token `reader` automatique (si `AllowAutoGuest=true`) |
+| POST | `/api/identity/request` | Public | Demande d'accès (auto-enregistrement si `AllowAutoRegister=true`, sinon mise en attente `pending` jusqu'à `POST /api/identity/requests/{id}/approve`) |
+| GET | `/api/identity/requests` | Auth | Liste des demandes de compte en attente |
+| POST | `/api/identity/requests/{id}/approve` | Admin | Approuver une demande `pending` — transforme la demande en identité CA active (UCA01) |
+| GET | `/api/identity/wallets` | Auth | Wallets locaux |
+| GET | `/api/identity/status` | Auth | Statut CA d'un wallet (`?handle=pseudo@org`) |
+
+> Pas de CRUD REST pour le RBAC (`domain/role`) — gestion des rôles CLI uniquement (`myr role ...`). Le REST ne fait que consulter les permissions via `requireRole`.
 
 ---
 
-## 4. D2 — Administration
+## 3. D2 — Administration
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
@@ -69,31 +60,31 @@
 | PUT | `/api/channels` | Auth | Mettre à jour la config canal |
 | GET | `/api/networks` | Public | Liste des profils réseau configurés |
 | GET/PUT | `/api/networks/active` | Auth | Réseau actif de la session |
-| GET/POST | `/api/admin/users` | Admin | Gestion des utilisateurs |
-| GET/PUT/DELETE | `/api/admin/users/{id}` | Admin | Utilisateur individuel |
-| GET | `/api/admin/sessions` | Admin | Sessions actives |
-| DELETE | `/api/admin/sessions/{id}` | Admin | Invalider une session |
+| GET | `/api/admin/sessions` | Admin | Sessions actives (identifiant permettant de cibler `DELETE /api/admin/sessions/{token}` — voir `specs/roadmap_dev.md` § Écarts Identité & Session, E4 pour le point ouvert sur la forme de cet identifiant) |
+| DELETE | `/api/admin/sessions/{token}` | Admin | Invalider une session (token complet requis) |
 
-> **Non implémentés (UCADM01-03) :** endpoints d'ajout d'organisation, création de canal, ajout de nœud — priorité HAUTE.
+> **Ajout d'organisation, de nœud (UCADM01/03/04) :** exposés en **CLI uniquement** (`myr org add`, `myr node add/remove`) — l'API REST n'expose jamais ces opérations d'infrastructure (voir `DC_CLI_Admin.md`).
 
 ---
 
-## 5. D3/D4 — Composants
+## 4. D3/D4 — Composants
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
-| GET | `/api/components` | Auth (lecture) | Liste des composants (filtres: name, category, tags, channel) |
+| GET | `/api/components` | Public (DC-D1-06) | Liste des composants (filtres: name, category, tags, channel) |
 | POST | `/api/components` | Contributor | Créer un composant (`AddFull`) |
 | GET | `/api/components/{id}` | Auth | Détail d'un composant |
 | PUT | `/api/components/{id}` | Contributor | Modifier (patch : name, description, tags, links, licenseID) |
 | DELETE | `/api/components/{id}` | Contributor | Supprimer (local uniquement — Fabric immuable) |
 | GET | `/api/components/{id}/interfaces` | Auth | Interfaces physiques d'un composant |
+| GET | `/api/components/{id}/compatible` | Auth | Composants compatibles (type d'interface, catégorie, tag, sens — `DC_D8_Recherche.md` §2, UCREC02) |
+| GET | `/api/components/{id}/versions` | Auth | Arbre de versions / historique de dérivation (`DC_D8_Recherche.md` §3, UCREC03) |
 
-> **Non implémentés :** `GET /api/components/{id}/compatible` (UCREC02), `GET /api/components/{id}/versions` (UCREC03)
+> **Accès visiteur (EF17, UCCL01) :** seule la liste (`GET /api/components`) est concernée par l'accès public — voir `DC_D1_Auth_Identity.md` DC-D1-06 et l'incohérence relevée avec `GET /api/modules` (§6 ci-dessous) qui reste `Auth`.
 
 ---
 
-## 6. D5 — Connexions et Interfaces (Atelier)
+## 5. D5 — Connexions et Interfaces (Composition de Module)
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
@@ -112,7 +103,7 @@
 
 ---
 
-## 7. D6 — Modules
+## 6. D6 — Modules
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
@@ -121,19 +112,20 @@
 | GET | `/api/modules/{id}` | Auth | Détail d'un module |
 | PUT | `/api/modules/{id}` | Contributor | Modifier un module (patch) |
 | DELETE | `/api/modules/{id}` | Contributor | Supprimer un module (draft uniquement) |
-| GET | `/api/modules/{id}/workspace` | Auth | Instances dans l'atelier |
-| POST | `/api/modules/{id}/workspace` | Contributor | Ajouter un composant à l'atelier |
-| DELETE | `/api/modules/{id}/workspace/{instanceId}` | Contributor | Retirer un composant (+ cascade connexions) |
-| PATCH | `/api/modules/{id}/workspace/{instanceId}/position` | Contributor | Mettre à jour la position |
+| GET | `/api/modules/{id}/instances` | Auth | Instances d'un module |
+| POST | `/api/modules/{id}/instances` | Contributor | Ajouter un composant comme instance |
+| DELETE | `/api/modules/{id}/instances/{instanceId}` | Contributor | Retirer une instance (+ cascade connexions) |
 | POST | `/api/modules/{id}/submit` | Contributor | Soumettre à la blockchain |
 | GET | `/api/modules/{id}/interfaces` | Auth | Interfaces exposées du module |
 | GET | `/api/modules/{id}/assemblies` | Auth | Connexions internes du module |
+| GET | `/api/modules` (`?uses_component={id}`) | Auth | Modules qui intègrent un composant donné (`DC_D8_Recherche.md` §4, UCREC04) |
+| GET | `/api/modules/{id}/bom` | Auth | Export BOM (Bill of Materials) du module (`DC_D8_Recherche.md` §5, UCREC05) |
 
-> **Non implémentés :** `GET /api/modules?uses_component={id}` (UCREC04), `GET /api/modules/{id}/bom` (UCREC05)
+> **Accès visiteur :** `GET /api/modules` reste `Auth`, sous réserve de la configuration réseau visiteur (`UCMOD04.md` ligne 134) — question ouverte pour le PO, non tranchée ici (voir `DC_D1_Auth_Identity.md` DC-D1-06).
 
 ---
 
-## 8. Licences
+## 7. Licences
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
@@ -142,7 +134,7 @@
 
 ---
 
-## 9. Miniatures
+## 8. Miniatures
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
@@ -151,7 +143,7 @@
 
 ---
 
-## 10. Infrastructure
+## 9. Infrastructure
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
@@ -162,40 +154,37 @@
 
 ---
 
-## 11. Headers de sécurité (appliqués à toutes les réponses)
+## 10. Headers de sécurité (appliqués à toutes les réponses)
 
 ```
 X-Content-Type-Options: nosniff
 X-Frame-Options: DENY
 Referrer-Policy: strict-origin-when-cross-origin
-Content-Security-Policy:
-  default-src 'self';
-  script-src 'self' 'unsafe-inline';
-  style-src 'self' 'unsafe-inline' https://fonts.googleapis.com;
-  img-src 'self' data: blob:;
-  connect-src 'self';
-  font-src 'self' data: https://fonts.gstatic.com;
-  worker-src blob:;
-  object-src 'none'
+Content-Security-Policy: default-src 'none'
 ```
+
+> `myr` sert exclusivement du JSON (pas de GUI embarquée) — voir `specs/3-Conception/Securite.md`.
 
 ---
 
-## 12. Routes à implémenter (non exposées)
+## 11. D7 — Paiement
 
-| Route | Domaine | UC |
-|-------|---------|-----|
-| `POST /api/orders` | D7 | UCPI01 |
-| `GET /api/orders/{id}` | D7 | UCPI01 |
-| `POST /api/orders/{id}/deliver` | D7 | UCAUT01 |
-| `GET/POST /api/assets/{id}/price` | D7 | UCPI04 |
-| `POST /api/assets/{id}/transfer` | D7 | UCPI07 |
-| `POST /api/assets/{id}/clone` | D7 | UCPI08 |
-| `GET /api/components/{id}/compatible` | D8 | UCREC02 |
-| `GET /api/components/{id}/versions` | D8 | UCREC03 |
-| `GET /api/modules?uses_component={id}` | D8 | UCREC04 |
-| `GET /api/modules/{id}/bom` | D8 | UCREC05 |
-| `POST /api/admin/networks` | D2 | UCADM01 |
-| `POST /api/admin/organizations` | D2 | UCADM02 |
-| `POST /api/admin/peers` | D2 | UCADM03 |
-| `POST /api/auth/request-role` | D1 | UCA08 |
+> Détail des entités (`Order`, `AssetPrice`) et règles métier (RM23, RM24, RM30–RM33) dans `DC_D7_Payment.md`.
+
+| Méthode | Route | Domaine | UC |
+|---------|-------|---------|-----|
+| POST | `/api/orders` | D7 | UCPI01 |
+| GET | `/api/orders/{id}` | D7 | UCPI01 |
+| POST | `/api/orders/{id}/deliver` | D7 | UCAUT01 (`DC_D9_Automatisation.md` §2) |
+| GET/POST | `/api/assets/{id}/price` | D7 | UCPI04 |
+| POST | `/api/assets/{id}/transfer` | D7 | UCPI07 |
+| POST | `/api/assets/{id}/clone` | D7 | UCPI08 |
+
+## 12. D9 — Automatisation avancée
+
+> Détail dans `DC_D9_Automatisation.md` §5. Le plugin CAO (UCAUT03) n'a pas de route dédiée — il consomme `POST /api/components` comme tout client API (DC-D9-02).
+
+| Méthode | Route | Domaine | UC |
+|---------|-------|---------|-----|
+| POST | `/api/components/{id}/versions` | D9 | UCAUT04 |
+| GET | `/api/components/{id}/versions/diff` | D9 | UCAUT04 |

@@ -28,7 +28,7 @@ U --> UC1
 
 ## Contexte
 
-La recherche par référence permet de trouver précisément un composant ou un Module par son identifiant ou sa référence exacte. Les résultats peuvent ensuite être ajoutés à l'**Explorer UI** pour une consultation ou une édition ultérieure.
+La recherche par référence permet de trouver précisément un composant ou un module par son identifiant ou sa référence exacte.
 
 ## Pré-conditions
 
@@ -36,24 +36,23 @@ La recherche par référence permet de trouver précisément un composant ou un 
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur clique sur le bouton **Recherche** de la MenuBar — la Search UI s'ouvre dans la MainWindow
+**Étape initiale :** `myr model get <id>` est exécutée avec la référence ou l'UUID recherché (ou l'appel API équivalent)
 
 ### Flux nominal — Référence trouvée
 
-1. L'utilisateur saisit la référence ou l'UUID du composant/module
-2. Le système interroge la blockchain
-3. Le composant ou module correspondant est affiché dans les résultats
-4. L'utilisateur clique **Add to Explorer** — l'asset est ajouté à l'Explorer UI
-5. L'utilisateur peut cliquer l'asset dans l'Explorer pour ouvrir son Asset UI
+1. Le composant ou module correspondant est retourné
 
 ### Flux nominal — Référence introuvable
 
-1. Un message indique qu'aucun asset ne correspond à cette référence
+1. La réponse indique qu'aucun asset ne correspond à cette référence
+
+### Flux alternatif — Référence exacte inconnue
+
+1. `myr model list [--channel <id>]` permet de parcourir les assets du canal pour retrouver la référence recherchée
 
 ## Post-conditions
 
-- L'asset trouvé est ajouté à l'Explorer UI
-- L'utilisateur peut ouvrir son Asset UI depuis l'Explorer pour consulter le détail ou accéder à l'Atelier
+- L'asset trouvé est disponible pour consultation ou édition (voir UCCE02)
 
 ## Diagramme d'activités
 
@@ -62,16 +61,12 @@ La recherche par référence permet de trouver précisément un composant ou un 
 skin rose
 title Rechercher une référence existante
 start
-:Cliquer sur le bouton Recherche de la MenuBar;
-:Saisir la référence ou l'UUID du composant/module;
-:Interroger la blockchain;
+:Transmettre la référence ou l'UUID (myr model get);
 if (Asset trouvé?) then (oui)
-  :Afficher le composant ou module dans les résultats;
-  :Cliquer "Add to Explorer";
-  :Ajouter l'asset à l'Explorer UI;
+  :Retourner le composant ou module correspondant;
   stop
 else (non)
-  :Afficher "Aucun asset ne correspond à cette référence";
+  :Retourner "Aucun asset ne correspond à cette référence";
   stop
 endif
 @enduml

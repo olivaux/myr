@@ -46,30 +46,27 @@ La particularité de l'extension est que les **interfaces du composant de base s
 
 ## Pré-conditions
 
-- Le Concepteur est authentifié avec le rôle `contributor` (JWT valide).
+- Le Concepteur est authentifié avec le rôle `contributor` (session REST valide).
 - Le composant de base existe sur le canal Fabric et son ID est connu.
 - Le Concepteur dispose d'un fichier 3D de l'extension.
 - La licence choisie pour l'extension est compatible avec celle du composant de base (RM03).
 
 ## Scénario
 
-**Étape initiale :** Le Concepteur sélectionne un composant de base existant et choisit "Créer une extension".
+**Étape initiale :** `POST /api/components` est appelée (ou l'équivalent CLI `myr model add`) avec `category=extension` et `parent_id=<uuid>`
 
 ### Flux nominal — Extension créée avec succès
 
-1. La catégorie `extension` est sélectionnée dans le formulaire, le `parent_id` est pré-rempli.
-2. Le Concepteur importe le fichier 3D de l'extension.
-3. Le Concepteur définit ou confirme les interfaces complémentaires de l'extension.
-4. Il soumet → `POST /api/components` avec `category=extension`, `parent_id=<uuid>`.
-5. Le REST Handler valide les champs et vérifie la présence du `parent_id` (RM05).
-6. `service.AddFull()` vérifie la compatibilité de licence avec le parent (RM03).
-7. Le service récupère les interfaces du composant de base via `service.ListInterfacesForAsset(parentID)`.
-8. Le service copie les interfaces du parent comme interfaces de référence sur le nouvel asset.
-9. Le service calcule le SHA-256 du fichier d'extension.
-10. Le service téléverse le fichier vers IPFS.
-11. Le service construit le `Model3D` (`extension`, `ParentID`) et soumet `StoreModel` sur Fabric.
-12. Les interfaces copiées et les interfaces complémentaires sont sauvegardées via `service.AddInterface()` pour chaque interface.
-13. L'API retourne `201 Created` avec le nouvel asset.
+1. Le fichier 3D de l'extension, les interfaces complémentaires, `category=extension` et `parent_id=<uuid>` sont transmis
+2. Le REST Handler valide les champs et vérifie la présence du `parent_id` (RM05).
+3. `service.AddFull()` vérifie la compatibilité de licence avec le parent (RM03).
+4. Le service récupère les interfaces du composant de base via `service.ListInterfacesForAsset(parentID)`.
+5. Le service copie les interfaces du parent comme interfaces de référence sur le nouvel asset.
+6. Le service calcule le SHA-256 du fichier d'extension.
+7. Le service téléverse le fichier vers IPFS.
+8. Le service construit le `Model3D` (`extension`, `ParentID`) et soumet `StoreModel` sur Fabric.
+9. Les interfaces copiées et les interfaces complémentaires sont sauvegardées via `service.AddInterface()` pour chaque interface.
+10. L'API retourne `201 Created` avec le nouvel asset.
 
 ### Flux alternatif — Extension sans fichier 3D (composant virtuel/numérique)
 
@@ -103,14 +100,14 @@ La particularité de l'extension est que les **interfaces du composant de base s
 - Un nouvel asset `extension` est inscrit sur la blockchain avec `ParentID` renseigné.
 - Les interfaces du composant de base sont copiées sur l'extension comme interfaces de référence.
 - Les interfaces complémentaires définies par le Concepteur sont sauvegardées localement.
-- L'extension est disponible pour les liaisons dans l'Atelier (compatible avec le composant de base).
+- L'extension est disponible pour les liaisons (compatible avec le composant de base — voir UCAM01).
 - Le composant de base reste inchangé (immuabilité Fabric).
 
 ## Diagramme de séquence
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "IPFS\n(adapters/out/ipfs/)" as IPFS
@@ -190,6 +187,8 @@ end
 ## Notes d'implémentation
 
 **Route existante :** `POST /api/components` — même route que les autres use cases d'écriture. La catégorie `extension` est transmise dans le champ `category`.
+
+**Commande CLI équivalente (cible, n'existe pas encore) :** `myr model add <file> --name <nom> --channel <id> --category extension --parent <id> --license <id>` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.1 et § 5) — même construction que UCCE04, cible `modelSvc.AddFull(AddRequest{Category: "extension", ParentID, LicenseID, ...})`, même méthode domaine que le handler REST `createAsset()`. La copie des interfaces du composant de base (`ListInterfacesForAsset` + duplication) est un comportement du service, déclenché identiquement quel que soit le canal d'appel.
 
 **Copie des interfaces du parent :** Cette logique n'est pas encore implémentée dans `service.AddFull()`. À ajouter : après `StoreModelRecord()` réussi, récupérer les interfaces du parent via `ifaceStore.ListInterfacesForAsset(parentID)` et les dupliquer sur le nouvel asset (avec un nouvel `ID` et `AssetID` mis à jour).
 

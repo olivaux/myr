@@ -51,7 +51,7 @@ Ce use case est le point d'entrée du cycle commercial — il crée la commande,
 
 ## Scénario
 
-**Étape initiale :** Le consommateur sélectionne un module depuis l'Explorer UI et clique sur "Commander"
+**Étape initiale :** `POST /api/orders` est appelée (ou l'équivalent CLI `myr order create`) avec l'identifiant du module, la quantité et l'adresse de livraison
 
 ### Flux nominal A — Produit disponible en boutique
 
@@ -109,7 +109,7 @@ Ce use case est le point d'entrée du cycle commercial — il crée la commande,
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Payment Service\n(domain/payment/)" as PaySvc
 participant "Model Service\n(domain/model/)" as ModelSvc
@@ -185,3 +185,4 @@ end
 - Le Payment Service actuel (`Pay(from, to, modelID, amount)`) ne gère pas la réservation de fonds — la distribution est distincte
 - Le smart contract chaincode ne contient actuellement aucune logique de commande — à créer dans `chaincode/`
 - L'identification des boutiques partenaires et manufactureurs suppose un registre sur la blockchain non encore défini
+- **Parité CLI/REST :** conformément au principe de parité, une commande de ce type devrait être reproductible en CLI pour le compte d'un consommateur. Le volet paiement recoupe `domain/payment.Pay(from, to, modelID, amount)`, déjà exposé via `myr payment pay <from> <to> <modelID> <amount>` — mais comme noté ci-dessus, l'entité `Order` (statut, type, manufacturier/boutique, adresse de livraison) n'existe pas encore : une commande CLI complète (`myr order create ...`) ne pourra être ajoutée qu'une fois ce domaine conçu, au même titre que la route REST manquante.

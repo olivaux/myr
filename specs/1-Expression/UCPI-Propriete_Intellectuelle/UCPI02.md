@@ -35,6 +35,8 @@ UC2 ..> UC3 : <<include>>
 
 L'auteur d'un module ou composant reçoit automatiquement une commission à chaque commande ou utilisation commerciale, gérée par smart contract.
 
+Conformément au principe de parité CLI/REST, la consultation des commissions reçues doit aussi être possible en CLI pour le compte d'un concepteur, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être propriétaire d'un module ou composant avec un prix défini
@@ -58,9 +60,16 @@ L'auteur d'un module ou composant reçoit automatiquement une commission à chaq
 3. Chaque co-auteur reçoit sa part proportionnelle à son apport dans le module
 4. Les transactions de paiement sont enregistrées individuellement sur la blockchain pour chaque auteur
 
+### Flux alternatif — Wallet du destinataire inactif
+
+1. Le wallet de l'auteur destinataire d'une commission n'est plus actif au moment de la distribution
+2. La commission est placée en séquestre pour une durée de 90 jours plutôt que distribuée immédiatement
+3. Si le wallet reste inactif à l'issue du délai, la commission séquestrée est redistribuée proportionnellement aux autres auteurs impliqués dans la commande
+
 ## Post-conditions
 
 - La commission est créditée à l'auteur de manière immuable sur la blockchain
+- En l'absence de wallet actif chez le destinataire, la commission transite par un état séquestré temporaire (90 jours) avant redistribution
 
 ## Diagramme d'activités
 

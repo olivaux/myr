@@ -32,7 +32,7 @@ UC1 ..> UC2 : <<include>>
 
 Assemblage de plusieurs composants ou de Modules existants selon les compatibilités de leurs interfaces pour créer un Module à part entière.
 
-Un module nouvellement créé est en état **draft** (brouillon) : il existe dans l'atelier mais n'est pas encore ancré sur la blockchain. L'état draft est modifiable à volonté — le concepteur peut ajouter, retirer ou reconfigurer des liaisons autant de fois que nécessaire avant de publier.
+Un module nouvellement créé est en état **draft** (brouillon) : il existe localement mais n'est pas encore ancré sur la blockchain. L'état draft est modifiable à volonté — le concepteur peut ajouter, retirer ou reconfigurer des liaisons autant de fois que nécessaire avant de publier.
 
 Lorsque le module est prêt, la soumission à la blockchain (voir UCMOD06) est une étape distincte et explicite. Elle crée une **ModuleVersion** immuable — snapshot figé et horodaté de l'assemblage, non modifiable après publication. Toute évolution ultérieure nécessite la création d'une nouvelle version.
 
@@ -40,27 +40,27 @@ Lorsque le module est prêt, la soumission à la blockchain (voir UCMOD06) est u
 
 - Être connecté au réseau
 - Avoir les droits de création
-- Avoir des composants ou modules existants dans l'atelier
+- Avoir des composants ou modules existants
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur ouvre l'Asset UI du module depuis l'Explorer, puis clique le bouton **Atelier** pour activer la vue d'assemblage embarquée
+**Étape initiale :** `myr module create --name <nom> --channel <id> [--owner-id <id>] [--description <texte>] [--license <id>]` est exécutée (ou l'appel API équivalent), pour le compte du Concepteur
 
 ### Flux nominal — Module créé (draft)
 
-1. L'utilisateur crée les liaisons entre les interfaces compatibles des composants
-2. Les interfaces non compatibles se grisent lors des tentatives de liaison
-3. L'utilisateur nomme et configure le module
-4. Le module est enregistré localement en état **draft**
+1. Le module est initialisé en état **draft**
+2. Les liaisons entre les interfaces compatibles des composants sont créées (`myr model instance add` puis `myr model link add`, voir UCAM01)
+3. Le module est nommé et configuré
+4. Le module est enregistré en état **draft**
 
 ### Flux erreur — Aucune liaison créée
 
-1. Le système ne permet pas de nommer ou sauvegarder un module sans au moins un assemblage
-2. Message d'information : "Ajoutez au moins une liaison entre composants"
+1. Le service refuse de nommer ou sauvegarder un module sans au moins un assemblage
+2. Message d'erreur : "Ajoutez au moins une liaison entre composants"
 
 ## Post-conditions
 
-- Le module est en état **draft** dans l'atelier
+- Le module est en état **draft**
 - Les interfaces libres du module sont visibles
 - Le module n'est pas encore visible sur le réseau (soumission requise — voir UCMOD06)
 
@@ -71,15 +71,14 @@ Lorsque le module est prêt, la soumission à la blockchain (voir UCMOD06) est u
 skin rose
 title Créer un Module
 start
-:Ouvrir l'Asset UI du module depuis l'Explorer;
-:Activer la vue Atelier;
+:Créer le module (myr module create);
 if (Liaisons entre composants créées?) then (oui)
-  :Créer les liaisons entre interfaces compatibles;
+  :Créer les liaisons entre interfaces compatibles (myr model link add);
   :Nommer et configurer le module;
   :Enregistrer le module en état draft;
   stop
 else (non)
-  :Afficher "Ajoutez au moins une liaison entre composants";
+  :Refuser — "Ajoutez au moins une liaison entre composants";
   stop
 endif
 @enduml

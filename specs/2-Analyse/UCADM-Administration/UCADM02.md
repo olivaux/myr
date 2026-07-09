@@ -50,7 +50,7 @@ Les services domaine `domain/channel/`, `domain/network/` et `domain/identity/` 
 - Au moins 3 serveurs sont accessibles avec une adresse réseau stable (IP fixe ou DNS).
 - Les ports réseau Fabric sont ouverts : 7050 (orderer), 7051 (peer), 7054 (CA).
 - Les binaires Fabric (`peer`, `orderer`, `fabric-ca-server`) sont installés sur chaque nœud.
-- L'outil CLI admin (`myr.exe`) est configuré avec les credentials d'infrastructure.
+- L'outil CLI admin (`myr`) est installé sur le serveur et configuré avec les credentials d'infrastructure.
 
 ## Scénario
 
@@ -110,7 +110,7 @@ Les services domaine `domain/channel/`, `domain/network/` et `domain/identity/` 
 
 ```plantuml
 @startuml
-participant "CLI Admin\n(myr.exe)" as CLI
+participant "CLI Admin\n(myr)" as CLI
 participant "CLI Handler\n(adapters/in/cli/)" as CLIHandler
 participant "Channel Service\n(domain/channel/)" as ChanSvc
 participant "Network Service\n(domain/network/)" as NetSvc

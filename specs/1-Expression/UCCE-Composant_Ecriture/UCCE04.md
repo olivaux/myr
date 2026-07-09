@@ -42,21 +42,19 @@ Un composant existant peut être amélioré (mêmes fonctionnalités mais renfor
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un composant existant et choisit "Améliorer"
+**Étape initiale :** `myr model add roue_v2.stl --name "Roue avant v2" --channel greenchannel --category amelioration --parent <id-parent> --license <id-licence>` est exécutée (ou l'appel API équivalent), pour le compte du Concepteur
 
 ### Flux nominal — Amélioration réussie
 
 1. Le type AMELIORATION est automatiquement attribué
-2. L'utilisateur importe la version améliorée du composant
-3. Il renseigne les modifications apportées
-4. La transaction est soumise avec référence au composant parent
+2. La version améliorée du composant est importée avec les modifications apportées
+3. La transaction est soumise avec référence au composant parent — la compatibilité de licence entre le parent et la dérivation est vérifiée
 
 ### Flux alternatif — Amélioration avec ajout d'interfaces
 
 1. La version améliorée du composant introduit de nouvelles interfaces non présentes dans la version parente
-2. Le système détecte l'ajout de fonctionnalités et signale que le type est reclassifié en DERIVATION
-3. L'utilisateur confirme ou corrige le type retenu
-4. La transaction est soumise avec le type final (DERIVATION) et la référence au composant parent
+2. Le système détecte l'ajout de fonctionnalités et reclassifie le type en DERIVATION (le flag `--category` explicite prévaut si fourni)
+3. La transaction est soumise avec le type final (DERIVATION) et la référence au composant parent
 
 ## Post-conditions
 
@@ -86,13 +84,9 @@ title fonctionnement de l'échange
 skin rose
 title Améliorer un Composant
 start
-:Sélectionner un composant existant;
-:Choisir "Améliorer";
-:Importer la version améliorée du composant;
-:Renseigner les modifications apportées;
+:Transmettre la version améliorée et la référence au parent (myr model add);
 if (Nouvelles interfaces ajoutées?) then (oui)
   :Reclassifier automatiquement le type en DERIVATION;
-  :L'utilisateur confirme ou corrige le type;
   :Soumettre la transaction de type DERIVATION avec référence au parent;
   stop
 else (non)

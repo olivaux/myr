@@ -61,7 +61,7 @@ Le plugin détecte les interfaces physiques et les métadonnées du modèle, pui
 
 ### Flux nominal — Intégration réussie (nouveau composant)
 
-1. Le plugin se connecte à l'API MYR avec le token JWT du concepteur
+1. Le plugin se connecte à l'API MYR avec le token de session du concepteur (`X-Myr-Token`)
 2. Le plugin analyse le modèle ouvert et extrait :
    - Le fichier CAO (hash SHA-256 calculé localement)
    - Les métadonnées détectables : nom, dimensions, matériaux (si présents dans le modèle)
@@ -91,7 +91,7 @@ Le plugin détecte les interfaces physiques et les métadonnées du modèle, pui
 
 ### Flux erreur A — Plugin non authentifié (token expiré)
 
-1. Le plugin détecte que le token JWT est expiré
+1. Le plugin détecte que le token de session est expiré
 2. Message : "Session MYR expirée — reconnectez-vous dans le plugin"
 3. Le concepteur se reconnecte via le formulaire de login du plugin (ou renouvelle le token)
 
@@ -112,7 +112,7 @@ Le plugin détecte les interfaces physiques et les métadonnées du modèle, pui
 
 - Le composant est enregistré sur la blockchain MYR avec un UUID unique
 - Les interfaces physiques détectées ou saisies manuellement sont enregistrées
-- Le concepteur peut consulter son composant depuis l'interface MYR standard
+- Le composant est consultable via l'API MYR (`GET /api/components/:id`) par tout client autorisé
 - Le fichier CAO est stocké dans le dépôt distribué (IPFS) et référencé par son hash sur la blockchain
 
 ## Diagramme de séquence
@@ -128,8 +128,8 @@ database "Smart Contract\n(chaincode/)" as CC
 
 Plugin -> Plugin : Analyser modèle CAO\n→ hash SHA-256, métadonnées, interfaces
 
-Plugin -> REST : POST /api/components\n{name, hash, interfaces[], license, category,\ncommissionRate, caoFile (multipart)}\nAuthorization: Bearer {jwt}
-REST -> REST : Vérifier auth + rôle designer (RM22)
+Plugin -> REST : POST /api/components\n{name, hash, interfaces[], license, category,\ncommissionRate, caoFile (multipart)}\nX-Myr-Token: {token}
+REST -> REST : Vérifier session + permission write (RM22)
 REST -> REST : Valider données (catégorie, licence, ParentID si requis — RM05)
 
 REST -> IPFS : StoreFile(caoFile)
@@ -170,7 +170,7 @@ end
 
 | ENF | Description |
 |-----|-------------|
-| ENF12 | Authentification JWT vérifiée côté serveur |
+| ENF12 | Authentification par token de session vérifiée côté serveur |
 | ENF15 | Stockage IPFS du fichier CAO avec CID retourné |
 | ENF30 | En cas d'échec blockchain, le fichier IPFS est conservé (reprise possible) |
 
@@ -182,3 +182,4 @@ end
 - Le plugin CAO peut être implémenté comme une application web autonome, un script Python injecté dans les logiciels CAO supportant des plugins Python, ou une extension navigateur — la décision d'implémentation est hors périmètre serveur
 - La détection automatique des interfaces physiques dépend du format CAO (STEP, STL, FBX…) — les fichiers STL ne contiennent pas de métadonnées structurelles ; STEP/IGES en contiennent davantage
 - Question ouverte : quels logiciels CAO sont prioritaires pour le plugin ? Fusion 360, FreeCAD, SolidWorks ?
+- **Parité CLI :** ce use case recoupe `ModelService.AddFull`, exposé côté REST (`POST /api/components`) et côté CLI par `myr model add`, qui expose `Category`, `ParentID`, `LicenseID` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.1), comme pour UCCE01/03. Le plugin CAO constitue lui-même un canal non-GUI équivalent en esprit à un script CLI : il appelle l'API REST de façon programmatique — le principe de parité CLI/REST est donc respecté par construction ; aucune lacune de conception domaine ici, contrairement aux autres UC de ce lot.

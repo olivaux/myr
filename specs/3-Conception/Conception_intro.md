@@ -25,7 +25,7 @@ Ce document **ne remplace pas** les specs d'expression ou d'analyse — il les c
 
 Le domaine (`domain/`) contient uniquement la logique métier et des interfaces Go. Aucune dépendance à des technologies concrètes (Fabric, Redis, SQLite, IPFS) ne peut apparaître dans le domaine. Cette règle est vérifiée par script CI (`scripts/ci/check-domain-imports.sh`) et constitue une contrainte d'architecture non négociable (ENF18).
 
-Flux obligatoire : `adapter in (REST/CLI)` → `service domaine` → `adapter out (Fabric/IPFS/SQLite/JSON)`.
+Flux obligatoire : `adapter in (REST/CLI)` → `service domaine` → `adapter out (Fabric/IPFS/JSON)`.
 
 ### 2.2 Immuabilité blockchain
 
@@ -37,9 +37,9 @@ Trois niveaux de persistance coexistent avec des responsabilités distinctes :
 
 | Niveau | Support | Contenu | Mutabilité |
 |--------|---------|---------|-----------|
-| Blockchain | HyperLedger Fabric | Assets enregistrés, ModuleVersions, transactions PI | Immuable |
-| Persistance locale sécurisée | SQLite (AES-256-GCM) | Utilisateurs, tokens JWT, wallets Fabric CA | Mutable |
-| Persistance locale légère | JSON files | Connexions Atelier, interfaces physiques, profils réseau | Mutable |
+| Blockchain | HyperLedger Fabric | Assets soumis, interfaces physiques et virtuelles au moment de la soumission (`AssetInterface`, embarquées dans `Model3D.Interfaces` — ADR-02), ModuleVersions, transactions PI | Immuable |
+| Persistance locale (wallets) | Fichiers MSP (PEM), **non chiffrés au repos** ⚠️ (voir ADR-03) | Certificats X.509 + clés privées Fabric CA | Mutable |
+| Persistance locale légère (brouillon) | JSON files | Connexions entre instances (liaisons, ADR-05), interfaces physiques en cours d'édition avant soumission (ADR-02), profils réseau, rôles RBAC | Mutable |
 | Stockage fichiers | IPFS | Fichiers CAO (modèles 3D) | Immuable (CID) |
 | Éphémère | Mémoire / Redis optionnel | Sessions actives | Volatile |
 
@@ -66,58 +66,55 @@ package "Points d'entrée" {
   [cmd/cli\nmyr-cli] as CmdCLI
 }
 
+cloud "Dépôt GUI\n(externe, hors périmètre myr)" as ExtGUI
+
 package "Adapters IN" {
   [adapters/in/rest\nHandlers HTTP + Router] as REST
   [adapters/in/cli\nCommandes Cobra] as CLI
 }
 
 package "Domaine métier" {
-  [domain/model\nAssets, Atelier, Modules] as DomModel
-  [domain/auth\nJWT, Utilisateurs] as DomAuth
+  [domain/model\nAssets, Composition, Modules] as DomModel
   [domain/identity\nIdentités Fabric CA] as DomIdentity
+  [domain/role\nRBAC dynamique] as DomRole
   [domain/network\nProfils réseau] as DomNetwork
   [domain/channel\nCanaux Fabric] as DomChannel
-  [domain/session\nSessions utilisateur] as DomSession
+  [domain/session\nCompte local CLI] as DomSession
   [domain/payment\nPaiements, Commissions] as DomPayment
 }
 
 package "Adapters OUT" {
   [adapters/out/fabric\nGateway SDK v2] as Fabric
-  [adapters/out/sqlite\nAuth, Wallets] as SQLite
-  [adapters/out/localstorage\nConnexions, Interfaces, Profils JSON] as LocalStorage
+  [adapters/out/localstorage\nWallets, Rôles, Connexions, Profils JSON] as LocalStorage
   [adapters/out/ipfs\nFichiers 3D] as IPFS
 }
 
-package "UI" {
-  [ui/static/\nSPA Vanilla JS/HTML/CSS] as UI
-}
-
 CmdAPI --> REST
-CmdAPI --> UI
 CmdCLI --> CLI
+ExtGUI ..> REST : appels HTTP\n(API publique documentée)
 
 REST --> DomModel
-REST --> DomAuth
 REST --> DomIdentity
+REST --> DomRole
 REST --> DomNetwork
 REST --> DomChannel
-REST --> DomSession
 REST --> DomPayment
 
 CLI --> DomModel
-CLI --> DomAuth
+CLI --> DomIdentity
+CLI --> DomRole
 CLI --> DomChannel
 CLI --> DomPayment
 
 DomModel --> Fabric
 DomModel --> LocalStorage
 DomModel --> IPFS
-DomAuth --> SQLite
 DomIdentity --> Fabric
-DomIdentity --> SQLite
+DomIdentity --> LocalStorage
+DomRole --> LocalStorage
 DomNetwork --> LocalStorage
 DomChannel --> Fabric
-DomSession --> SQLite
+DomSession --> LocalStorage
 DomPayment --> Fabric
 
 @enduml
@@ -127,20 +124,23 @@ DomPayment --> Fabric
 
 ## 4. Domaines de conception
 
-| Domaine | Entités principales | Ports out principaux | Adapters out | État |
-|---------|--------------------|--------------------|--------------|------|
-| D1 — Compte & Accès | `User`, `RefreshToken`, `EncryptedWallet` | `UserStore`, `TokenStore`, `WalletStore` | `sqlite` | Partiel (UCA08 manquant) |
-| D1 — Session | `Session` | `SessionStore` | `sqlite` | Service défini, REST absent |
-| D1 — Identité | `MyrIdentity`, `WalletEntry`, `AccountRequest` | `IdentityPort` | `fabric`, `sqlite` | Service défini, REST/CLI absents |
-| D2 — Réseau | `NetworkProfile`, `ChaincodeConfig` | `NetworkStore` | `localstorage` | Service défini, REST/CLI absents |
-| D2 — Canal | `Channel` | `ChannelPort` | `fabric` | Service défini, CLI exposé |
-| D3/D4 — Composant | `Model3D`, `Version`, `AssetInterface` | `BlockchainPort`, `FileStoragePort`, `InterfaceStore` | `fabric`, `ipfs`, `localstorage` | REST + CLI exposés |
-| D5 — Atelier | `WorkspaceInstance`, `Connection` | `ConnectionStore`, `InterfaceStore` | `localstorage` | REST exposé |
-| D6 — Module | `Model3D` (module), `ModuleVersion` | `BlockchainPort` | `fabric` | REST + CLI exposés |
-| D7 — PI & Paiement | `Payment` | `PaymentPort` | `fabric` | Service défini, REST absent |
-| D8 — Recherche | (utilise Model3D) | `BlockchainPort` | `fabric` | Partiel |
-| D9 — Automatisation | — | — | — | Non implémenté |
-| D10-D13 — Transverses | — | — | — | Non implémenté |
+| Domaine | Entités principales | Ports out principaux | Adapters out |
+|---------|--------------------|--------------------|--------------|
+| D1 — Identité | `MyrIdentity`, `WalletEntry`, `AccountRequest` | `IdentityPort`, `CAPort`, `RequestStore` | `fabric`, `localstorage` |
+| D1 — RBAC | `Role`, `Permission` | `RoleRepo` | `localstorage` |
+| D1 — Session REST | `myrSession` (détail d'implémentation adapter, pas une entité domaine) | `sessionBackend` | mémoire / JSON (défaut), Redis (`session_redis.go`, multi-instances) |
+| D1 — Session locale CLI | `Session` (`domain/session`, distinct de la session REST) | `SessionStore` | `localstorage` |
+| D2 — Réseau | `NetworkProfile`, `ChaincodeConfig` | `NetworkStore` | `localstorage` |
+| D2 — Canal | `Channel` | `ChannelPort` | `fabric` |
+| D3/D4 — Composant | `Model3D`, `Version`, `AssetInterface` (brouillon local jusqu'à soumission, puis embarquée dans `Model3D.Interfaces` — ADR-02) | `BlockchainPort`, `FileStoragePort`, `InterfaceStore` | `fabric`, `ipfs`, `localstorage` |
+| D5 — Composition de Module | `WorkspaceInstance`, `Connection` | `ConnectionStore`, `InterfaceStore` | `localstorage` |
+| D6 — Module | `Model3D` (module), `ModuleVersion` | `BlockchainPort` | `fabric` |
+| D7 — PI & Paiement | `Payment` ; `Order`, `OrderItem`, `Commission`, `AssetPrice`, `PITransfer`, `CloneRecord` (`DC_D7_Payment.md`) | `PaymentPort` | `fabric` |
+| D8 — Recherche | (réutilise `Model3D` — pas de nouvelle entité) | `BlockchainPort` | `fabric` |
+| D9 — Automatisation | (réutilise `Order`/`Commission` de D7, `Version` de D3) | `PaymentPort`, `RoleRepo` | `fabric`, `localstorage` |
+| D13 — Développement autour de Myr | — | — | — |
+
+> État d'implémentation par domaine (service/CLI/REST) : `specs/roadmap_dev.md` § État de l'implémentation.
 
 ---
 
@@ -164,7 +164,8 @@ package "Domaine" #fff9c4 {
   interface "FileStoragePort (out)" as PortFS
   interface "ConnectionStore (out)" as PortConn
   interface "InterfaceStore (out)" as PortIface
-  interface "UserStore (out)" as PortUser
+  interface "IdentityPort / CAPort (out)" as PortIdentity
+  interface "RoleRepo (out)" as PortRole
   interface "SessionStore (out)" as PortSession
 }
 
@@ -172,7 +173,6 @@ package "Couche secondaire (Driven)" #f0f4e8 {
   [adapters/out/fabric] as AdFabric
   [adapters/out/ipfs] as AdIPFS
   [adapters/out/localstorage] as AdLocal
-  [adapters/out/sqlite] as AdSQLite
 }
 
 RestH --> PortIn
@@ -183,19 +183,23 @@ Svc --> PortBC
 Svc --> PortFS
 Svc --> PortConn
 Svc --> PortIface
-Svc --> PortUser
+Svc --> PortIdentity
+Svc --> PortRole
 Svc --> PortSession
 
 PortBC <|.. AdFabric
 PortFS <|.. AdIPFS
 PortConn <|.. AdLocal
 PortIface <|.. AdLocal
-PortUser <|.. AdSQLite
-PortSession <|.. AdSQLite
+PortIdentity <|.. AdFabric
+PortIdentity <|.. AdLocal
+PortRole <|.. AdLocal
+PortSession <|.. AdLocal
 
 note bottom of Svc
   Ne connaît QUE des interfaces Go.
-  Aucune import fabric/redis/sqlite/ipfs.
+  Aucun import fabric/redis/ipfs — et aucune BDD
+  relationnelle (ni sqlite ni autre).
 end note
 
 @enduml
@@ -215,43 +219,51 @@ end note
 
 ---
 
-### ADR-02 — Stockage des interfaces physiques en local (pas sur Fabric)
+### ADR-02 — Interfaces enregistrées sur la blockchain via le cycle brouillon → soumission (généralisé à tout asset)
 
-**Décision :** Les `AssetInterface` sont stockées dans `adapters/out/localstorage/` via `InterfaceStore`, pas sur la blockchain.
+**Décision (remplace les deux versions précédentes de l'ADR-02) :** Le cycle `draft` → soumission, déjà défini pour les modules (RM16 : `Status = draft` jusqu'à `SubmitModule` ; RM19 : `submitted` = lecture seule) s'applique de la même façon à **tout** `Model3D` — composant ou module — et à ses `AssetInterface`. Tant que l'asset qui les porte est en brouillon, ses interfaces (physiques et slots virtuels) sont éditées localement, librement et sans coût blockchain, via CLI/API REST (`AddInterface`, `UpdateInterface`, `EnsureVirtualSlot`, `ConnectVirtualToPhysical`). Elles ne rejoignent la blockchain qu'au moment où l'asset lui-même est soumis (création/soumission d'un composant, ou `SubmitModule` pour un module) — un seul aller-retour Fabric (`StoreModelRecord`) commet alors l'intégralité du brouillon, `Interfaces` compris, exactement comme RM07 l'énonce déjà : *« Toutes les données (métadonnées, licences, **interfaces**, UUID) sont validées côté serveur avant soumission »* — les interfaces font partie du payload soumis, pas d'écritures blockchain indépendantes.
 
-**Justification :** Les interfaces physiques servent à la vérification de compatibilité dans l'Atelier (RM11) — opération locale et fréquente. La blockchain n'est pas adaptée à des lectures fréquentes et rapides. Seul l'assemblage final (le `ModuleVersion`) est ancré sur Fabric.
+**Une fois soumis, un asset est immuable (règle 7, RM19)** : plus aucune interface ne peut lui être ajoutée ou modifiée directement. Toute évolution passe par un **fork** — un nouveau `Model3D` en brouillon (`ParentID` = asset d'origine, catégorie `amelioration`/`extension`/`variation`/`adaptation`/`derivation`/`regression` selon RM02), qui démarre avec les interfaces du parent copiées localement, peut les modifier librement tant qu'il reste en brouillon, et n'atteint la blockchain qu'à sa propre soumission.
 
-**Conséquence :** Les interfaces ne sont pas versionnées blockchain. Si un asset change d'interfaces, l'historique n'est pas tracé sur la chaîne. Acceptable pour la v1.
+**Décisions précédentes (abandonnées) :**
+- v1 (ADR-02 d'origine) : interfaces toujours locales (`InterfaceStore`), jamais vraiment garanties sur la blockchain.
+- v2 : interfaces enregistrées immédiatement sur la blockchain à chaque édition (`StoreModelRecord` par action) — rejetée : elle traitait comme définitive une action de composition encore réversible (brouillon), et aurait pollué un ledger immuable (règle 9 : pas de suppression) avec des tentatives de liaison abandonnées avant soumission.
 
----
+**Justification :** La blockchain reste la source de vérité finale pour toute interface — l'exigence d'origine (« toutes les interfaces doivent être enregistrées dans la blockchain ») est satisfaite à la soumission, sans sacrifier la réactivité des opérations de composition (assemblage de module, essais de liaison, ajustements avant validation), qui restent locales tant que rien n'est soumis.
 
-### ADR-03 — Wallet chiffré AES-256-GCM en SQLite
+**Conséquence :** Il existe de nouveau un store local (`InterfaceStore`, `adapters/out/localstorage/`) faisant office de **brouillon** — non une persistance parallèle définitive, mais l'état de travail avant soumission. Les exigences de temps de réponse des UCAM (`< 200 ms`, `< 300 ms`) redeviennent valides puisque la composition reste locale.
 
-**Décision :** Les wallets Fabric CA (certificats X.509 + clés privées) sont stockés chiffrés dans SQLite via `EncryptedWallet`, avec une clé AES-256-GCM dérivée de `WALLET_ENCRYPT_KEY`.
-
-**Justification :** Le wallet doit survivre aux redémarrages du serveur et être accessible rapidement à chaque requête Fabric. La blockchain n'est pas appropriée pour stocker des clés privées. SQLite chiffré offre un bon compromis sécurité/performance.
-
-**Conséquence :** `WALLET_ENCRYPT_KEY` est une variable d'environnement critique. Sa perte rend tous les wallets irrécupérables. La rotation de clé n'est pas implémentée en v1.
+**Décision de conception (généralisation RM16/RM19, `Regles_Metier.md` §5) :** `Status` (`draft`/`submitted`) cesse d'être un champ « module seulement » — il s'applique à tout `Model3D`. Pour ne pas ajouter de friction au cas simple (un composant dont toutes les interfaces sont déjà connues à la création, UCCE01 nominal), le comportement par défaut d'un composant reste **inchangé : `AddFull` le crée directement `submitted`** (une seule transaction Fabric, comme aujourd'hui). Un composant n'entre en `draft` que si le client le demande explicitement (`draft: true` / `myr model add --draft`) — il est alors mutable (interfaces via UCCE06/UCAM03) jusqu'à une action de soumission explicite qui commet `Interfaces` sur Fabric et passe `Status` à `submitted` (voir UCCE01 « Flux alternatif — Création en brouillon », `DC_CLI_Model.md` § 3.1/3.6bis pour la commande CLI/API). Un module, lui, reste **toujours** créé en `draft` (RM16) puisque RM17 exige un assemblage avant soumission. Suivi de la mise en œuvre de cette décision : `specs/roadmap_dev.md`.
 
 ---
 
-### ADR-04 — Sessions Fabric séparées de l'auth web (JWT)
+### ADR-03 — Wallet stocké en fichiers MSP locaux, chiffrement au repos non tranché
 
-**Décision :** L'authentification web (JWT email/password) et les sessions Fabric (identité CA, certificats) sont deux mécanismes indépendants dans des domaines séparés (`domain/auth` vs `domain/session` + `domain/identity`).
+**Décision :** Les wallets Fabric CA (certificats X.509 + clés privées) sont représentés par une seule entité `WalletEntry` — des fichiers PEM sous `~/.Myr/wallets/<pseudo@org>/msp/` (permissions `0600`), sans miroir chiffré en base (pas de BDD relationnelle, cf. principe de décentralisation).
 
-**Justification :** Un utilisateur peut être authentifié sur l'interface web sans avoir de wallet Fabric (cas : rôle Lecteur, première connexion). Le provisionnement Fabric est différé à la première connexion (RM20). La séparation évite un couplage fort entre les deux cycles de vie.
+**Point ouvert :** ENF10 (`Exigences_Non_Fonctionnelles.md`) exige un chiffrement au repos des wallets. Ce point n'est pas tranché : soit un mécanisme de chiffrement au repos est ajouté (ex. clé dérivée d'un secret d'exploitation), soit ENF10 est révisée pour accepter des fichiers PEM en clair sous permissions restreintes comme niveau de risque assumé. Décision à prendre par le product owner — ne pas supposer l'une ou l'autre option tranchée dans les autres documents (`Securite.md`, `Modele_Domaine.md`, `Deploiement.md`).
 
-**Conséquence :** Deux sources d'identité coexistent. Le service `identity` est responsable de la synchronisation entre le compte web (`User.ID`) et le wallet Fabric (`EncryptedWallet.UserID`).
+**Conséquence :** Tant que la décision n'est pas prise, `Securite.md` §4 documente cette surface comme un risque à mitiger.
 
 ---
 
-### ADR-05 — Connexions Atelier locales, ModuleVersions sur blockchain
+### ADR-04 — Identité CA comme source unique, RBAC dynamique séparé
 
-**Décision :** Les `Connection` (liaisons de l'Atelier) sont stockées localement via `ConnectionStore`. Seule la `ModuleVersion` (hash de l'assemblage + liste des assemblages) est soumise à la blockchain à la soumission du module.
+**Décision :** Il n'existe qu'une seule source d'identité (`domain/identity`, adossée à la Fabric CA) — pas de second système d'authentification web (email/mot de passe/JWT). L'autorisation (RBAC) est un domaine séparé (`domain/role`), découplé du rôle porté par le certificat CA.
 
-**Justification :** L'Atelier est un espace de travail mutable (RM16) — les connexions peuvent être créées, modifiées ou supprimées librement. La blockchain ne supporte pas la mutabilité. La `ModuleVersion` constitue le snapshot immuable et vérifiable de l'assemblage au moment de la soumission.
+**Justification :** Un accès invité (`POST /api/identity/guest`) peut être délivré sans aucune identité CA (cas : rôle Lecteur automatique sur réseau public). Séparer le RBAC de l'identité CA permet de faire évoluer les permissions (`myr role create/update`) sans dépendre du cycle de vie des certificats.
 
-**Conséquence :** Les connexions Atelier ne sont pas traçables dans l'historique blockchain. En cas de crash serveur avant soumission, le travail en cours peut être perdu si aucune sauvegarde locale n'est implémentée.
+**Conséquence :** Le rôle appliqué à une session REST est déterminé **à la connexion**, à partir du rôle CA de l'identité — un changement de rôle administratif (`myr identity set-role`) ne se répercute que sur les sessions créées après le changement, pas sur les sessions déjà ouvertes (voir `DC_D1_Auth_Identity.md`, et `specs/roadmap_dev.md` § Écarts Identité & Session pour l'état de cette dépendance).
+
+---
+
+### ADR-05 — Connexions de composition locales, ModuleVersions sur blockchain
+
+**Décision :** Les `Connection` (liaisons entre instances d'un module) sont stockées localement via `ConnectionStore`. Seule la `ModuleVersion` (hash de l'assemblage + liste des assemblages) est soumise à la blockchain à la soumission du module.
+
+**Justification :** La composition d'un module (état `draft`, RM16) est mutable — les connexions peuvent être créées, modifiées ou supprimées librement par action directe. La blockchain ne supporte pas la mutabilité. La `ModuleVersion` constitue le snapshot immuable et vérifiable de l'assemblage au moment de la soumission.
+
+**Conséquence :** Les connexions locales ne sont pas traçables dans l'historique blockchain. En cas de crash serveur avant soumission, le travail en cours peut être perdu si aucune sauvegarde locale n'est implémentée.
 
 ---
 
@@ -269,11 +281,10 @@ end note
 
 | Contrainte | Variable / Mécanisme | Impact |
 |-----------|---------------------|--------|
-| Auth JWT | `JWT_SECRET` requis | Sans cette variable, l'auth email/password est désactivée |
-| Chiffrement wallets | `WALLET_ENCRYPT_KEY` requis | Wallets inaccessibles sans cette clé |
-| Base SQLite | `MYR_DB_PATH` (défaut: `<data>/myr.db`) | Auth, tokens, wallets |
-| Sessions distribuées | `REDIS_URL` optionnel | Multi-instances : sessions partagées via Redis |
-| Hot-reload frontend | `MYR_DEV=1` | Sert les statiques depuis le disque (pas depuis embed.FS) |
+| Session REST | Token opaque aléatoire (32 octets hex), en-tête `X-Myr-Token` — **pas de JWT** | Sans token valide, tout accès `Auth`/`Write`/`Admin` (`API_REST.md` §1) est refusé — sauf routes `Public` |
+| Chiffrement des wallets | Fichiers PEM sous `~/.Myr/wallets/` (`0600`) — voir ADR-03 ci-dessus pour le point ouvert sur le chiffrement au repos | Compromission du serveur = exposition des clés tant que la décision ADR-03 n'est pas prise |
+| Pas de base relationnelle | Aucune BDD SQL, ni dans le domaine ni dans les adapters | Toute persistance mutable passe par fichiers JSON (`adapters/out/localstorage/`) ; l'identité est cryptographique, récupérable depuis la CA Fabric sans BDD locale |
+| Sessions distribuées | `REDIS_URL` optionnel | Multi-instances : sessions REST partagées via Redis (`session_redis.go`) au lieu de mémoire/JSON |
 | mTLS Fabric | Certificats X.509 (CA Fabric) | Toute interaction Fabric exige un wallet valide |
 | IPFS CID | Adresse de contenu immuable | Le CID d'un fichier CAO change si le fichier change — versionnement explicite requis |
 | AGPL 3.0 | `go-licenses` CI | Toute dépendance doit être compatible AGPL 3.0 |
@@ -283,34 +294,28 @@ end note
 
 ## 8. Index des documents de conception
 
-| Fichier | Objet |
-|---------|-------|
-| `Conception_intro.md` (ce fichier) | Principes directeurs, vue d'ensemble, ADR, index |
-| `MCD.md` | Modèle Conceptuel de Données — toutes les entités et leurs relations |
+| Fichier | Domaine(s) | Objet |
+|---------|-----------|-------|
+| `Conception_intro.md` (ce fichier) | — | Principes directeurs, vue d'ensemble, ADR, index |
+| `Modele_Domaine.md` | Tous | Modèle de domaine — agrégats, entités et relations |
+| `Architecture_Hexagonale.md` | — | Détail de la séparation domaine/adapters, flux de dépendances |
+| `DC_D1_Auth_Identity.md` | D1 | Identité CA, RBAC dynamique, session REST, session locale CLI |
+| `DC_D2_Administration.md` | D2 | Organisations, canaux, nœuds réseau |
+| `Architecture_Composition.md` | D3, D5, D6 | Classes, états, algorithmes de compatibilité (RM11) et anti-plagiat (RM01), ports du domaine `model` |
+| `Sequence_soumission_asset.md` | D3 | Diagramme de séquence : validation → anti-plagiat → blockchain (composant) |
+| `Sequence_soumission_module.md` | D5, D6 | Diagramme de séquence : composition → ModuleVersion → blockchain (module) |
+| `DC_CLI_Model.md` | D3–D6, D8 | Contrat des commandes CLI du domaine `model` |
+| `DC_CLI_Admin.md` | D2, D13 | Contrat des commandes CLI d'administration réseau |
+| `DC_D7_Payment.md` | D7 | Commissions, commandes, transfert de PI, clonage inter-réseaux |
+| `DC_D8_Recherche.md` | D8 | Composants compatibles, généalogie, modules utilisant un composant, BOM |
+| `DC_D9_Automatisation.md` | D9 | Déclenchement commissions (renvoi D7), boutique partenaire, plugin CAO, SCM |
+| `API_REST.md` | Tous | Contrat des endpoints REST — routes, accès, codes de retour |
+| `Chaincode.md` | D3, D6, D7 | Fonctions chaincode Fabric |
+| `Securite.md` | Tous | Modèle de sécurité, surfaces d'attaque et mitigations attendues (ENF) |
+| `Deploiement.md` | — | Topologie de déploiement, serveur distant, mTLS |
 
-> Les documents suivants sont à produire dans les prochaines itérations de la phase Conception.
-
-| Document à produire | Objet prévu |
-|--------------------|------------|
-| `Architecture_REST.md` | Contrats des endpoints REST — routes, paramètres, codes de retour |
-| `Architecture_Fabric.md` | Chaincode, transactions, structure du ledger |
-| `Architecture_Auth.md` | Flux JWT, provisionnement Fabric différé, rotation tokens |
-| `Architecture_Atelier.md` | Workspace, slots virtuels, cascade de suppression, compatibilité interfaces |
-| `Architecture_PI.md` | Flux commissions, transfert de propriété, clonage inter-réseaux |
-| `Sequence_soumission_asset.md` | Diagramme de séquence : validation → anti-plagiat → blockchain |
-| `Sequence_soumission_module.md` | Diagramme de séquence : Atelier → ModuleVersion → blockchain |
+> Aucun document « à produire » ne subsiste pour les domaines couverts par cette passe (D1–D9, D13). Les points encore ouverts sont documentés comme questions PO explicites dans le fichier du domaine concerné, pas comme document manquant.
 
 ---
 
-## 9. Écarts structurels à corriger
-
-Ces écarts ont été identifiés lors de l'analyse (`specs/2-Analyse/`) entre le code existant et les specs. Ils doivent être corrigés dans le code — les specs (comportement cible) restent la référence.
-
-| ID | Écart | Fichier à corriger | Règle violée | Impact conception |
-|----|-------|-------------------|-------------|------------------|
-| E1 | Catégorie `decoupage` absente du code | `domain/model/entity.go` | RM02 | Le MCD doit la lister comme valeur valide de `Category` |
-| E2 | Champ `Tag` absent de `AssetInterface` | `domain/model/entity.go` | RM11 | Le MCD inclut ce champ — 6 attributs requis pour la compatibilité d'interfaces |
-| E3 | Rôle `contributor` attribué à la création au lieu de `reader` | `domain/auth/service.go:93` | RM21 | L'entité `User.Role` doit recevoir `reader` à la création |
-| E4 | Anti-plagiat SHA-256 calculé mais jamais comparé avec les assets existants | `domain/model/service.go` | RM01 | La logique de comparaison est manquante dans le service domaine |
-| E5 | Fork obligatoire sur module soumis non contraint | `domain/model/service.go:461` | RM19 | Un module en état `submitted` doit être en lecture seule — toute modification doit créer une nouvelle version |
-| E6 | Entité chaincode `Model3D` incomplète (7 champs vs 20+ dans le domaine) | `chaincode/model/entity.go` | RM06 | Le chaincode doit refléter fidèlement l'entité domaine pour garantir l'immuabilité blockchain |
+> État d'avancement et écarts entre code et spécification : `specs/roadmap_dev.md`.

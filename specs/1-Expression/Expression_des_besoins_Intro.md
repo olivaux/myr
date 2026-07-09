@@ -8,7 +8,7 @@
   - [Réseau (Network)](#réseau-network)
   - [Canal (Channel)](#canal-channel)
   - [Organisation](#organisation)
-  - [Atelier (Workspace)](#atelier-workspace)
+  - [Instance (composition d'un Module)](#instance-composition-dun-module)
   - [État draft](#état-draft)
   - [Wallet / Identité](#wallet--identité)
   - [Licence](#licence)
@@ -31,7 +31,6 @@
 - [5. Règles métier](#5-règles-métier)
 - [6. Exigences non-fonctionnelles](#6-exigences-non-fonctionnelles)
 - [7. Matrice de traçabilité](#7-matrice-de-traçabilité)
-- [wireframe](#wireframe)
 
 
 
@@ -167,7 +166,7 @@ Exemple de liaison :
 - Cable USB
 - Tuyau
 
-Une liaison dont les interfaces deviennent incompatibles après sa création n'est pas supprimée automatiquement : elle passe en état incompatible (signalée visuellement en rouge).
+Une liaison dont les interfaces deviennent incompatibles après sa création n'est pas supprimée automatiquement : elle passe en état incompatible (`Incompatible: true`, voir RM12).
 
 ## Asset d'accroche (Fastener)
 
@@ -187,15 +186,15 @@ Sous-réseau logique au sein d'un réseau permettant de cloisonner les données 
 
 Entité membre d'un réseau (entreprise, association, individu). Chaque utilisateur appartient à une organisation. L'administrateur du réseau est responsable de l'agrément des organisations membres.
 
-## Atelier (Workspace)
+## Instance (composition d'un Module)
 
-Espace de travail local (côté serveur, hors blockchain) dans lequel le concepteur place des composants et modules existants pour les assembler. L'atelier permet de créer et visualiser des liaisons avant toute soumission à la blockchain.
+Un module rassemble des composants et modules existants sous forme d'instances constituant sa composition, avant toute soumission à la blockchain. Une instance est ajoutée ou retirée par une action directe et brute sur le module (`AddAssetToWorkspace` / `RemoveAssetFromWorkspace` au niveau du domaine, `myr model instance add` / `remove` côté CLI, appel API équivalent).
 
-Un asset placé dans l'atelier dispose toujours d'au moins un slot virtuel permettant de l'ancrer dans l'espace de composition.
+Une instance dispose toujours d'au moins un slot virtuel permettant de l'ancrer dans la composition (RM13).
 
 ## État draft
 
-État intermédiaire d'un module assemblé dans l'atelier mais pas encore ancré sur la blockchain. Un module en état draft n'est pas visible sur le réseau. La soumission à la blockchain est une étape distincte et explicite (nécessite au moins une liaison).
+État intermédiaire d'un module dont la composition n'est pas encore ancrée sur la blockchain. Un module en état draft n'est pas visible sur le réseau. La soumission à la blockchain est une étape distincte et explicite (nécessite au moins une liaison).
 
 ## Wallet / Identité
 
@@ -259,7 +258,8 @@ La société actuelle est basée sur la surconsommation et l'obsolescence progra
 - **Licence Open-Source AGPL 3.0** : le code source de Myr est publié sous AGPL 3.0. Toute contribution ou extension doit respecter les termes de cette licence.
 - **Architecture hexagonale** : le domaine métier ne doit dépendre d'aucune technologie d'infrastructure (Fabric, Redis, SQLite…). Les technologies peuvent évoluer sans réécriture du domaine.
 - **Compatibilité multi-réseaux** : bien que HyperLedger Fabric soit le réseau de référence, l'architecture doit permettre à terme de brancher d'autres types de réseaux blockchain sans refonte majeure.
-- **Accès navigateur uniquement** : aucun logiciel local n'est requis pour l'utilisateur final. L'interface graphique est servie par le serveur Myr et consommée via navigateur web standard.
+- **Accès navigateur uniquement pour l'utilisateur final** : aucun logiciel local n'est requis pour consommer Myr — l'interface graphique (dépôt GUI externe) est consommée via navigateur web standard, en s'appuyant exclusivement sur l'API REST de `myr`.
+- **Parité fonctionnelle CLI / API REST** : le CLI `myr` et l'API REST appellent le même code domaine et exposent les mêmes capacités — créer un composant, définir une interface, créer une liaison, assembler et soumettre un module, rechercher un asset, etc. (voir `specs/3-Conception/DC_CLI_Model.md`). Le CLI n'est donc pas limité à l'administration réseau (UCADM01–05, voir `DC_CLI_Admin.md`) : c'est un second canal d'accès complet au domaine, à la différence près qu'il ne s'exécute que sur le serveur, jamais sur le poste de l'utilisateur final — il est donc opéré par l'administrateur du serveur, y compris lorsqu'il agit pour le compte d'une identité Concepteur/Consommateur (script, import en masse, support).
 
 ### 2.4. Présentation de la société
 
@@ -317,8 +317,8 @@ Il possède les droits suivants :
 
 - Créer un composant (asset de type `base`, `dérivation`, `extension`…)
 - Définir et éditer les interfaces d'un composant
-- Placer des composants et modules dans l'atelier
-- Créer des liaisons entre interfaces dans l'atelier
+- Ajouter des instances de composants et modules à un module
+- Créer des liaisons entre interfaces
 - Assembler un module (draft)
 - Soumettre un module à la blockchain
 - Rechercher et consulter les assets du réseau
@@ -369,23 +369,17 @@ rectangle "Application MYR" {
     package "Administration\n(UCADM01–03)" as UCADM
     package "Composant — Écriture\n(UCCE01–06)" as UCCE
     package "Composant — Lecture\n(UCCL01)" as UCCL
-    package "Atelier Module\n(UCAM01–08)" as UCAM
+    package "Assemblage Module\n(UCAM01–05, 07–08)" as UCAM
     package "Module\n(UCMOD01–06)" as UCMOD
     package "Propriété Intellectuelle\n(UCPI01–10, hors UCPI03†)" as UCPI
     package "Recherche\n(UCREC01–05)" as UCREC
     package "Automatisation\n(UCAUT01–04)" as UCAUT
-    package "Paramètres\n(UCPAR01–02)" as UCPAR
-    package "Documentation\n(UCDOC01–03)" as UCDOC
-    package "Interface Graphique\n(UCIG01–02)" as UCIG
     package "Développement autour de MYR\n(UCDEV01–02)" as UCDEV
 }
 
 V --> UCA
 
 U --> UCA
-U --> UCDOC
-U --> UCIG
-U --> UCPAR
 U --> UCREC
 U --> UCMOD
 U --> UCPI
@@ -417,7 +411,6 @@ M --> UCAUT
 D --> UCCL
 D --> UCMOD
 D --> UCAUT
-D --> UCPAR
 D --> UCDEV
 
 @enduml
@@ -429,15 +422,14 @@ D --> UCDEV
 | UCADM | Administration | UCADM01 Ajouter organisation · UCADM02 Créer réseau · UCADM03 Ajouter nœud |
 | UCCE | Composant — Écriture | UCCE01 Composant physique · UCCE02 Configurer composant · UCCE03 Composant numérique · UCCE04 Améliorer composant · UCCE05 Extension composant · UCCE06 Ajouter interface |
 | UCCL | Composant — Lecture | UCCL01 Recherche par filtre |
-| UCAM | Atelier Module | UCAM01 Liaison interfaces · UCAM02 Visualiser interfaces · UCAM03 Créer interface · UCAM04 Création multiple · UCAM05 Transformer en module · UCAM06 Icône chargement · UCAM07 Asset d'accroche · UCAM08 Retirer composant |
-| UCMOD | Module | UCMOD01 Créer module · UCMOD02 Ajouter module existant · UCMOD03 Lien URL module · UCMOD04 Visualiser composants · UCMOD05 Plugin navigateur · UCMOD06 Soumettre blockchain |
-| UCPI | Propriété Intellectuelle | UCPI01 Commander module · UCPI02 Commission · UCPI03† Reclassifié→UCPAR · UCPI04 Prix composant · UCPI05 Prix module · UCPI06 Composant similaire · UCPI07 Transfert PI · UCPI08 Cloner composant réseau · UCPI09 Cloner module réseau · UCPI10 Écoconception |
+| UCAM | Assemblage Module | UCAM01 Liaison interfaces · UCAM02 Visualiser interfaces · UCAM03 Créer interface · UCAM05 Transformer en module · UCAM07 Asset d'accroche · UCAM08 Retirer instance |
+| UCMOD | Module | UCMOD01 Créer module · UCMOD02 Ajouter module existant · UCMOD03 Lien URL module · UCMOD04 Visualiser composants · UCMOD06 Soumettre blockchain |
+| UCPI | Propriété Intellectuelle | UCPI01 Commander module · UCPI02 Commission · UCPI03† Reclassifié puis retiré · UCPI04 Prix composant · UCPI05 Prix module · UCPI06 Composant similaire · UCPI07 Transfert PI · UCPI08 Cloner composant réseau · UCPI09 Cloner module réseau · UCPI10 Écoconception |
 | UCREC | Recherche | UCREC01 Référence existante · UCREC02 Composants compatibles · UCREC03 Versions composants · UCREC04 Modules utilisant composant · UCREC05 Exporter BOM |
 | UCAUT | Automatisation | UCAUT01 Fabrication/Livraison · UCAUT02 Commande en ligne · UCAUT03 Modèle 3D depuis CAO · UCAUT04 Gestion SCM modèle 3D |
-| UCPAR | Paramètres | UCPAR01 Version Anglaise · UCPAR02 Version Chinoise |
-| UCDOC | Documentation | UCDOC01 Accéder documentation · UCDOC02 FAQ · UCDOC03 Compréhension documentation |
-| UCIG | Interface Graphique | UCIG01 Schéma navigation · UCIG02 Gestion erreurs |
 | UCDEV | Développement autour de MYR | UCDEV01 Utilisation API · UCDEV02 Utilisation CLI |
+
+> UCAM04 (Import multiple par glisser-déposer + jauge de progression), UCAM06 (Icône de chargement), UCMOD05 (Ajouter un module depuis un plugin navigateur), UCPAR (Paramètres/i18n), UCDOC (Documentation) et UCIG (Interface Graphique) ont été retirés : ce sont des use cases 100 % frontend, sans règle métier ni contrat REST propre à `myr` — ils relèvent désormais du dépôt GUI externe ou d'un plugin tiers. Pour UCAM04, l'ajout unitaire d'un composant existant à un module (`AddAssetToWorkspace`) reste couvert par UCMOD01 et UCAM05 ; seule la répétition ergonomique en une opération (sélection multiple, jauge) est hors périmètre `myr`. Pour UCMOD05, le flux serveur sous-jacent (`CreateModule` / `UpdateAsset`) reste couvert par UCMOD01 et UCMOD03 ; seule la détection automatique de page dans un navigateur, intrinsèquement liée à l'interface, est hors périmètre `myr`.
 
 # 5. Règles métier
 
@@ -456,116 +448,3 @@ Les contraintes de la section 2.3 sont formalisées sous forme de 31 exigences n
 La matrice de traçabilité croise les 56 exigences fonctionnelles identifiées avec les use cases qui les couvrent.
 
 → [Matrice_Tracabilite.md](Matrice_Tracabilite.md)
-
-# wireframe
-
-
-
-```plantuml
-@startuml
-top to bottom direction	
-
-
-actor "Utilisateur\nconnecté" as User
-
-rectangle "WebView" as WebView {
-
-    rectangle "MenuBar UI" <<UI>> as MenuBar {
-        rectangle "Recherche" <<button>>  as Search_BT
-        rectangle "Profil" <<button>>  as Account_BT
-        
-        rectangle "New Asset" <<button>> as NewAsset_BT
-    }
-
-    rectangle "Asset UI" <<UI>> as Asset_UI {
-        rectangle "Atelier" as Workshop_UI {
-             rectangle "<List>Asset" as AssetList_Edition {
-                
-                rectangle "Asset1" as Asset1_edit
-                rectangle "Asset2" as Asset2_edit
-            }
-        }
-        rectangle "<List>Asset" as AssetList_ {
-                rectangle "Asset1" as Asset1
-                rectangle "Asset2" as Asset2
-            }
-        rectangle "Atelier" <<button>>  as Workshop_BT
-    }
-
-    rectangle "MainWindow UI" <<UI>> as MainWindow {
-        rectangle "Search" as Search_UI {
-            rectangle "Add to Explorer" <<button>> as AddExplorer
-        }
-        rectangle "Explorer UI" <<UI>> as Explorer_UI {
-            rectangle "<List>Asset" as AssetList {
-                rectangle "AssetA" as AssetA
-                rectangle "AssetB" as AssetB
-            }
-        }
-        
-        rectangle "Profil" as Account_UI
-        rectangle "Page Erreur\n404" as Error
-    }
-        
-}
-
-rectangle "Serveur" as Server {
-    rectangle "myr-app" {
-
-        rectangle "Base de données" as SQL {
-            rectangle "User_DB"
-        }
-        rectangle "Dépôt distribué 3D" as IPFS  {
-            rectangle "Asset_DB"
-        }
-        rectangle "BlockChain" as BC {
-            rectangle "reseau" {
-                rectangle "Identity"
-                rectangle "Asset_Ledger"
-            }
-        }
-    }
-}
-
-
-
-WebView <--> Server : API REST 
-
-User --> AssetList : add asset
-User --> Workshop_UI : add asset
-
-AddExplorer --> AssetList : add Part
-AssetA --> Asset_UI : open AssetA
-
-Workshop_BT --> Workshop_UI : open
-Account_BT --> Account_UI : open
-NewAsset_BT --> Asset_UI : open New
-
-AssetList_ --> AssetList_Edition : Edition
-
-note top of MenuBar
-  Présent sur <b>toutes les pages</b>
-end note
-
-note left of Workshop_UI
-  Edite l'asset
-end note
-
-note left of Asset_UI
-  Détail Module. Vide si Composant
-end note
-
-skinparam rectangle<<button>> {
-  BackgroundColor #f0f4ff
-  BorderColor #4a6fa5
-}
-
-skinparam rectangle<<UI>> {
-  BackgroundColor #e1c87c
-  BorderColor #4a6fa5
-}
-
-
-@enduml
-
-```

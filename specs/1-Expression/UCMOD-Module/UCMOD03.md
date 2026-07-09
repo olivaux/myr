@@ -41,14 +41,17 @@ Ajouter une ou plusieurs URL de référence (fiche produit, boutique, documentat
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur sélectionne un module et accède à la section "Liens"
+**Étape initiale :** `myr model update <moduleID> --add-link <url>` est exécutée (ou l'appel API équivalent), pour le compte du propriétaire du module
 
 ### Flux nominal — URL ajoutée
 
-1. L'utilisateur clique sur "Ajouter un lien URL"
-2. Il renseigne l'URL de référence
-3. Il valide l'ajout
-4. La transaction de mise à jour est soumise
+1. L'URL de référence est transmise
+2. L'URL est ajoutée aux liens de référence du module
+3. La transaction de mise à jour est soumise
+
+### Flux erreur — Droits insuffisants ou URL invalide
+
+1. Le service refuse la mise à jour et retourne un message d'erreur explicite
 
 ## Post-conditions
 
@@ -61,10 +64,7 @@ Ajouter une ou plusieurs URL de référence (fiche produit, boutique, documentat
 skin rose
 title Ajouter un lien URL d'un Module existant
 start
-:Sélectionner un module et accéder à la section "Liens";
-:Cliquer sur "Ajouter un lien URL";
-:Renseigner l'URL de référence;
-:Valider l'ajout;
+:Transmettre l'URL de référence (myr model update --add-link);
 :Soumettre la transaction de mise à jour;
 stop
 @enduml

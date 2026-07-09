@@ -188,6 +188,7 @@ package "domain/payment (à concevoir)" {
 - Taux de commission (`commission_rate`) : fixe (ex. 10%), configurable par réseau, ou défini par l'auteur ?
 - Ratio : proportionnel au prix de chaque composant (ci-dessus) ou poids défini par le concepteur du module ?
 - Wallet inactif : séquestre, redistribution proportionnelle, ou abandon après délai ?
+- **Périmètre de la « chaîne de propriété » (RM23) — composition seule ou aussi dérivation ?** L'algorithme ci-dessus ne parcourt que les composants directement constitutifs du module livré (composition). `specs/2-Analyse/UCPI-Propriete_Intellectuelle/UCPI02.md` et `UCPI04.md` évoquent en plus une remontée de commission vers les auteurs de la chaîne de dérivation (`ParentID`) — non implémentée ici. Si le PO tranche pour l'inclusion de la dérivation, l'algorithme (étape 1) et l'entité `Commission` (§3, `AssetID` actuel ne porte pas de lien vers une lignée) doivent être revus en conséquence.
 
 ---
 
@@ -245,7 +246,7 @@ interface PaymentPort {
 
 | Écart | Impact |
 |-------|--------|
-| Aucun endpoint REST pour le domaine payment | Tout D7 est inaccessible depuis le GUI et l'API |
+| Aucun endpoint REST pour le domaine payment | Tout D7 est inaccessible depuis l'API — donc depuis tout client (dépôt GUI externe compris) |
 | `Payment` est un paiement manuel sans distribution automatique | RM23/RM24 non implémentées |
 | Smart contract de commission absent du chaincode | Bloquerait UCAUT01 en production |
 | Entités Order, Commission, AssetPrice, PITransfer, CloneRecord absentes | UCPI01-09 entièrement non implémentables |

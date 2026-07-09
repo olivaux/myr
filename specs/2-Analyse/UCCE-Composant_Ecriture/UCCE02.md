@@ -40,34 +40,33 @@ Après création, un composant peut être reconfiguré par son propriétaire : m
 
 La mise à jour est soumise à la blockchain Fabric via `PUT /api/components/:id` → `service.UpdateAsset()` → `blockchain.StoreModelRecord()`. Chaque appel produit un nouveau bloc sur le ledger : l'historique des configurations est traçable.
 
-**Contrainte clé :** Si l'asset a un `ParentID` et que la nouvelle licence est modifiée, la compatibilité de licence avec le parent doit être re-vérifiée (RM03). La vérification actuelle dans `AddFull()` ne s'applique qu'à la création — `UpdateAsset()` n'effectue pas encore cette vérification (écart à corriger).
+**Contrainte clé :** Si l'asset a un `ParentID` et que la nouvelle licence est modifiée, la compatibilité de licence avec le parent doit être re-vérifiée (RM03) — `UpdateAsset()` applique cette vérification au même titre que `AddFull()` à la création.
 
 ## Pré-conditions
 
-- Le Concepteur est authentifié avec le rôle `contributor` (JWT valide).
+- Le Concepteur est authentifié avec le rôle `contributor` (session REST valide).
 - L'asset existe sur le canal Fabric et son ID est connu.
 - Le Concepteur est propriétaire de l'asset (`OwnerID` correspond à son identité).
 
 ## Scénario
 
-**Étape initiale :** Le Concepteur sélectionne son composant dans l'Asset UI et accède à la configuration.
+**Étape initiale :** `PUT /api/components/<uuid>` est appelée (ou l'équivalent CLI `myr model update`) avec un ou plusieurs champs à modifier
 
 ### Flux nominal — Configuration réussie
 
-1. Le Concepteur modifie un ou plusieurs champs : nom, description, licence, tags, liens.
-2. Il valide les modifications → `PUT /api/components/<uuid>` (JSON body ou form).
-3. Le REST Handler valide les champs (name max 256, description max 10000, IDs valides).
-4. Le handler appelle `service.UpdateAsset(UpdateRequest{ID, Name, Description, LicenseID, Tags, Links})`.
-5. Le service récupère l'asset existant : `blockchain.GetModelRecord(req.ID, "")`.
-6. Le service applique le patch partiel : seuls les champs non vides de `UpdateRequest` écrasent les valeurs actuelles.
-7. Si `LicenseID` est modifié et que l'asset a un `ParentID` : le service vérifie la compatibilité de licence avec le parent.
-8. Le service soumet la transaction : `blockchain.StoreModelRecord(m)`.
-9. Fabric valide et ancre le nouveau bloc.
-10. L'API retourne `200 OK` avec le `Model3D` mis à jour.
+1. Un ou plusieurs champs sont transmis : nom, description, licence, tags, liens (JSON body ou form).
+2. Le REST Handler valide les champs (name max 256, description max 10000, IDs valides).
+3. Le handler appelle `service.UpdateAsset(UpdateRequest{ID, Name, Description, LicenseID, Tags, Links})`.
+4. Le service récupère l'asset existant : `blockchain.GetModelRecord(req.ID, "")`.
+5. Le service applique le patch partiel : seuls les champs non vides de `UpdateRequest` écrasent les valeurs actuelles.
+6. Si `LicenseID` est modifié et que l'asset a un `ParentID` : le service vérifie la compatibilité de licence avec le parent.
+7. Le service soumet la transaction : `blockchain.StoreModelRecord(m)`.
+8. Fabric valide et ancre le nouveau bloc.
+9. L'API retourne `200 OK` avec le `Model3D` mis à jour.
 
 ### Flux alternatif — Patch partiel (mise à jour d'un seul champ)
 
-1. Le Concepteur modifie uniquement la licence (ex : passe de CC BY à CC BY-SA).
+1. Seule la licence est transmise (ex : passe de CC BY à CC BY-SA).
 2. Seul le champ `license_id` est envoyé dans la requête.
 3. Le service applique uniquement ce champ — les autres restent inchangés (`UpdateAsset` est un patch partiel).
 4. La compatibilité de licence avec le parent est vérifiée si applicable.
@@ -101,7 +100,7 @@ La mise à jour est soumise à la blockchain Fabric via `PUT /api/components/:id
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "Fabric\n(adapters/out/fabric/)" as Fabric
@@ -189,6 +188,8 @@ note "Asset parent → Asset dérivé\nC = Commercial  NC = Non-Commercial" as N
 ## Notes d'implémentation
 
 **Route existante :** `PUT /api/components/:id` → `handler.updateAsset()` → `service.UpdateAsset()` → `fabric.StoreModelRecord()`.
+
+**Commande CLI équivalente :** `myr model update <id> --description <texte> --license <id> --tags <a,b>` (voir `specs/3-Conception/DC_CLI_Model.md` § 5), appelant la même méthode `service.UpdateAsset(UpdateRequest{...})` que le handler REST `updateAsset()`, avec le même comportement de patch partiel et la même vérification de compatibilité de licence (RM03).
 
 **Patch partiel :** `service.UpdateAsset()` applique uniquement les champs non-vides de `UpdateRequest`. Les champs `Tags` et `Links` sont des slices — si `nil`, ils ne sont pas écrasés ; si `[]string{}` (slice vide), ils effacent les valeurs existantes.
 

@@ -13,18 +13,15 @@ etat: reclassifié
 | Champ | Valeur |
 |-------|--------|
 | Titre original | "Passage en version Anglaise / Chinoise" |
-| Motif | Les paramètres de langue relèvent de la configuration de l'interface utilisateur (domaine D10 — Paramètres), pas de la propriété intellectuelle (domaine D7) |
+| Motif | Les paramètres de langue relèvent de la configuration de l'interface utilisateur (ex-domaine D10 — Paramètres), pas de la propriété intellectuelle (domaine D7) |
 | Date de reclassification | 2026 |
-| Reclassifié vers | UCPAR01 — Passage en version Anglaise |
-| | UCPAR02 — Passage en version Chinoise |
+| Reclassifié vers | UCPAR01 — Passage en version Anglaise (supprimé, voir note ci-dessous) |
+| | UCPAR02 — Passage en version Chinoise (supprimé, voir note ci-dessous) |
 
 ## Pourquoi la numérotation n'a pas été remaniée
 
 Renuméroter UCPI04 → UCPI03, UCPI05 → UCPI04… aurait cassé toutes les références existantes (matrice de traçabilité, règles métier RM23–RM26, liens inter-UC). Ce stub préserve la numérotation tout en documentant explicitement la décision, conformément à la méthode Arrington.
 
-## Renvoi
+## Retrait ultérieur de UCPAR (ex-D10)
 
-→ [UCPAR01 — Passage en version Anglaise](../../1-Expression/UCPAR-Parametres/UCPAR01.md)
-→ [UCPAR02 — Passage en version Chinoise](../../1-Expression/UCPAR-Parametres/UCPAR02.md)
-
-> **Note analyse** : Les UC UCPAR ne font pas partie du périmètre de la présente phase d'analyse (domaine D7 — PI). Ils seront traités dans `specs/2-Analyse/UCPAR-Parametres/` lors de l'analyse du domaine D10.
+UCPAR01/02 étaient des use cases 100 % frontend (changement de langue de l'interface, aucune règle métier). Le domaine D10 a été retiré du périmètre `myr` lors de la séparation des dépôts — l'i18n de l'interface relève désormais du dépôt GUI externe. Cet identifiant UCPI03 reste donc définitivement « reclassifié puis retiré » — aucun lien de renvoi actif.

@@ -28,7 +28,7 @@ U --> UC1
 
 ## Contexte
 
-Visualisation du rôle attribué en survolant le nom utilisateur affiché dans l'interface.
+Le rôle attribué à l'identité connectée est consultable via l'API ou le CLI.
 
 ## Pré-conditions
 
@@ -36,11 +36,11 @@ Visualisation du rôle attribué en survolant le nom utilisateur affiché dans l
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur survole son nom d'utilisateur affiché dans l'interface
+**Étape initiale :** Le rôle de l'identité connectée est interrogé (`myr identity status` ou l'appel API équivalent)
 
 ### Flux nominal — Affichage du rôle
 
-1. Une infobulle affiche le rôle attribué (ex : Concepteur, Consommateur, Manufactureur...)
+1. Le rôle attribué est retourné (ex : Concepteur, Consommateur, Manufactureur...)
 
 ## Post-conditions
 
@@ -53,8 +53,8 @@ Visualisation du rôle attribué en survolant le nom utilisateur affiché dans l
 skin rose
 title Vérification du rôle attribué
 start
-:Survoler son nom d'utilisateur dans l'interface;
-:Afficher l'infobulle avec le rôle attribué;
+:Interroger le rôle de l'identité connectée (myr identity status);
+:Retourner le rôle attribué;
 stop
 @enduml
 ```

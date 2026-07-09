@@ -37,21 +37,21 @@ La recherche par filtre permet de trouver des composants ou Modules selon des cr
 ## Pré-conditions
 
 - Être connecté au réseau
+- La parité de filtrage entre le résultat brut de la liste et un filtrage serveur dédié reste partielle, voir flux nominal
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur clique sur le bouton **Recherche** de la MenuBar, puis sélectionne la recherche avancée par filtre dans la Search UI
+**Étape initiale :** `myr model list [--channel <id>]` est exécutée (ou l'appel API équivalent) pour obtenir la liste des composants et modules du canal
 
 ### Flux nominal — Résultats trouvés
 
-1. L'utilisateur sélectionne un ou plusieurs critères de filtre
-2. Le système interroge la blockchain avec les critères
-3. La liste des composants/modules correspondants est affichée
-4. L'utilisateur peut affiner ou réinitialiser les filtres
+1. Un ou plusieurs critères de filtre (texte, catégorie, auteur, tags…) sont appliqués sur le résultat de la liste
+2. La liste des composants/modules correspondants est retournée
+3. `myr model get <id>` permet de consulter un composant/module précis une fois son identifiant connu
 
 ### Flux nominal — Aucun résultat
 
-1. Un message indique qu'aucun composant ne correspond aux critères
+1. La réponse indique qu'aucun composant ne correspond aux critères
 
 ## Post-conditions
 
@@ -64,20 +64,13 @@ La recherche par filtre permet de trouver des composants ou Modules selon des cr
 skin rose
 title Faire une recherche par filtre
 start
-:Cliquer sur le bouton Recherche de la MenuBar;
-:Sélectionner la recherche avancée par filtre;
-:Sélectionner un ou plusieurs critères de filtre;
-:Interroger la blockchain avec les critères;
+:Lister les composants/modules du canal (myr model list);
+:Appliquer les critères de filtre sur le résultat;
 if (Résultats trouvés?) then (oui)
-  :Afficher la liste des composants/modules correspondants;
-  if (Affiner les filtres?) then (oui)
-    :Modifier ou réinitialiser les filtres;
-    stop
-  else (non)
-    stop
-  endif
+  :Retourner la liste des composants/modules correspondants;
+  stop
 else (non)
-  :Afficher "Aucun composant ne correspond aux critères";
+  :Retourner "Aucun composant ne correspond aux critères";
   stop
 endif
 @enduml

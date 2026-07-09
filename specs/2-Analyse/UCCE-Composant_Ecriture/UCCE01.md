@@ -48,31 +48,29 @@ La catégorie `base` est la seule catégorie qui ne requiert pas de `ParentID`. 
 
 ## Pré-conditions
 
-- Le Concepteur est authentifié avec le rôle `contributor` (JWT valide).
+- Le Concepteur est authentifié avec le rôle `contributor` (session REST valide).
 - Un canal Fabric est opérationnel et accessible.
 - Le Concepteur dispose d'un fichier 3D/CAO valide (STL, STEP, OBJ, ou format natif).
 - Pour une catégorie non-`base` : l'asset parent existe sur le canal et son ID est connu.
 
 ## Scénario
 
-**Étape initiale :** Le Concepteur clique sur **New Asset** dans la MenuBar — une Asset UI vide s'ouvre.
+**Étape initiale :** `POST /api/components` est appelée (ou l'équivalent CLI `myr model add`) avec le fichier 3D et les métadonnées
 
 ### Flux nominal — Composant base nouveau
 
-1. Le Concepteur importe son fichier 3D via l'interface (champ `file` ou `stl` — multipart/form-data).
-2. Le Concepteur renseigne les métadonnées : nom, description, licence, tags, catégorie (`base`).
-3. Il soumet le formulaire → `POST /api/components` (multipart/form-data).
-4. Le REST Handler valide les champs : `name` non vide (max 256), `owner_id` valide, `channel_id` valide.
-5. Le handler appelle `service.AddFull(AddRequest{...})`.
-6. Le service calcule le SHA-256 du fichier : `sha256:<hex>`.
-7. **[Cible RM01]** Le service interroge Fabric (`ListModelRecords`) et compare le hash avec tous les assets existants.
-8. Si aucun doublon : le service analyse la similarité SCM (seuil 50%) avec les assets existants.
-9. Le service téléverse le fichier vers IPFS (`fileStorage.Upload(filePath)`) → retourne une référence de stockage.
-10. Le service construit le `Model3D` avec un UUID généré (`generateID()`), le hash, la référence IPFS.
-11. Le service soumet la transaction `StoreModel` sur Fabric (`blockchain.StoreModelRecord(m)`).
-12. Fabric valide la transaction et ancre le bloc.
-13. L'API retourne `201 Created` avec le `Model3D` JSON (ID, name, hash, blockID…).
-14. L'interface affiche le composant créé avec son UUID.
+1. Le fichier 3D est transmis (champ `file` ou `stl` — multipart/form-data).
+2. Les métadonnées sont transmises : nom, description, licence, tags, catégorie (`base`).
+3. Le REST Handler valide les champs : `name` non vide (max 256), `owner_id` valide, `channel_id` valide.
+4. Le handler appelle `service.AddFull(AddRequest{...})`.
+5. Le service calcule le SHA-256 du fichier : `sha256:<hex>`.
+6. **[Cible RM01]** Le service interroge Fabric (`ListModelRecords`) et compare le hash avec tous les assets existants.
+7. Si aucun doublon : le service analyse la similarité SCM (seuil 50%) avec les assets existants.
+8. Le service téléverse le fichier vers IPFS (`fileStorage.Upload(filePath)`) → retourne une référence de stockage.
+9. Le service construit le `Model3D` avec un UUID généré (`generateID()`), le hash, la référence IPFS.
+10. Le service soumet la transaction `StoreModel` sur Fabric (`blockchain.StoreModelRecord(m)`).
+11. Fabric valide la transaction et ancre le bloc.
+12. L'API retourne `201 Created` avec le `Model3D` JSON (ID, name, hash, blockID…).
 
 ### Flux alternatif — Import depuis un format CAO non natif (STL, STEP, OBJ)
 
@@ -81,6 +79,16 @@ La catégorie `base` est la seule catégorie qui ne requiert pas de `ParentID`. 
 3. Les métadonnées géométriques extractibles automatiquement (dimensions, volume) sont pré-renseignées selon le format.
 4. Le Concepteur complète les métadonnées non extractibles (description, licence).
 5. La transaction est soumise normalement (flux nominal à partir de l'étape 7).
+
+### Flux alternatif — Création en brouillon (soumission différée, RM16/RM19)
+
+1. Le Concepteur transmet `draft: true` (ou `myr model add --draft`) en plus des champs habituels.
+2. Le service crée le `Model3D` avec `Status: draft` — la transaction Fabric initiale est tout de même soumise (comme pour un module en `draft`, RM16) mais l'asset reste modifiable par convention métier tant qu'il n'est pas soumis.
+3. Le Concepteur peut alors ajouter ou modifier des interfaces (UCCE06, UCAM03) — ces changements restent en brouillon local (`InterfaceStore`, ADR-02) et n'émettent aucune transaction Fabric supplémentaire.
+4. Quand le Concepteur est prêt, il appelle l'action de soumission (`POST /api/components/:id/submit` ou `myr model submit <id>` — voir `specs/3-Conception/DC_CLI_Model.md`) : le service relit le brouillon, embarque `Interfaces` dans le `Model3D`, soumet une dernière transaction Fabric et passe `Status` à `submitted`.
+5. Une fois `submitted`, l'asset est immuable (règle 7, RM19) — toute nouvelle interface exige un fork (voir UCCE06).
+
+> Ce flux est **optionnel** : le flux nominal (sans `draft: true`) reste inchangé — un composant est créé et soumis en une seule transaction, comme aujourd'hui. `draft` sert uniquement au cas où le Concepteur veut affiner les interfaces après création, sans les connaître entièrement à l'import du fichier.
 
 ### Flux alternatif — Catégorie dérivée (non-`base`)
 
@@ -125,7 +133,7 @@ La catégorie `base` est la seule catégorie qui ne requiert pas de `ParentID`. 
 
 ```plantuml
 @startuml
-participant "Navigateur" as Browser
+participant "Client\n(CLI ou API REST)" as Browser
 participant "REST Handler\n(adapters/in/rest/)" as REST
 participant "Model Service\n(domain/model/)" as ModelSvc
 database "IPFS\n(adapters/out/ipfs/)" as IPFS
@@ -195,6 +203,8 @@ end
 | **RM04** | UUID généré par le service, jamais par le client |
 | **RM05** | `ParentID` obligatoire pour tout asset non-`base` |
 | **RM07** | Validation complète côté serveur avant toute soumission blockchain |
+| **RM16** | `draft: true` optionnel → composant créé en `draft` (soumission différée) ; par défaut, un composant est directement `submitted` |
+| **RM19** | Une fois `submitted`, l'asset est immuable — toute modification ultérieure (ex. ajouter une interface, UCCE06) exige un fork |
 
 ## Exigences non-fonctionnelles
 
@@ -209,9 +219,13 @@ end
 
 **Route existante :** `POST /api/components` → `handler.createAsset()` → `service.AddFull()` → `fabric.StoreModelRecord()` + `ipfs.Upload()`.
 
+**Commande CLI équivalente (existante, à étendre) :** `myr model add <file> --name <nom> --channel <id> --category base [--description <texte>] [--tags <a,b>] [--owner-id <id>] [--draft]` (voir `specs/3-Conception/DC_CLI_Model.md` § 3.1). Aujourd'hui `adapters/in/cli/model.go` ne câble que `--name`/`--channel`/`--tags` via `modelSvc.Add()` — un sous-ensemble de `AddRequest`. Cible : basculer sur `modelSvc.AddFull(AddRequest{...})`, la même méthode que le handler REST `createAsset()`, pour exposer aussi `--category`, `--parent`, `--license` et `--draft` (RM16). Une fois câblée, la commande déclenche les mêmes règles (anti-plagiat RM01, compatibilité de licence RM03) que le flux REST — seul le canal de sortie change (texte terminal vs JSON HTTP). La soumission différée d'un composant en brouillon s'effectue via `myr model submit <id>` (§ 3.6bis).
+
 **Écart E4 (RM01 incomplet) :** `service.AddFull()` calcule le SHA-256 mais ne compare pas avec les assets existants. À implémenter : appel `blockchain.ListModelRecords(channelID)` suivi d'une comparaison de hashes avant `fileStorage.Upload()`.
 
 **Écart E1 (catégorie `decoupage` absente) :** `domain/model/entity.go` ne définit pas `CategoryDecoupage`. À ajouter : `CategoryDecoupage Category = "decoupage"`. Cette catégorie est la seule qui transforme un composant en module (UCAM05).
+
+**Écart E8 (`Status` composant, cf. `specs/roadmap_dev.md` § Écarts structurels — modèle & chaincode) :** `domain/model/entity.go` ne traite `Status` que pour les modules aujourd'hui. À corriger pour permettre `AddFull(AddRequest{Draft: true, ...})` de créer un composant avec `Status: draft`, et pour exposer une méthode de soumission (réutilisation de la logique de `SubmitModule`, généralisée à tout `Model3D`) qui embarque `Interfaces` et passe `Status` à `submitted`.
 
 **Analyse SCM :** L'algorithme de similarité structurelle (SCM > 50%) est un service domaine indépendant à créer dans `domain/model/` — il n'est pas encore implémenté.
 

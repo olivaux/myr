@@ -32,6 +32,8 @@ UC1 ..> UC2 : <<include>>
 
 L'auteur d'un composant peut définir un prix unitaire pour l'utilisation commerciale ou la commande de celui-ci, enregistré sur la blockchain.
 
+Conformément au principe de parité CLI/REST, la définition d'un prix sur un composant doit être exposable en CLI au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -40,13 +42,12 @@ L'auteur d'un composant peut définir un prix unitaire pour l'utilisation commer
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur accède à son composant et ouvre la section "Tarification"
+**Étape initiale :** `myr model price set <id> <montant> --currency <devise>` est exécutée (ou l'appel API équivalent), pour le compte du propriétaire du composant
 
 ### Flux nominal — Prix défini
 
-1. L'utilisateur définit le prix unitaire
-2. Il sélectionne la devise
-3. Il valide la transaction sur la blockchain
+1. Le prix unitaire et la devise sont transmis
+2. La transaction est validée sur la blockchain
 
 ## Post-conditions
 
@@ -59,8 +60,8 @@ L'auteur d'un composant peut définir un prix unitaire pour l'utilisation commer
 ```plantuml
 @startuml
 skin rose
-:client1: <.. (assetD) :order x1
-:client2: <.. (ProductA) :order x10
+:consommateur1: <.. (assetD) :order x1
+:consommateur2: <.. (ProductA) :order x10
 (assetA) --> (assetB) :Variation
 (assetA) --> (assetC) :Extension
 (assetB) --> (assetD) :Amelioration
@@ -74,7 +75,9 @@ skin rose
 @enduml
 ```
 
-Le prix d'un composant dérivé doit tenir compte des licences et commissions définies sur chaque composant parent dans la chaîne de dérivation.
+Le prix d'un composant dérivé est fixé librement par son propriétaire (RM31, RM33), indépendamment du prix de ses parents. La compatibilité de licence avec chaque composant parent de la chaîne de dérivation est vérifiée séparément, à la soumission (RM03).
+
+#question La distribution de commission (RM23/RM24) traverse-t-elle la chaîne de dérivation (un auteur reçoit-il une part quand un composant dérivé de son travail est vendu) ou se limite-t-elle à la composition d'un module (seuls les auteurs des composants directement inclus dans le module livré sont rémunérés) ? Voir `specs/1-Expression/Regles_Metier.md` RM23 pour le détail de l'ambiguïté.
 
 ### Diagramme d'activités
 
@@ -83,9 +86,7 @@ Le prix d'un composant dérivé doit tenir compte des licences et commissions d�
 skin rose
 title Définir un prix sur un Composant propriétaire
 start
-:Accéder au composant et ouvrir la section "Tarification";
-:Définir le prix unitaire;
-:Sélectionner la devise;
+:Transmettre prix unitaire et devise (myr model price set);
 :Valider la transaction sur la blockchain;
 stop
 @enduml

@@ -36,6 +36,8 @@ UC2 ..> UC3 : <<include>>
 
 Un propriétaire peut transférer la propriété intellectuelle d'un composant ou module à un autre utilisateur ou organisation.
 
+Conformément au principe de parité CLI/REST, le transfert de propriété d'un asset doit pouvoir être initié en CLI pour le compte d'un propriétaire, au même titre que via l'interface graphique.
+
 ## Pré-conditions
 
 - Être connecté au réseau
@@ -43,14 +45,13 @@ Un propriétaire peut transférer la propriété intellectuelle d'un composant o
 
 ## Scénario
 
-**Étape initiale :** Le propriétaire accède à son asset et choisit "Transférer la propriété"
+**Étape initiale :** `myr model transfer <id> <destinataireID>` est exécutée (ou l'appel API équivalent), pour le compte du propriétaire
 
 ### Flux nominal — Transfert réussi
 
-1. Le propriétaire renseigne l'identifiant du destinataire
-2. Il confirme le transfert
-3. La transaction de transfert est soumise sur la blockchain
-4. Le destinataire reçoit une notification et accepte le transfert
+1. L'identifiant du destinataire est transmis
+2. La transaction de transfert est soumise sur la blockchain
+3. Le destinataire est notifié et accepte le transfert
 
 ### Flux alternatif — Transfert vers un réseau externe
 
@@ -71,9 +72,7 @@ Un propriétaire peut transférer la propriété intellectuelle d'un composant o
 skin rose
 title Transfert de propriété intellectuelle
 start
-:Accéder à l'asset et choisir "Transférer la propriété";
-:Renseigner l'identifiant du destinataire;
-:Confirmer le transfert;
+:Transmettre l'identifiant du destinataire (myr model transfer);
 if (Destinataire sur un réseau externe?) then (oui)
   :Générer un token de transfert signé cryptographiquement;
   :Notifier le destinataire sur son réseau avec le token;

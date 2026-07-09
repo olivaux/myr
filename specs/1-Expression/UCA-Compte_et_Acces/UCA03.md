@@ -28,26 +28,24 @@ U --> UC1
 
 ## Contexte
 
-L'utilisateur arrive à se déconnecter du réseau depuis l'interface.
+Un client (interface graphique tierce, script, plugin...) met fin à une session active en invalidant son token.
 
 ## Pré-conditions
 
-- Être connecté au réseau
+- Disposer d'un token de session valide
 
 ## Scénario
 
-**Étape initiale :** L'utilisateur clique sur le bouton de déconnexion
+**Étape initiale :** Le client transmet son token de session (`X-Myr-Token`) pour clôturer la session
 
 ### Flux nominal — Déconnexion réussie
 
-1. La session est fermée
-2. Le voyant de connexion passe au rouge
-3. L'utilisateur est redirigé vers l'écran de connexion
+1. La session associée au token est invalidée côté serveur
+2. Toute requête ultérieure avec ce token est rejetée (`401 Unauthorized`)
 
 ## Post-conditions
 
-- La session est terminée
-- Le voyant de connexion est rouge
+- La session est terminée et le token n'est plus valide
 
 ## Diagramme d'activités
 
@@ -56,10 +54,9 @@ L'utilisateur arrive à se déconnecter du réseau depuis l'interface.
 skin rose
 title Se Déconnecter
 start
-:Cliquer sur le bouton de déconnexion;
-:Fermer la session;
-:Passer le voyant de connexion au rouge;
-:Rediriger vers l'écran de connexion;
+:Transmettre le token de session à invalider;
+:Fermer la session côté serveur;
+:Rejeter toute requête ultérieure avec ce token (401);
 stop
 @enduml
 ```

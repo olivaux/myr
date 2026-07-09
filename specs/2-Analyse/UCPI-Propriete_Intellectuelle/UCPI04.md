@@ -34,7 +34,7 @@ UC1 ..> UC3 : <<include>>
 
 Un concepteur propriétaire d'un composant peut lui attribuer un prix unitaire pour son utilisation commerciale. Contrairement aux transactions du domaine (assets, liaisons, modules), ce prix n'est **pas** une donnée blockchain : il est enregistré localement côté serveur (`adapters/out/localstorage/`) et reste mutable (RM31, RM33) — voir UCPI11 pour sa modification ultérieure. Il s'applique automatiquement lors de chaque commande créée après son enregistrement, et contribue au calcul des commissions distribuées à la livraison (RM23, RM24), au taux défini par le réseau (RM29).
 
-Le prix d'un composant dans la chaîne de dérivation remonte vers les modules qui l'intègrent — tout composant dérivé doit tenir compte du prix de ses parents pour calculer les commissions amont.
+Le prix de chaque composant contribue à l'agrégation du prix des modules qui l'intègrent (RM30). #question Le calcul des commissions à la livraison remonte-t-il aussi vers les auteurs de la chaîne de dérivation ("commissions amont") ou se limite-t-il aux auteurs directement constitutifs du module livré ? Voir `specs/1-Expression/Regles_Metier.md` RM23 — non tranché, `DC_D7_Payment.md` §4 n'implémente actuellement que la composition.
 
 ## Pré-conditions
 

@@ -66,6 +66,7 @@ Conformément au principe de parité CLI/REST (« le CLI n'est pas un citoyen de
 - La commande est enregistrée sur la blockchain
 - L'utilisateur reçoit une confirmation
 - La livraison est en cours de traitement
+- Le paiement enregistré est une obligation traçable sur le réseau, pas un flux financier réel géré par le système : aucun escrow n'est mis en place, l'encaissement effectif entre le consommateur et la boutique/le manufactureur se fait hors système
 
 ## Diagrammes
 

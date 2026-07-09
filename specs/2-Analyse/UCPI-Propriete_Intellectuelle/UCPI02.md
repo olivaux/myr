@@ -41,7 +41,7 @@ UC4 ..> UC5 : <<include>>
 
 ## Contexte
 
-Lorsqu'un module est commandé et livré, le smart contract Fabric calcule automatiquement les commissions dues à chaque auteur impliqué dans la chaîne de propriété du module (composants constitutifs, dérivations). La distribution est atomique avec la confirmation de livraison — RM23 impose que les commissions soient distribuées **par** le smart contract, sans intervention humaine.
+Lorsqu'un module est commandé et livré, le smart contract Fabric calcule automatiquement les commissions dues à chaque auteur impliqué dans la chaîne de propriété du module (composants constitutifs, dérivations #question — voir `specs/1-Expression/Regles_Metier.md` RM23 : le périmètre exact "composition" vs "dérivation" n'est pas tranché). La distribution est atomique avec la confirmation de livraison — RM23 impose que les commissions soient distribuées **par** le smart contract, sans intervention humaine.
 
 Ce use case est déclenché par UCAUT01 (livraison confirmée) et non directement par le consommateur. Le concepteur est un acteur passif : il reçoit, il ne demande pas.
 

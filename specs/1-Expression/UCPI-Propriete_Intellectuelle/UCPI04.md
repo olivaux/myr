@@ -60,8 +60,8 @@ Conformément au principe de parité CLI/REST, la définition d'un prix sur un c
 ```plantuml
 @startuml
 skin rose
-:client1: <.. (assetD) :order x1
-:client2: <.. (ProductA) :order x10
+:consommateur1: <.. (assetD) :order x1
+:consommateur2: <.. (ProductA) :order x10
 (assetA) --> (assetB) :Variation
 (assetA) --> (assetC) :Extension
 (assetB) --> (assetD) :Amelioration
@@ -75,7 +75,9 @@ skin rose
 @enduml
 ```
 
-Le prix d'un composant dérivé doit tenir compte des licences et commissions définies sur chaque composant parent dans la chaîne de dérivation.
+Le prix d'un composant dérivé est fixé librement par son propriétaire (RM31, RM33), indépendamment du prix de ses parents. La compatibilité de licence avec chaque composant parent de la chaîne de dérivation est vérifiée séparément, à la soumission (RM03).
+
+#question La distribution de commission (RM23/RM24) traverse-t-elle la chaîne de dérivation (un auteur reçoit-il une part quand un composant dérivé de son travail est vendu) ou se limite-t-elle à la composition d'un module (seuls les auteurs des composants directement inclus dans le module livré sont rémunérés) ? Voir `specs/1-Expression/Regles_Metier.md` RM23 pour le détail de l'ambiguïté.
 
 ### Diagramme d'activités
 

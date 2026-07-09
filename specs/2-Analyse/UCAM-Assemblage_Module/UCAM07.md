@@ -1,5 +1,5 @@
 ---
-categorie: Atelier Module
+categorie: Assemblage Module
 titre: "Choisir un asset d'accroche (Fastener)"
 probabilite: 3
 impact: 3

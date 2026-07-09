@@ -1,5 +1,5 @@
 ---
-categorie: Atelier Module
+categorie: Assemblage Module
 titre: "Transformation d'un composant en module"
 probabilite: 1
 impact: 4

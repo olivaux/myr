@@ -6,7 +6,7 @@
 
 ## 1. Principes
 
-L'architecture hexagonale (Ports & Adapters) garantit que la logique métier (`domain/`) est indépendante de toute technologie d'infrastructure. Le domaine ne connaît que des **interfaces Go** — jamais de références à Fabric, SQLite, Redis ou IPFS.
+L'architecture hexagonale (Ports & Adapters) garantit que la logique métier (`domain/`) est indépendante de toute technologie d'infrastructure. Le domaine ne connaît que des **interfaces Go** — jamais de références à Fabric, Redis ou IPFS.
 
 **Règle de dépendance :** les dépendances pointent toujours **vers l'intérieur** (vers le domaine). Le domaine ne dépend de rien d'externe.
 
@@ -38,8 +38,8 @@ Cela vaut pour toutes les couches d'infrastructure :
 |---|---|---|
 | `BlockchainPort` | Fabric, JSON local, *(futur : Ethereum, Substrate…)* | Backend blockchain du réseau |
 | `FileStoragePort` | IPFS, stockage local, *(futur : S3, Filecoin…)* | Stockage des fichiers 3D |
-| `UserStore` / `WalletStore` | SQLite, *(futur : PostgreSQL)* | Base de données locale |
-| `SessionService` | Fichier local, Redis | Sessions (mono vs multi-instances) |
+| `IdentityPort` / `CAPort` | Fabric CA (certificats + fichiers wallet PEM locaux, non chiffrés — ADR-03) | Identité cryptographique — pas de base de données, pas de secret partagé |
+| `SessionService` | Fichier local / JSON, Redis | Sessions REST (mono vs multi-instances) |
 
 **Règle de sélection :** le choix de l'implémentation concrète se fait **uniquement dans `cmd/`** (point d'assemblage), à partir de la configuration active (profil réseau, variables d'environnement). Le domaine reçoit des interfaces déjà instanciées — il ne sait pas quelle implémentation est derrière.
 
@@ -88,8 +88,8 @@ package "Domaine métier\n(domain/)" #fff9c4 {
 
   package "Ports entrants (interfaces Go)" {
     interface "ModelService" as IModel
-    interface "AuthService" as IAuth
     interface "IdentityService" as IIdentity
+    interface "RoleService" as IRole
     interface "NetworkService" as INetwork
     interface "ChannelService" as IChannel
     interface "PaymentService" as IPayment
@@ -98,12 +98,12 @@ package "Domaine métier\n(domain/)" #fff9c4 {
 
   package "Implémentations service" {
     [model.Service\ndomain/model/service.go] as SvcModel
-    [auth.Service\ndomain/auth/service.go] as SvcAuth
     [identity.Service\ndomain/identity/service.go] as SvcIdentity
+    [role.Service\ndomain/role/service.go] as SvcRole
     [network.Service\ndomain/network/service.go] as SvcNetwork
     [channel.Service\ndomain/channel/service.go] as SvcChannel
     [payment.Service\ndomain/payment/service.go] as SvcPayment
-    [session.Service\ndomain/session/service.go] as SvcSession
+    [session.Service\ndomain/session/service.go\n(non câblé — voir §4)] as SvcSession
   }
 
   package "Ports sortants (interfaces Go)" {
@@ -112,13 +112,12 @@ package "Domaine métier\n(domain/)" #fff9c4 {
     interface "ConnectionStore" as PConn
     interface "InterfaceStore" as PIface
     interface "ThumbnailStore" as PThumb
-    interface "UserStore" as PUser
-    interface "TokenStore" as PToken
-    interface "WalletStore" as PWallet
-    interface "NetworkStore" as PNet
     interface "CAPort" as PCA
     interface "RequestStore" as PReq
+    interface "role.Repo" as PRole
+    interface "NetworkStore" as PNet
     interface "PaymentPort" as PPay
+    interface "session.Store" as PSess
   }
 }
 
@@ -127,41 +126,35 @@ package "Adapters sortants" #f0f4e8 {
   [FabricBlockchain\nadapters/out/fabric/\nblockchain.go] as AdFabric
   [JSONBlockchain (fallback)\nadapters/out/localstorage/\njson_blockchain.go] as AdJSON
   [IPFSStorage\nadapters/out/ipfs/] as AdIPFS
-  [SQLiteStore\nadapters/out/sqlite/] as AdSQLite
-  [LocalStore\nadapters/out/localstorage/] as AdLocal
+  [LocalStore\nadapters/out/localstorage/\nrole_store.go, request_store.go,\nsession_store.go, network_store.go...] as AdLocal
 }
 
 ' ── Infrastructure ───────────────────────────────────
 package "Infrastructure" {
   database "HyperLedger Fabric\n(Ledger)" as HLF
   database "IPFS\n(Fichiers 3D)" as IPFSdb
-  database "SQLite\nmyr.db" as SQLiteDB
-  database "JSON files\ndata/" as JSONdb
-}
-
-' ── SPA ──────────────────────────────────────────────
-package "Frontend" {
-  [SPA Vanilla JS\nui/static/] as SPA
+  database "JSON files\ndata/, ~/.Myr/" as JSONdb
+  database "Fichiers MSP\n~/.Myr/wallets/ (non chiffrés)" as MSPFiles
 }
 
 ' ── Connexions ───────────────────────────────────────
 App --> REST
-App --> SPA : embed.FS
 CLI --> CLIHandler
 
 REST --> IModel
-REST --> IAuth
 REST --> IIdentity
+REST --> IRole
 REST --> INetwork
 REST --> IChannel
 CLIHandler --> IModel
-CLIHandler --> IAuth
+CLIHandler --> IIdentity
+CLIHandler --> IRole
 CLIHandler --> IChannel
 CLIHandler --> IPayment
 
 IModel <|.. SvcModel
-IAuth <|.. SvcAuth
 IIdentity <|.. SvcIdentity
+IRole <|.. SvcRole
 INetwork <|.. SvcNetwork
 IChannel <|.. SvcChannel
 IPayment <|.. SvcPayment
@@ -172,14 +165,12 @@ SvcModel --> PFS
 SvcModel --> PConn
 SvcModel --> PIface
 SvcModel --> PThumb
-SvcAuth --> PUser
-SvcAuth --> PToken
-SvcAuth --> PWallet
 SvcIdentity --> PCA
 SvcIdentity --> PReq
+SvcRole --> PRole
 SvcNetwork --> PNet
 SvcPayment --> PPay
-SvcSession --> PUser
+SvcSession --> PSess
 
 PBC <|.. AdFabric
 PBC <|.. AdJSON
@@ -189,17 +180,16 @@ PIface <|.. AdLocal
 PThumb <|.. AdLocal
 PNet <|.. AdLocal
 PReq <|.. AdLocal
-PUser <|.. AdSQLite
-PToken <|.. AdSQLite
-PWallet <|.. AdSQLite
+PRole <|.. AdLocal
+PSess <|.. AdLocal
 PCA <|.. AdFabric
 PPay <|.. AdFabric
 
 AdFabric --> HLF
 AdIPFS --> IPFSdb
-AdSQLite --> SQLiteDB
 AdJSON --> JSONdb
 AdLocal --> JSONdb
+SvcIdentity ..> MSPFiles : wallets locaux\n(fichiers PEM, non chiffrés)
 
 @enduml
 ```
@@ -208,20 +198,20 @@ AdLocal --> JSONdb
 
 ## 3. Règle de dépendance — vérification CI
 
-Le script `scripts/ci/check-domain-imports.sh` vérifie qu'aucun fichier dans `domain/` n'importe de packages infrastructure :
+Le script `scripts/ci/check-domain-imports.sh` vérifie qu'aucun package de `domain/...` ne dépend — directement ou transitivement — d'un package d'infrastructure. Il résout l'arbre de dépendances complet via `go list -deps` (un grep sur les lignes d'import raterait les imports transitifs) et le compare à une liste de motifs interdits :
 
 ```bash
-# check-domain-imports.sh (principe)
-forbidden=("fabric" "redis" "sqlite" "ipfs" "net/http")
-for pkg in "${forbidden[@]}"; do
-  if grep -r "\"$pkg" domain/; then
-    echo "ERREUR : import interdit dans domain/"
-    exit 1
-  fi
+# check-domain-imports.sh (principe réel — voir le script pour la version complète)
+forbidden_patterns=("myr/adapters/out" "github.com/hyperledger/fabric-gateway" "github.com/redis/go-redis" "google.golang.org/grpc" "net/http")
+for pkg in $(go list ./domain/...); do
+  deps="$(go list -deps "$pkg")"
+  for forbidden in "${forbidden_patterns[@]}"; do
+    grep -qF "$forbidden" <<<"$deps" && echo "ERREUR : $pkg dépend de $forbidden" && exit 1
+  done
 done
 ```
 
-**Violation → build CI échoue.**
+**Violation → build CI échoue.** Voir `scripts/ci/check-domain-imports.sh` pour l'usage et `check-licenses.sh` (ENF25).
 
 ---
 
@@ -229,17 +219,19 @@ done
 
 | Adapter | Package | Port consommé | Rôle |
 |---------|---------|--------------|------|
-| REST Handler | `adapters/in/rest/` | ModelService, AuthService, IdentityService, NetworkService, ChannelService | Sert l'API REST et le GUI embarqué |
-| CLI Handler | `adapters/in/cli/` | ModelService, AuthService, ChannelService, PaymentService | Commandes cobra CLI admin |
+| REST Handler | `adapters/in/rest/` | ModelService, IdentityService, RoleService, NetworkService, ChannelService | Sert exclusivement l'API REST (consommée par le dépôt GUI externe) |
+| CLI Handler | `adapters/in/cli/` | ModelService, IdentityService, RoleService, ChannelService, PaymentService | Commandes cobra CLI admin |
 
 ### Routes REST — niveaux d'accès
 
 | Niveau | Middleware | Exemples de routes |
 |--------|-----------|-------------------|
-| Public | aucun | `/api/auth/register`, `/api/auth/login`, `/api/identity/policy` |
-| Authentifié (`reader+`) | `requireAuth` | `GET /api/components`, `GET /api/modules`, `/api/refs` |
-| Contributeur (`contributor+`) | `requireRole("contributor")` | `POST /api/components`, `PUT /api/modules/`, `POST /api/assembly-links` |
-| Admin | `requireRole("admin")` | `/api/admin/users`, `/api/admin/sessions` |
+| Public | aucun | `POST /api/identity/request`, `POST /api/identity/session`, `POST /api/identity/guest`, `GET /api/identity/policy` |
+| Authentifié (permission `read`) | `requireAuth` | `GET /api/components`, `GET /api/modules`, `/api/refs` |
+| Écriture (permission `write`) | `requireRole(rbac.PermWrite)` | `POST /api/components`, `PUT /api/modules/`, `POST /api/assembly-links` |
+| Admin (permission `admin`) | `requireRole(rbac.PermAdmin)` | `GET/DELETE /api/admin/sessions` |
+
+> Le token de session est un jeton opaque (`X-Myr-Token`) vérifié par `requireAuth`, pas un JWT décodé côté handler. La permission est vérifiée via `domain/role.RoleService.HasPermission`, pas par une comparaison de chaîne de rôle codée en dur.
 
 ---
 
@@ -250,8 +242,9 @@ done
 | `FabricBlockchain` | `adapters/out/fabric/` | `BlockchainPort`, `CAPort`, `PaymentPort` | HyperLedger Fabric Gateway SDK v2 |
 | `JSONBlockchain` | `adapters/out/localstorage/` | `BlockchainPort` | JSON files (fallback sans Fabric) |
 | `IPFSStorage` | `adapters/out/ipfs/` | `FileStoragePort` | IPFS (stockage fichiers 3D) |
-| `SQLiteStore` | `adapters/out/sqlite/` | `UserStore`, `TokenStore`, `WalletStore` | SQLite (`myr.db`) |
-| `LocalStore` | `adapters/out/localstorage/` | `ConnectionStore`, `InterfaceStore`, `ThumbnailStore`, `NetworkStore`, `RequestStore` | JSON files (`data/`) |
+| `LocalStore` | `adapters/out/localstorage/` | `ConnectionStore`, `InterfaceStore`, `ThumbnailStore`, `NetworkStore`, `RequestStore`, `role.Repo`, `session.Store` | JSON files (`data/`) + fichiers MSP non chiffrés (wallets, `~/.Myr/wallets/`) |
+
+> **`AssetInterface` (ADR-02) :** `InterfaceStore` est un **brouillon** — l'état de travail d'une interface tant que l'asset qui la porte n'est pas soumis. À la soumission (création d'un composant ou `SubmitModule`), les interfaces du brouillon sont embarquées dans `Model3D.Interfaces` et écrites une seule fois via `BlockchainPort` (`FabricBlockchain` ou son fallback `JSONBlockchain`). `InterfaceStore` n'est donc pas une persistance parallèle définitive : c'est la source de vérité avant soumission, la blockchain devenant la source de vérité après.
 
 ---
 
@@ -302,16 +295,16 @@ BlockchainPort <|.. JSONBlockchain : dev/test fallback
 
 ```
 main.go
-├── Crée SQLiteStore(dbPath, encKey)
-├── Crée FabricBlockchain(networkProfile) ou JSONBlockchain()
-├── Crée IPFSStorage() ou LocalFileStorage()
-├── Crée LocalStore(dataDir)
-├── Injecte dans model.NewService(blockchain, storage, connStore, ifaceStore, ...)
-├── Injecte dans auth.NewService(userStore, tokenStore, walletStore, jwtSecret)
-├── Injecte dans identity.NewService(caPort, requestStore)
-├── Crée Handler(modelSvc, authSvc, identitySvc, ...)
+├── Crée FabricBlockchain(networkProfile) ou JSONModuleStore (fallback)
+├── Crée IPFSStorage() ou LocalStorage()
+├── Crée LocalStore(dataDir) — connexions, interfaces (brouillon), rôles, requêtes de compte...
+├── Injecte dans model.NewService(blockchain, storage).WithConnStore(...).WithIfaceStore(...) — les interfaces ne rejoignent `blockchain` (Model3D.Interfaces) qu'à la soumission de l'asset
+├── Crée identity.NewService(walletDir, caPort).WithRequestStore(requestStore)
+├── Crée role.NewService(roleStore)
+├── Crée network.NewService(networkStore, nil)
+├── Crée Handler(modelSvc, ...).WithIdentityService(...).WithNetworkService(...).WithRoleService(...)
 ├── Crée Server(handler, addr)
-└── Server.Start()
+└── Server.StartWithShutdown(ctx)
 ```
 
 ---
@@ -320,9 +313,5 @@ main.go
 
 | Variable | Requis | Effet |
 |----------|--------|-------|
-| `JWT_SECRET` | ✅ pour auth JWT | Active l'authentification email/password — absent = auth désactivée |
-| `WALLET_ENCRYPT_KEY` | ✅ pour wallets | Clé AES-256 chiffrement/déchiffrement wallets SQLite |
-| `MYR_DB_PATH` | ❌ | Chemin SQLite — défaut : `<data>/myr.db` |
-| `REDIS_URL` | ❌ | Active les sessions partagées Redis (multi-instances) |
-| `MYR_DEV` | ❌ | `=1` : sert les statiques depuis le disque (hot-reload frontend) |
+| `REDIS_URL` | ❌ | Active les sessions REST partagées Redis (multi-instances) |
 | Variables Fabric | ✅ pour Fabric | Lues via `fabricadapter.ConfigFromEnv()` ou fichier `fabric.env` |

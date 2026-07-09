@@ -50,7 +50,7 @@ package "domain/network" {
 
   note right of NetworkProfile
     ServerURL non vide = mode multi-tenant :
-    le GUI délègue les demandes d'identité
+    le client délègue les demandes d'identité
     au MYR Server de l'organisation.
     Vide = mode standalone (dev).
   end note
@@ -331,7 +331,7 @@ Annuaire des peers : déclaré dans `configtx.yaml`, distribué sur le ledger. C
 |----|---------|--------|
 | DC-D2-01 | `NetworkProfile` ne modélise pas les peers individuels | Myr se connecte à **un seul peer** par organisation. La topologie multi-peer est gérée par Fabric. Modéliser les peers dans Myr serait une duplication inutile. |
 | DC-D2-02 | `Channel` est en lecture seule | La création de canaux Fabric requiert des opérations d'admin (configtx, genesis block) hors du périmètre de l'API myr-app v1. |
-| DC-D2-03 | `ServerURL` permet le mode multi-tenant | Sans `ServerURL`, myr-app gère lui-même les identités CA (mode standalone, dev). Avec `ServerURL`, le GUI délègue au MYR Server central de l'organisation. |
+| DC-D2-03 | `ServerURL` permet le mode multi-tenant | Sans `ServerURL`, myr-app gère lui-même les identités CA (mode standalone, dev). Avec `ServerURL`, le client délègue au MYR Server central de l'organisation. |
 | DC-D2-04 | Politique d'accès dans `NetworkProfile` | L'admin configure `AllowAutoGuest` et `AllowAutoRegister` au niveau du réseau — pas au niveau de l'application. Permet des réseaux publics ou privés selon le contexte. |
 | DC-D2-05 | Démantèlement réseau dans le CLI Handler, pas dans le domaine | Les opérations OS (arrêt processus, suppression fichiers) violent ENF18 si placées dans `domain/network/`. Elles restent dans `adapters/in/cli/`. Le domaine ne fait que `NetworkService.Delete(id)`. |
 | DC-D2-06 | `IsProduction` dans `NetworkProfile` pour protéger les réseaux réels | `myr network destroy` refuse d'agir sur `IsProduction: true`. Évite un démantèlement accidentel d'un réseau de production par une commande de test. |

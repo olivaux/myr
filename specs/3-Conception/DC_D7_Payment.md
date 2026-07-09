@@ -245,7 +245,7 @@ interface PaymentPort {
 
 | Écart | Impact |
 |-------|--------|
-| Aucun endpoint REST pour le domaine payment | Tout D7 est inaccessible depuis le GUI et l'API |
+| Aucun endpoint REST pour le domaine payment | Tout D7 est inaccessible depuis l'API — donc depuis tout client (dépôt GUI externe compris) |
 | `Payment` est un paiement manuel sans distribution automatique | RM23/RM24 non implémentées |
 | Smart contract de commission absent du chaincode | Bloquerait UCAUT01 en production |
 | Entités Order, Commission, AssetPrice, PITransfer, CloneRecord absentes | UCPI01-09 entièrement non implémentables |

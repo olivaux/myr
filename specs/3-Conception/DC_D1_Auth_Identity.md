@@ -1,14 +1,15 @@
-# DC — D1 : Auth, Identity et Session
+# DC — D1 : Identité, RBAC et Session
 
 ## 1. Objectif
 
-Ce document couvre les trois domaines qui composent la couche identité du système Myr :
+Ce document couvre les domaines qui composent la couche accès du système Myr. **Il n'existe pas de domaine `auth` au sens email/mot de passe/JWT** — l'architecture repose sur quatre pièces distinctes :
 
-- **auth** : gestion des comptes web avec authentification JWT (email/password), refresh tokens et wallets Fabric chiffrés en SQLite.
-- **identity** : gestion des identités blockchain Fabric CA — enrôlement X.509, wallets locaux MSP, demandes d'accès.
-- **session** : session locale mono-utilisateur persistée en JSON (pseudo@org courant).
+- **`domain/identity`** : identité cryptographique Fabric CA — enrôlement X.509, wallets locaux MSP, demandes d'accès (`AccountRequest`). C'est la seule source de vérité de « qui est quelqu'un ».
+- **`domain/role`** : RBAC dynamique — un catalogue de permissions (`read`, `write`, `network.admin`, `role.admin`, `identity.admin`, `admin`) et des rôles (4 intégrés + rôles personnalisés) associant un sous-ensemble de ces permissions.
+- **Sessions REST** (`adapters/in/rest/session.go`, `session_redis.go`) : couche adaptateur (pas un domaine) qui émet un **token opaque** (32 octets aléatoires hex, pas un JWT) après un enrôlement CA réussi ou un accès invité, et le fait correspondre à `{role, pseudo, channel}` pendant 7 jours.
+- **`domain/session`** : concept **sans rapport** avec les sessions REST ci-dessus — c'est le compte local de la machine exécutant le CLI `myr` (`{Name, OrgID}`, un seul enregistrement, bootstrap au premier lancement). Nommage historique malheureux à ne pas confondre.
 
-Ces trois domaines modélisent le même utilisateur sous deux angles distincts : un compte applicatif web (`User`) et une identité cryptographique sur la blockchain Hyperledger Fabric (`MyrIdentity`). La relation entre les deux est un mapping intentionnel, non une dépendance directe.
+Il n'y a ni bcrypt, ni JWT, ni table SQL utilisateur nulle part dans le code — aucun adapter `sqlite` n'existe dans `adapters/out/`.
 
 ---
 
@@ -20,70 +21,6 @@ skinparam classAttributeIconSize 0
 skinparam class {
   BackgroundColor #FEFECE
   BorderColor #A80036
-}
-
-package "domain/auth" {
-
-  class User {
-    + ID : string
-    + Email : string
-    + Password : string <<bcrypt>>
-    + DisplayName : string
-    + Role : AuthRole
-    + OrgID : string
-    + Status : UserStatus
-    + CreatedAt : time.Time
-  }
-
-  enum AuthRole {
-    reader
-    contributor
-    admin
-  }
-
-  enum UserStatus {
-    active
-    suspended
-  }
-
-  class RefreshToken {
-    + ID : string
-    + UserID : string
-    + TokenHash : string <<SHA-256 hex>>
-    + ExpiresAt : time.Time
-    + CreatedAt : time.Time
-  }
-
-  class EncryptedWallet {
-    + UserID : string
-    + Handle : string <<pseudo@org>>
-    + OrgID : string
-    + CertPEM : string <<X.509 Fabric CA>>
-    + EncKey : string <<AES-256-GCM, base64(ciphertext+tag)>>
-    + KeyIV : string <<12 bytes, base64>>
-    + CACertPEM : string
-    + Status : WalletStatus
-    + CreatedAt : time.Time
-  }
-
-  enum WalletStatus {
-    pending
-    active
-  }
-
-  class Claims {
-    + UserID : string
-    + Email : string
-    + Role : string
-    + OrgID : string
-    + DisplayName : string
-  }
-
-  User "1" --> "0..*" RefreshToken : owns
-  User "1" --> "0..*" EncryptedWallet : secures
-  User ..> AuthRole : uses
-  User ..> UserStatus : uses
-  EncryptedWallet ..> WalletStatus : uses
 }
 
 package "domain/identity" {
@@ -100,14 +37,7 @@ package "domain/identity" {
     + IPAgreedAt : time.Time
     + CreatedAt : time.Time
     + Status : IdentityStatus
-    + Role : FabricRole
-  }
-
-  enum FabricRole {
-    reader
-    contributor
-    auditor
-    admin
+    + Role : string
   }
 
   enum IdentityStatus {
@@ -120,7 +50,7 @@ package "domain/identity" {
     + Handle : string <<pseudo@org>>
     + Name : string
     + OrgID : string
-    + Status : IdentityStatus
+    + Status : string
     + MSPDir : string <<chemin absolu MSP>>
   }
 
@@ -141,7 +71,7 @@ package "domain/identity" {
     + DisplayName : string
     + Email : string
     + OrgID : string
-    + Message : string
+    + Message : string <<texte libre — pas de champ "rôle souhaité">>
     + Status : RequestStatus
     + CreatedAt : string <<ISO 8601>>
   }
@@ -152,10 +82,43 @@ package "domain/identity" {
     rejected
   }
 
-  MyrIdentity ..> FabricRole : uses
   MyrIdentity ..> IdentityStatus : uses
-  WalletEntry ..> IdentityStatus : uses
+  WalletEntry ..> IdentityStatus : uses (statut lu depuis le certificat)
   AccountRequest ..> RequestStatus : uses
+}
+
+package "domain/role" {
+
+  class Role {
+    + ID : string
+    + Name : string
+    + Permissions : []Permission
+    + BuiltIn : bool
+    + CreatedAt : time.Time
+  }
+
+  enum Permission {
+    read
+    write
+    network.admin
+    role.admin
+    identity.admin
+    admin
+  }
+
+  Role "1" --> "0..*" Permission : grants
+}
+
+package "adapters/in/rest (pas un domaine)" {
+
+  class myrSession {
+    + Token : string <<32 octets aléatoires, hex>>
+    + Role : string
+    + Pseudo : string
+    + Channel : string
+    + NetworkID : string
+    + ExpiresAt : time.Time
+  }
 }
 
 package "domain/session" {
@@ -165,13 +128,17 @@ package "domain/session" {
     + OrgID : string
     + CreatedAt : time.Time
   }
+  note right of Session
+    Compte local CLI (bootstrap machine),
+    SANS RAPPORT avec myrSession ci-dessus
+    malgré le nom partagé.
+  end note
 }
 
 ' Relations inter-domaines
-User .. MyrIdentity : <<mapping conceptuel>>\nmême utilisateur, deux systèmes
-User::Handle <.. EncryptedWallet : Handle = pseudo@org
-WalletEntry .. EncryptedWallet : <<vue locale MSP>>\nvs <<SQLite chiffré>>
-Session ..> WalletEntry : référence le wallet actif\n(Name = Handle)
+WalletEntry ..> MyrIdentity : vue locale (fichiers MSP)\nd'une identité enregistrée en CA
+myrSession ..> MyrIdentity : créée après un Enroll() réussi\n(rôle figé à la création, non resynchronisé)
+myrSession ..> Role : Role vérifié via RoleService.HasPermission
 
 @enduml
 ```
@@ -180,116 +147,77 @@ Session ..> WalletEntry : référence le wallet actif\n(Name = Handle)
 
 ## 3. Description des classes
 
-### User (domain/auth)
+### MyrIdentity (`domain/identity`)
 
-- **Rôle :** Compte applicatif web. Utilisé pour l'authentification email/password et l'émission de JWT. Persiste dans SQLite via `UserStore`.
-- **Invariants :**
-  - `Email` est unique dans le système.
-  - `Password` est toujours stocké en hash bcrypt — jamais en clair.
-  - `Role` à la création doit être `reader` (voir Écart E3 — le code actuel assigne `contributor` en violation de RM21).
-  - `Status` est `active` ou `suspended` — un utilisateur suspendu ne peut pas se connecter.
-  - `OrgID` référence l'organisation Fabric de rattachement (ex : `Org1MSP`).
-- **Cycle de vie :** `Register` → `active` ; `SetUserStatus(suspended)` → `suspended` ; pas de suppression.
-
-### RefreshToken (domain/auth)
-
-- **Rôle :** Token opaque persisté (hash SHA-256) permettant de renouveler l'access token JWT sans re-authentification.
-- **Invariants :**
-  - `TokenHash` est le SHA-256 hex du token brut transmis au client — jamais le token brut.
-  - `ExpiresAt` est obligatoire et définit la durée de validité.
-  - Un token expiré doit être supprimé par `DeleteExpired()`.
-- **Cycle de vie :** Créé à la connexion, invalidé à la déconnexion ou à l'expiration.
-
-### EncryptedWallet (domain/auth)
-
-- **Rôle :** Représentation SQLite d'un wallet Fabric CA. Contient le certificat X.509 (`CertPEM`) et la clé privée chiffrée (`EncKey`). Permet à l'application de signer des transactions Fabric au nom de l'utilisateur.
-- **Invariants :**
-  - `Handle` suit le format `pseudo@org` (ex : `alice@Org1`).
-  - `EncKey` est chiffré AES-256-GCM avec la clé d'environnement `WALLET_ENCRYPT_KEY`. La valeur brute n'est jamais stockée.
-  - `KeyIV` est un vecteur d'initialisation de 12 bytes encodé en base64 — unique par wallet.
-  - `CertPEM` contient le certificat X.509 délivré par la Fabric CA.
-  - `Status = pending` jusqu'à l'enrôlement effectif ; `active` après.
-- **Cycle de vie :** `EnrollWallet` → `pending` → enrôlement Fabric CA réussi → `active`.
-
-### Claims (domain/auth)
-
-- **Rôle :** Contenu décodé d'un JWT access token. Valeur passagère, non persistée.
-- **Invariants :** `UserID` (`sub`) est toujours présent et non vide.
-
-### MyrIdentity (domain/identity)
-
-- **Rôle :** Identité blockchain d'un auteur dans le réseau Myr. Les attributs `Status`, `Role` et `Channels` sont écrits dans le certificat X.509 par la Fabric CA.
+- **Rôle :** Identité blockchain d'un auteur dans le réseau Myr. Les attributs `Status` et `Role` sont écrits dans le certificat X.509 par la Fabric CA (attribut `Myr.role`).
 - **Invariants :**
   - `IPAgreement` doit être `true` avant tout acte de publication sur la blockchain.
   - `LicenseDefault` définit la licence par défaut appliquée aux créations de cet auteur.
-  - `Role` peut être `reader`, `contributor`, `auditor` ou `admin` — différent du rôle web JWT.
-  - `Status` reflète l'état de l'identité dans la CA Fabric — pas l'état du compte web.
-- **Cycle de vie :** `pending` → `Register` + `Enroll` → `active` ; `suspended` via admin CA.
+  - `Role` est une chaîne libre — sa validité vis-à-vis du catalogue RBAC (`domain/role`) n'est pas vérifiée à ce niveau.
+  - `Status` reflète l'état de l'identité dans la CA Fabric.
+- **Cycle de vie :** `pending` (demande soumise ou enregistrée) → `Register` + `Enroll` → `active` ; `suspended` via admin CA.
 
-### WalletEntry (domain/identity)
+### WalletEntry (`domain/identity`)
 
-- **Rôle :** Vue locale d'un wallet Fabric (fichiers MSP sur disque). Lue depuis `~/.Myr/wallets/<handle>/msp/`. Complémentaire de `EncryptedWallet` (qui est la vue SQLite chiffrée).
+- **Rôle :** Vue locale d'un wallet Fabric (fichiers MSP sur disque, `~/.Myr/wallets/<handle>/msp/`). C'est la **seule** représentation du wallet — aucun miroir chiffré en base ne coexiste (pas de BDD relationnelle, cf. principe de décentralisation).
 - **Invariants :**
-  - `Handle` suit le format `pseudo@org` — identique à `EncryptedWallet.Handle`.
+  - `Handle` suit le format `pseudo@org` (ex : `alice@Org1`).
   - `MSPDir` est un chemin absolu vers le répertoire MSP local.
-  - `Status` est lu depuis le certificat X.509, pas depuis une base de données.
+  - `Status` est lu directement depuis le certificat X.509 local (`statusFromCert`), pas depuis une base de données.
 
-### RegisterRequest (domain/identity)
+### RegisterRequest (`domain/identity`)
 
-- **Rôle :** DTO de création d'identité auprès de la Fabric CA. Valeur éphémère, non persistée.
-- **Invariants :** `Password` (secret d'enrôlement) n'est jamais stocké.
+- **Rôle :** DTO de création d'identité auprès de la Fabric CA (`CAPort.Register`). Valeur éphémère, non persistée.
+- **Invariants :** `Password` (secret d'enrôlement) n'est jamais stocké par `myr` — seul le certificat/clé résultant de l'enrôlement l'est (dans le wallet local).
 
-### AccountRequest (domain/identity)
+### AccountRequest (`domain/identity`)
 
-- **Rôle :** Demande d'accès soumise par un inconnu avant la création de son compte. Stockée localement. Traitée par l'administrateur.
+- **Rôle :** Demande d'accès soumise par un inconnu avant l'obtention d'une identité CA. Stockée localement (`adapters/out/localstorage/request_store.go`), consultable par un administrateur.
 - **Invariants :**
   - `Status` initial est `pending`.
-  - `CreatedAt` est en ISO 8601 (type `string` dans le code — voir Écart E1).
-- **Cycle de vie :** `pending` → `approved` (admin crée le compte CA) | `rejected`.
+  - `CreatedAt` est une chaîne ISO 8601 (`string`, pas `time.Time`).
+  - **Aucun champ structuré pour un rôle souhaité** — seul `Message` (texte libre) existe (voir Écart E3).
+- **Cycle de vie :** `pending` → `approved` (auto-enregistrement CA réussi, voir UCA01) | reste `pending` indéfiniment en l'absence de mécanisme d'approbation manuelle (voir Écart E2).
 
-### Session (domain/session)
+### Role / Permission (`domain/role`)
 
-- **Rôle :** Session locale mono-utilisateur. Identifie le wallet actif de la session courante. Persistée en JSON.
+- **Rôle :** RBAC dynamique. `Permission` est un catalogue plat de 6 valeurs. `Role` associe un nom à un sous-ensemble de permissions.
 - **Invariants :**
-  - `Name` suit le format `pseudo@org` — correspond à `WalletEntry.Handle`.
-  - Un seul fichier session à la fois (pas de sessions multiples en mode local).
-- **Cycle de vie :** `Save` au démarrage ou changement de contexte ; `Clear` à la déconnexion.
+  - 4 rôles **intégrés** (`reader`, `contributor`, `auditor`, `admin`) existent toujours (créés par `seedBuiltins` à l'initialisation du service) et ne peuvent pas être modifiés ni supprimés (`ErrBuiltIn`).
+  - Le nom d'un rôle personnalisé doit respecter `^[a-z][a-z0-9_-]{1,63}$`.
+  - `HasPermission` échoue fermé : un rôle inconnu ne porte aucune permission.
+- **Cycle de vie :** `Create`/`Update`/`Delete` via `myr role ...` (CLI uniquement — pas de CRUD REST, seulement une consultation implicite par le middleware `requireRole`).
+
+### myrSession (adaptateur REST, `adapters/in/rest/session.go`)
+
+- **Rôle :** Jeton opaque de session HTTP. **Ce n'est pas une entité de domaine** — c'est un détail d'implémentation de l'adaptateur `in/rest`, documenté ici car il joue le rôle qu'un domaine `auth` aurait joué dans une architecture plus classique.
+- **Invariants :**
+  - `Token` est généré par `crypto/rand`, jamais dérivé de données utilisateur.
+  - `ExpiresAt` = création + 7 jours (`sessionTTL`), non renouvelable automatiquement.
+  - `Role` est fixé **une fois pour toutes à la création** de la session, sans resynchronisation ultérieure avec l'identité CA (voir `specs/roadmap_dev.md` § Écarts Identité & Session pour l'état de cette dépendance).
+- **Cycle de vie :** `create` (connexion ou invité) → `get` (vérifié à chaque requête protégée) → `delete` (révocation admin uniquement, pas de self-service) ou expiration naturelle.
+
+### Session (`domain/session`)
+
+- **Rôle :** Compte local **de la machine** exécutant le CLI `myr` — pas un compte utilisateur au sens web. Un seul enregistrement possible, persisté en JSON.
+- **Invariants :**
+  - `Name` suit le format `pseudo@org`.
+  - Un seul fichier session à la fois.
+- **Cycle de vie :** `Create` au premier lancement du CLI ; `Logout`/`Clear` réinitialise le fichier.
+- **Non wiré :** ni le CLI ni le REST n'appellent actuellement ce service (`grep` ne trouve aucun usage de `session.SessionService` dans `adapters/in/`) — le port existe, l'implémentation existe, mais rien ne l'utilise encore.
 
 ---
 
 ## 4. Relations et dépendances
 
-- **User → RefreshToken** : un utilisateur peut avoir plusieurs refresh tokens actifs (multi-device). Les tokens expirés sont purgés périodiquement.
-- **User → EncryptedWallet** : un utilisateur peut avoir plusieurs wallets (un par organisation Fabric). Le wallet est créé via `EnrollWallet` qui appelle la Fabric CA.
-- **User ↔ MyrIdentity** : mapping conceptuel entre les deux systèmes. Ils partagent `Email` et `OrgID` comme corrélateurs naturels, mais ne se référencent pas directement en code (les domaines sont indépendants).
-- **WalletEntry ↔ EncryptedWallet** : les deux représentent le même wallet Fabric, vu sous deux angles. `WalletEntry` est la vue fichier locale (MSP sur disque), `EncryptedWallet` est la vue SQLite (clé privée chiffrée AES-256-GCM). Le `Handle` est le lien commun.
-- **Session → WalletEntry** : `Session.Name` correspond à `WalletEntry.Handle` — identifie le wallet actif de la session CLI.
+- **WalletEntry → MyrIdentity** : `WalletEntry` est la vue fichier locale d'une identité enregistrée auprès de la CA ; il n'existe pas de seconde vue chiffrée en base (pas de BDD relationnelle, cf. principe de décentralisation).
+- **myrSession → MyrIdentity** : une session REST est créée après un enrôlement CA réussi (`POST /api/identity/session`), mais **ne référence pas** l'identité après coup — son champ `Role` est une copie figée au moment de la création, jamais resynchronisée (voir `specs/roadmap_dev.md` § Écarts Identité & Session).
+- **myrSession → Role** : à chaque requête protégée, `requireRole` interroge `RoleService.HasPermission(session.Role, permission)` — c'est le seul point de contact entre la session REST et le RBAC.
+- **Session (domain/session) ↔ WalletEntry** : lien conceptuel seulement (`Session.Name` pourrait correspondre à un `WalletEntry.Handle`) — aucune vérification ni jointure automatique entre les deux n'est requise par la conception.
 
 ---
 
 ## 5. Ports (interfaces Go)
-
-### Port entrant — AuthService
-
-```plantuml
-@startuml
-skinparam classAttributeIconSize 0
-interface AuthService {
-  + Register(ctx, email, password, displayName, orgID) : (*User, error)
-  + Login(ctx, email, password) : (accessToken, refreshToken string, user *User, err)
-  + Refresh(ctx, refreshToken) : (accessToken string, err)
-  + Logout(ctx, refreshToken) : error
-  + GetUser(ctx, userID) : (*User, error)
-  + ValidateToken(token) : (*Claims, error)
-  + EnrollWallet(ctx, userID, name, secret, orgID) : (*EncryptedWallet, error)
-  + GetWallets(ctx, userID) : ([]*EncryptedWallet, error)
-  + DecryptWalletKey(w *EncryptedWallet) : (keyPEM string, err)
-  + ListUsers(ctx) : ([]*User, error)
-  + SetUserStatus(ctx, id, status) : error
-  + SetUserRole(ctx, id, role) : error
-}
-@enduml
-```
 
 ### Port entrant — IdentityService
 
@@ -307,44 +235,12 @@ interface IdentityService {
   + AutoRegister(ctx, req AccountRequest, role) : (secret string, err)
   + ListRequests() : ([]*AccountRequest, error)
   + WalletDir() : string
+  + SetRole(ctx, name, newRole string) : error
 }
 @enduml
 ```
 
-### Ports sortants — auth
-
-```plantuml
-@startuml
-skinparam classAttributeIconSize 0
-interface UserStore {
-  + Create(u *User) : error
-  + FindByEmail(email) : (*User, error)
-  + FindByID(id) : (*User, error)
-  + ListAll() : ([]*User, error)
-  + UpdateStatus(id, status) : error
-  + UpdateRole(id, role) : error
-}
-
-interface TokenStore {
-  + Create(t *RefreshToken) : error
-  + FindByHash(hash) : (*RefreshToken, error)
-  + Delete(id) : error
-  + DeleteExpired() : error
-}
-
-interface WalletStore {
-  + Save(w *EncryptedWallet) : error
-  + FindByUserID(userID) : ([]*EncryptedWallet, error)
-  + FindByHandle(handle) : (*EncryptedWallet, error)
-}
-
-interface WalletEnroller {
-  + Enroll(ctx, name, secret) : (certPEM, keyPEM, caCertPEM string, err)
-}
-@enduml
-```
-
-### Ports sortants — identity
+### Port sortant — CAPort / RequestStore (identity)
 
 ```plantuml
 @startuml
@@ -354,6 +250,7 @@ interface CAPort {
   + Enroll(ctx, name, secret) : (certPEM, keyPEM, caCertPEM string, err)
   + GetStatus(ctx, name) : (status string, err)
   + ReEnroll(ctx, name, certPEM, keyPEM) : (newCertPEM string, err)
+  + UpdateAttributes(ctx, name, attrs map[string]string) : error
 }
 
 interface RequestStore {
@@ -363,16 +260,62 @@ interface RequestStore {
 @enduml
 ```
 
-### Port sortant — session
+### Port entrant/sortant — RoleService / Repo (role)
 
 ```plantuml
 @startuml
 skinparam classAttributeIconSize 0
+interface RoleService {
+  + Create(name, permissions) : (*Role, error)
+  + Update(name, permissions) : (*Role, error)
+  + Delete(name) : error
+  + Get(name) : (*Role, error)
+  + List() : ([]*Role, error)
+  + HasPermission(roleName, p Permission) : bool
+}
+
+interface Repo {
+  + Save(r *Role) : error
+  + FindAll() : ([]*Role, error)
+  + FindByName(name) : (*Role, error)
+  + Delete(name) : error
+}
+@enduml
+```
+
+### Port entrant/sortant — SessionService / Store (domain/session — compte local CLI)
+
+```plantuml
+@startuml
+skinparam classAttributeIconSize 0
+interface SessionService {
+  + Create(name, orgID) : (*Session, error)
+  + Current() : (*Session, error)
+  + Logout() : error
+}
+
 interface Store {
   + Save(s *Session) : error
   + Load() : (*Session, error)
   + Clear() : error
 }
+@enduml
+```
+
+### Interface interne (non-domaine) — sessionBackend (REST)
+
+```plantuml
+@startuml
+skinparam classAttributeIconSize 0
+interface sessionBackend {
+  + create(pseudo, role, channel) : (*myrSession, error)
+  + get(token) : *myrSession
+  + setNetwork(token, networkID) : bool
+  + setChannel(token, channel) : bool
+  + delete(token) : void
+  + list() : []*myrSession
+}
+note right : Implémentée par sessionStore (mémoire + JSON optionnel)\net redisSessionStore (multi-instances)
 @enduml
 ```
 
@@ -382,29 +325,13 @@ interface Store {
 
 | ID  | Décision | Raison |
 |-----|----------|--------|
-| DC-D1-01 | `auth` et `identity` sont deux domaines distincts | `auth` gère le compte web JWT ; `identity` gère l'identité Fabric CA. Les deux représentent le même utilisateur mais dans des systèmes de sécurité indépendants. Fusionner les deux créerait une dépendance Fabric dans le domaine auth. |
-| DC-D1-02 | La clé privée du wallet est chiffrée AES-256-GCM dans SQLite | La clé privée X.509 ne doit jamais être stockée en clair. La variable d'environnement `WALLET_ENCRYPT_KEY` est l'unique vecteur de déchiffrement. |
-| DC-D1-03 | `Session` est mono-utilisateur, persiste en JSON | Le mode nominal d'utilisation de `myr-app` est mono-utilisateur par instance. Redis est disponible optionnellement (`REDIS_URL`) pour le mode multi-instances. |
-| DC-D1-04 | `WalletEntry` et `EncryptedWallet` coexistent | `WalletEntry` couvre le cas CLI (fichiers MSP locaux) ; `EncryptedWallet` couvre le cas web (SQLite). Ce sont deux vues du même objet métier selon le contexte d'utilisation. |
-| DC-D1-05 | `AccountRequest.CreatedAt` est `string` (ISO 8601) | Écart volontaire — facilite la sérialisation JSON sans dépendance `time.Time` dans un DTO. Mais incohérent avec les autres entités (voir Écart E1). |
+| DC-D1-01 | Pas de domaine `auth` séparé — l'identité CA est l'unique source de vérité | Une architecture à deux systèmes d'identité (compte web + identité blockchain) a été abandonnée au profit d'un système unique : l'identité CA. La session REST n'est qu'une couche d'adaptateur au-dessus, pas un second domaine d'identité. |
+| DC-D1-02 | Le wallet local n'est représenté que par des fichiers MSP sur disque, sans miroir chiffré en base | Source unique pour éviter la divergence entre deux vues du même wallet — voir `Conception_intro.md` ADR-03 pour l'écart de sécurité qui en résulte (absence de chiffrement au repos). |
+| DC-D1-03 | RBAC dynamique (`domain/role`) découplé de l'identité CA | Le rôle RBAC (permissions) et le rôle CA (`Myr.role`, attribut de certificat) sont deux notions distinctes qui ne se synchronisent pas automatiquement — voir `specs/roadmap_dev.md` § Écarts Identité & Session. |
+| DC-D1-04 | Le token de session REST est opaque, pas un JWT | Évite toute dépendance à une bibliothèque JWT et tout risque de claims falsifiables côté client ; en contrepartie, aucune information (rôle, pseudo) n'est extractible du token lui-même — elle doit être recherchée côté serveur (`sessionBackend.get`). |
+| DC-D1-05 | `domain/session` (compte local CLI) reste un domaine à part, non branché aux autres domaines | Conçu comme bootstrap machine pour un futur usage CLI multi-contexte — voir `specs/roadmap_dev.md` § Écarts Identité & Session pour l'état de câblage. |
+| DC-D1-06 | Lecture des composants (`GET /api/components`) ouverte aux visiteurs non authentifiés, inconditionnellement — écriture (POST/PUT/PATCH/DELETE) reste gated par rôle | EF17 (D4, `specs/2-Analyse/UCCL-Composant_Lecture/UCCL01.md`) exige un accès public en lecture, sans condition. Le RBAC dynamique (`domain/role`) et la session REST (`myrSession`) ne changent pas de mécanisme : la route GET est dispensée de `requireAuth` par distinction de méthode HTTP dans le routeur (`server.go`, pattern déjà décrit dans `API_REST.md` §1 « routes mixtes ») — pas par un nouveau système d'identité « visiteur ». |
+
+**⚠️ Incohérence relevée entre deux documents d'analyse (ni l'un ni l'autre n'est corrigé ici — signalée pour arbitrage PO) :** `UCCL01.md` (composants) décrit l'accès visiteur comme **toujours ouvert**, sans condition. `specs/2-Analyse/UCMOD-Module/UCMOD04.md` (ligne 134, lecture d'un module) décrit au contraire un accès **conditionné par la configuration réseau** (« sauf si la configuration réseau autorise les Visiteurs »). DC-D1-06 ci-dessus ne couvre donc que `GET /api/components`, conformément à `UCCL01.md` — il ne s'étend pas à `GET /api/modules`, dont la lecture reste `Auth` par défaut (voir `API_REST.md` §6) tant que le PO n'a pas tranché si D4 doit avoir un comportement uniforme entre composants et modules, ou si cette différence (composant toujours public, module conditionnel) est intentionnelle. C'est aussi la question déjà notée `specs/2-Analyse/todo.md` (accès visiteur conditionné par un flag réseau) — elle ne semble concerner que les modules, pas les composants, au vu du texte actuel des deux UC.
 
 ---
-
-## 7. Écarts code → specs
-
-| ID  | Entité concernée | Écart | Impact |
-|-----|-----------------|-------|--------|
-| E3  | `User.Role` à la création | Le code `auth/service.go` assigne le rôle `contributor` lors du `Register`. La règle RM21 impose `reader` comme rôle initial. | **Sécurité** — un nouvel utilisateur obtient des droits d'écriture Fabric qu'il ne devrait pas avoir initialement. |
-| E1  | `AccountRequest.CreatedAt` | Type `string` au lieu de `time.Time` — incohérent avec toutes les autres entités du domaine. | Mineur — risque de parsing incorrect à la désérialisation. |
-| E2  | `MyrIdentity` non liée à `User` | Il n'existe pas de champ commun explicite reliant les deux entités (ex. pas de `UserID` dans `MyrIdentity`). La corrélation se fait via `Email` et `OrgID` de manière implicite. | Conception — rend difficile la navigation d'un compte web vers son identité blockchain. |
-
----
-
-## 8. Informations manquantes
-
-- **Lien User ↔ MyrIdentity** : aucun champ de référence croisée explicite n'existe. Il faudrait soit ajouter `UserID` dans `MyrIdentity`, soit documenter la règle de corrélation par `Email + OrgID`.
-- **Consumer et Manufacturer** : les rôles `consumer` et `manufacturer` apparaissent dans les specs UCPI (acheteur, fabricant) mais n'existent dans aucune entité du code — ni dans `AuthRole`, ni dans `FabricRole`. À concevoir.
-- **Profil consommateur** : UCPI01 mentionne une "adresse de livraison dans le profil du consommateur" — aucune entité `ConsumerProfile` n'existe.
-- **Multi-org** : le comportement de `User.OrgID` lorsqu'un utilisateur appartient à plusieurs organisations n'est pas défini.
-- **Service Session** : `domain/session/` ne définit pas de port entrant (`SessionService` interface). Les adapters appellent directement le store, ce qui viole l'architecture hexagonale.
-- **Révocation de tokens** : il n'existe pas de mécanisme de liste noire (`blacklist`) pour les access tokens JWT compromis avant expiration.

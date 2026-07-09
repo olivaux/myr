@@ -6,22 +6,24 @@
 
 ## 1. Vue d'ensemble
 
-La sécurité Myr repose sur deux couches indépendantes :
+**Il n'y a qu'une seule couche d'identité** — pas de couche « auth web JWT » séparée d'une couche « identité blockchain ». L'identité cryptographique Fabric CA est la source de vérité unique ; une couche fine d'adaptateur REST (token opaque de session) s'appuie dessus pour éviter d'exiger un certificat client à chaque requête HTTP.
 
 ```plantuml
 @startuml
 skinparam componentStyle rectangle
 
-package "Couche 1 — Auth Web (JWT)" #e8f4f8 {
-  [email + bcrypt] as BCR
-  [Access Token JWT] as AT
-  [Refresh Token\n(SHA-256 SQLite)] as RT
+package "Identité (domain/identity)" #fff9c4 {
+  [Certificat X.509\n(Fabric CA)] as CERT
+  [Wallet local\n(fichiers PEM, voir §4 pour le chiffrement au repos)] as WALL
+  [mTLS entre peers\n(certificats CA Fabric)] as MTLS
 }
 
-package "Couche 2 — Identité Blockchain (Fabric CA)" #fff9c4 {
-  [Certificat X.509\n(Fabric CA)] as CERT
-  [Wallet chiffré\n(AES-256-GCM SQLite)] as WALL
-  [mTLS entre peers\n(certificats CA Fabric)] as MTLS
+package "RBAC (domain/role)" #e8f4f8 {
+  [Rôles + Permissions] as RBAC
+}
+
+package "Adaptateur REST (pas un domaine)" {
+  [Token opaque de session\n(X-Myr-Token, 32 octets)] as TOK
 }
 
 package "Application" {
@@ -29,77 +31,68 @@ package "Application" {
   [Service domaine] as SVC
 }
 
-BCR --> AT : login réussi
-AT --> REST : Authorization: Bearer
-REST --> SVC : claims (UserID, Role)
-CERT --> WALL : chiffrement AES-256
-WALL --> SVC : identité Fabric\n(sign transactions)
-MTLS --> WALL : TLS mutuel
+CERT --> WALL : enrôlement (Enroll)
+WALL --> TOK : POST /api/identity/session\ncrée une session après enrôlement réussi
+TOK --> REST : X-Myr-Token
+REST --> RBAC : HasPermission(session.Role, permission)
+RBAC --> SVC : accès autorisé/refusé
+MTLS --> WALL : TLS mutuel (réseau Fabric)
 @enduml
 ```
 
 ---
 
-## 2. Authentification web — JWT
+## 2. Authentification REST — token opaque (pas de JWT)
 
 ### Flux d'authentification
 
 ```plantuml
 @startuml
 participant "Client" as C
-participant "REST /api/auth" as REST
-participant "auth.Service" as SVC
-database "SQLite" as DB
+participant "REST /api/identity" as REST
+participant "identity.Service" as ISVC
+participant "Fabric CA" as CA
+participant "Session Store" as SESS
 
-C -> REST : POST /api/auth/login {email, password}
-REST -> SVC : Login(email, password)
-SVC -> DB : FindByEmail(email)
-DB --> SVC : User
-SVC -> SVC : bcrypt.Compare(password, User.Password)
-SVC -> SVC : Générer AccessToken JWT (courte durée)
-SVC -> SVC : Générer RefreshToken (opaque)
-SVC -> DB : Store(SHA256(refreshToken))
-SVC --> REST : {accessToken, refreshToken}
+C -> REST : POST /api/identity/session {name, secret, org_id, channel}
+REST -> ISVC : Enroll(ctx, name, secret, org_id)
+ISVC -> CA : Enroll(ctx, name, secret)
+CA --> ISVC : certPEM, keyPEM, caCertPEM
+ISVC -> ISVC : sauvegarder wallet local (PEM, non chiffré)
+ISVC --> REST : WalletEntry
+REST -> SESS : create(name, "contributor", channel)
+SESS --> REST : {token (32 octets aléatoires), role, pseudo, channel}
 REST --> C : HTTP 200
 @enduml
 ```
 
-### Structure du JWT
+### Le token n'est pas un JWT
 
-```json
-{
-  "sub": "user-uuid",
-  "email": "user@org.com",
-  "role": "contributor",
-  "org_id": "Org1MSP",
-  "display_name": "Alice",
-  "exp": 1234567890,
-  "iat": 1234567800
-}
-```
+Il n'y a **aucune bibliothèque JWT, aucun claim signé, aucun décodage côté client possible**. Le token est 32 octets générés par `crypto/rand`, encodés en hexadécimal — une clé opaque vers un enregistrement `myrSession{Role, Pseudo, Channel, ExpiresAt}` conservé côté serveur (mémoire, JSON optionnel, ou Redis).
 
-**Durées recommandées :**
-- Access token : 15 minutes (courte durée — à configurer)
-- Refresh token : 7 jours (longue durée — révocable)
+> ⚠️ Des commentaires de code encore présents dans `adapters/in/rest/handlers.go` et `handlers_network.go` mentionnent « JWT Bearer (nouveau) » — ce sont des reliquats obsolètes, pas une description du comportement réel. Seul l'en-tête `X-Myr-Token` est lu.
+
+### Durée de vie
+
+- **Session REST** : 7 jours (`sessionTTL`, constante `adapters/in/rest/session.go`), pas de renouvellement automatique.
+- **Secret d'enrôlement CA** : durée/nombre d'usages dépendant de la configuration de la Fabric CA elle-même (hors périmètre `myr`).
 
 ### Stockage des tokens
 
-| Token | Stockage côté client | Stockage côté serveur |
-|-------|---------------------|----------------------|
-| Access token | Mémoire / sessionStorage (jamais localStorage) | Non stocké |
-| Refresh token | HttpOnly cookie recommandé | SHA-256 hex dans SQLite |
+| Élément | Stockage côté client | Stockage côté serveur |
+|---------|----------------------|------------------------|
+| Token de session | À la charge du client (pas de recommandation imposée par `myr`) | En mémoire (défaut), fichier JSON optionnel, ou Redis (`REDIS_URL`) — jamais en clair transmis deux fois, comparaison en temps constant (`subtle.ConstantTimeCompare`) |
+| Secret d'enrôlement CA | Transmis une fois par l'admin, à la charge de l'utilisateur | Jamais stocké par `myr` (`RegisterRequest.Password` — commentaire explicite « jamais stocké ») |
 
 ### Révocation
 
-Le refresh token peut être révoqué via `DELETE /api/admin/sessions/{id}` (admin) ou `POST /api/auth/logout` (utilisateur). Les access tokens expirés ne peuvent pas être révoqués avant expiration — durée courte recommandée.
+**Pas de révocation en libre-service.** Seul un administrateur peut révoquer une session, via `DELETE /api/admin/sessions/{token}` — après consultation de `GET /api/admin/sessions` (§ 9 pour l'identifiant de session à exposer). En l'absence de révocation, un token reste valide jusqu'à expiration naturelle (7 jours).
 
 ---
 
-## 3. Hachage des mots de passe — bcrypt
+## 3. Identité — pas de mot de passe applicatif
 
-- Algorithme : bcrypt
-- Coût recommandé : **12** (bon équilibre sécurité/performance)
-- Stockage : uniquement le hash — jamais le mot de passe en clair
+Il n'existe ni bcrypt, ni hash de mot de passe, ni table d'utilisateurs. Le secret manipulé est un **secret d'enrôlement Fabric CA** (`RegisterRequest.Password` dans le code, nommage historique trompeur) — un jeton d'enregistrement à usage limité délivré par la CA, pas un mot de passe choisi par l'utilisateur.
 
 ---
 
@@ -110,62 +103,53 @@ Le refresh token peut être révoqué via `DELETE /api/admin/sessions/{id}` (adm
 ```plantuml
 @startuml
 [*] --> pending : AccountRequest\nsoumise par l'utilisateur
-pending --> registered : Admin\nappelle CA Register
-registered --> enrolled : Utilisateur\nappelle CA Enroll\n(secret d'enrollment)
-enrolled --> active : EncryptedWallet\ncréé + chiffré
-active --> suspended : Admin\nsuspend l'identité CA
-suspended --> active : Admin\nréactive
+pending --> registered : Auto-enregistrement (AllowAutoRegister)\nou approbation admin (POST /api/identity/requests/{id}/approve)
+registered --> enrolled : Enroll (secret d'enrôlement)\nvia POST /api/identity/session ou /enroll
+enrolled --> active : Wallet local créé\n(fichiers PEM, non chiffrés)
+active --> suspended : Admin suspend l'identité côté CA
+suspended --> active : Admin réactive
 @enduml
 ```
 
-### Wallets Fabric chiffrés (ENF10)
+### Chiffrement des wallets au repos (ENF10)
 
-Les certificats X.509 (clé privée) sont stockés chiffrés dans SQLite via `EncryptedWallet` :
-
-```
-EncryptedWallet.EncKey = AES-256-GCM(keyPEM, WALLET_ENCRYPT_KEY)
-EncryptedWallet.KeyIV  = IV 12 bytes (aléatoire, unique par wallet)
-```
-
-**Algorithme : AES-256-GCM** (authenticated encryption)
-- IV de 12 bytes généré aléatoirement pour chaque wallet
-- Tag d'authentification 16 bytes inclus dans le ciphertext
-- Clé dérivée de `WALLET_ENCRYPT_KEY` (variable d'environnement obligatoire)
-
-> ⚠️ La perte de `WALLET_ENCRYPT_KEY` rend tous les wallets irrécupérables. Aucun mécanisme de rotation de clé en v1.
+ENF10 exige que les wallets soient stockés chiffrés — voir `Conception_intro.md` ADR-03 pour la décision de conception et son état.
 
 ---
 
-## 5. Contrôle d'accès (RBAC)
+## 5. Contrôle d'accès (RBAC dynamique)
 
-### Rôles et droits
+### Rôles et permissions
 
-| Rôle | Code | Droits REST | Droits Fabric |
-|------|------|-------------|--------------|
-| Visiteur | — | Lecture publique (si AllowAutoGuest) | Aucun |
-| Lecteur | `reader` | `GET /api/*` authentifié | Lecture ledger |
-| Concepteur | `contributor` | Lecture + écriture assets | Lecture + écriture ledger |
-| Admin | `admin` | Tous droits + `/api/admin/*` | Admin CA + ledger |
-| *(À créer)* | `consumer` | Commande modules | Lecture ledger |
-| *(À créer)* | `manufacturer` | Livraison | Lecture + écriture livraison |
+Le RBAC (`domain/role`) est **dynamique**, pas une énumération figée : un rôle est un nom associé à un sous-ensemble du catalogue de permissions (`read`, `write`, `network.admin`, `role.admin`, `identity.admin`, `admin`). Seuls les 4 rôles suivants sont **intégrés** (non supprimables) :
 
-> **Écart E3 :** le code `domain/auth/service.go` attribue `contributor` à la création au lieu de `reader` (violation RM21).
+| Rôle intégré | Permissions typiques | Droits REST |
+|---------------|----------------------|-------------|
+| `reader` | `read` | `GET /api/*` authentifié |
+| `contributor` | `read`, `write` | Lecture + écriture assets |
+| `auditor` | `read` | Lecture authentifiée (rôle intégré, usage non détaillé dans le code REST actuel) |
+| `admin` | toutes | Tous droits + `/api/admin/*` |
+
+D'autres rôles (ex. `consumer`, `manufacturer`) peuvent être créés à la demande via `myr role create --permission ...` — ils n'existent pas par défaut.
+
+> **Rôle de session :** le rôle attribué à une session REST doit refléter l'attribut `Myr.role` réel de l'identité CA enrôlée — un changement de rôle via `myr identity set-role` doit se répercuter sur les sessions REST créées ensuite. État de cet écart : `specs/roadmap_dev.md` § Écarts Identité & Session, E1.
 
 ### Middleware de contrôle d'accès
 
 ```go
-// requireAuth — vérifie que le JWT est valide
-// requireRole("contributor") — vérifie le rôle minimum
+// requireAuth  — vérifie que le token opaque (X-Myr-Token) correspond à une session active
+// requireRole(perm) — vérifie que le rôle de la session porte la permission requise,
+//                      via domain/role.RoleService.HasPermission (ou repli sur un rang historique
+//                      reader < contributor < admin si aucun RoleService n'est injecté)
 
-// Logique dans adapters/in/rest/handlers.go
-// Pour les routes mixtes (lecture libre, écriture protégée) :
+// adapters/in/rest/handlers.go — routes mixtes (lecture libre, écriture protégée) :
 contrib := func(next http.HandlerFunc) http.HandlerFunc {
     return func(w http.ResponseWriter, r *http.Request) {
         switch r.Method {
         case http.MethodPost, http.MethodPut, http.MethodPatch, http.MethodDelete:
-            s.handler.requireRole("contributor", next)(w, r)
+            s.handler.requireRole(rbac.PermWrite, next)(w, r)
         default:
-            auth(next)(w, r)  // lecture : auth seule
+            auth(next)(w, r) // lecture : auth seule
         }
     }
 }
@@ -192,33 +176,35 @@ Appliqués à toutes les réponses par le middleware `secureHeaders` :
 | `X-Content-Type-Options` | `nosniff` | Sniffing MIME |
 | `X-Frame-Options` | `DENY` | Clickjacking |
 | `Referrer-Policy` | `strict-origin-when-cross-origin` | Fuite d'URL |
-| `Content-Security-Policy` | `default-src 'self'; script-src 'self' 'unsafe-inline'; ...` | XSS, injection |
+| `Content-Security-Policy` | `default-src 'none'` (API JSON pure, pas de page HTML servie) | XSS, injection |
 
-> `'unsafe-inline'` dans `script-src` est présent pour la SPA Vanilla JS. À remplacer par des nonces CSP dans une version future.
+> `myr` ne sert plus de GUI embarquée — la politique CSP applicable à une éventuelle SPA relève désormais du dépôt GUI externe.
 
 ---
 
-## 8. Surfaces d'attaque et mitigations
+## 8. Rate limiting
 
-| Surface | Risque | Mitigation |
+`authLimiter` (`ipRateLimiter`, `adapters/in/rest/handlers.go`) limite à **10 tentatives par minute par IP** (`clientIP(r)`) sur les routes sensibles :
+
+- `POST /api/identity/request`
+- `POST /api/identity/session`
+- `POST /api/identity/guest`
+
+Au-delà, `HTTP 429` est retourné.
+
+---
+
+## 9. Surfaces d'attaque et mitigations
+
+| Surface | Risque | Mitigation attendue |
 |---------|--------|-----------|
-| Authentification | Brute force sur `POST /api/auth/login` | Rate limiting (non implémenté en v1) |
-| JWT | Token volé dans localStorage | Utiliser sessionStorage ou HttpOnly cookie pour le refresh token |
-| `OwnerID` | Client peut forger n'importe quel `owner_id` | Valider `OwnerID == claims.UserID` dans les handlers (non implémenté — voir OWASP A01) |
-| Injection SQL | Requêtes SQLite | Utilisation de requêtes paramétrées |
+| Enrôlement/connexion | Brute force du secret CA sur `POST /api/identity/session` | Rate limiting 10/min/IP (`authLimiter`, § 8) |
+| Token de session | Vol de token (`X-Myr-Token`) | Pas de recommandation de stockage client imposée par `myr` ; comparaison serveur en temps constant |
+| `owner_id` | Client peut forger n'importe quel `owner_id` en lecture (`GET /api/components?owner_id=`) et en écriture (`POST /api/components`) | `owner_id` validé/dérivé de `sess.Pseudo` (OWASP A01, `UCA06`) |
+| Wallets | Clés privées en fichiers PEM (permissions `0600`) | Chiffrement au repos requis par ENF10 — voir §4 et `Conception_intro.md` ADR-03 |
+| Rôle de session | Rôle REST doit refléter le rôle CA réel de l'identité enrôlée | Lecture du rôle depuis l'identité plutôt qu'une valeur fixe — voir §5 |
+| Révocation de session | `DELETE /api/admin/sessions/{token}` doit pouvoir être ciblée depuis `GET /api/admin/sessions` sans recherche annexe | Identifiant de session exploitable exposé par la liste |
 | Injection chaincode | Arguments Fabric | Validation stricte côté serveur avant soumission (RM07) |
-| Exfiltration wallets | Clés privées en SQLite | AES-256-GCM — clé en env var uniquement (pas dans le code ni le repo) |
-| Module immuable | Module soumis modifiable (E5) | Fork obligatoire à implémenter (RM19) |
-| Nouveau compte trop privilégié | Rôle `contributor` à la création (E3) | Corriger → `reader` (RM21) |
+| Module immuable | Un module `submitted` ne doit plus être modifiable directement | Garde `Status != submitted`, fork obligatoire (RM19) |
 
----
-
-## 9. Écarts de sécurité connus
-
-| ID | Écart | Risque | Action requise |
-|----|-------|--------|----------------|
-| E3 | `User.Role = contributor` à la création | Tout nouvel utilisateur a des droits d'écriture Fabric immédiats | Corriger `domain/auth/service.go:93` → `reader` |
-| E5 | Module soumis modifiable | Immuabilité post-publication non garantie (RM19) | Ajouter garde `Status != submitted` |
-| — | `OwnerID` non validé vs JWT | Usurpation d'identité sur les assets | Valider dans les handlers REST |
-| — | Aucun rate limiting sur login | Brute force possible | À implémenter (middleware ou reverse proxy) |
-| — | Access token non révocable | Token compromis valide jusqu'à expiration | Durée courte recommandée (15 min) |
+État de suivi de ces écarts : `specs/roadmap_dev.md` § Écarts Identité & Session et § Bugs bloquants.

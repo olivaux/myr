@@ -8,7 +8,7 @@
 
 Ce document définit le **contrat d'interface du CLI administrateur** (`myr`). Il précise, pour chaque commande, la syntaxe complète, les drapeaux, les messages de sortie, les codes d'erreur, et le service domaine appelé.
 
-Le CLI est le **seul point d'entrée** pour les opérations d'installation et de configuration d'un réseau Myr (UCADM01–05). L'API REST n'expose jamais ces opérations. Les opérations d'infrastructure irréversibles (`myr network destroy`) n'existent que dans ce binaire.
+Le CLI est le **seul point d'entrée** pour les opérations d'installation et de configuration d'un réseau Myr (UCADM01–05). L'API REST n'expose jamais ces opérations. Les opérations d'infrastructure irréversibles (`myr network destroy`) n'existent donc que dans ce binaire.
 
 La structure de ce document suit la hiérarchie des commandes cobra définie dans `adapters/in/cli/`.
 
@@ -36,9 +36,9 @@ myr
 │   ├── add                     — ajoute un nœud peer ou orderer au réseau (UCADM03)
 │   ├── provision                — enregistre un nouveau nœud auprès de la CA et génère ses identifiants
 │   └── remove                  — retire administrativement un nœud du réseau (UCADM04)
-├── model                       — gestion des modèles 3D (existant)
-├── channel                     — lecture des canaux blockchain (existant)
-└── payment                     — commandes de paiement (existant)
+├── model                       — gestion des modèles 3D
+├── channel                     — lecture des canaux blockchain
+└── payment                     — commandes de paiement
 ```
 
 ---

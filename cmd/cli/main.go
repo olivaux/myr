@@ -13,18 +13,20 @@ import (
 	"myr/domain/identity"
 	"myr/domain/model"
 	"myr/domain/network"
+	"myr/domain/payment"
 	"myr/domain/role"
 )
 
-// noopBC satisfait model.BlockchainPort pour le CLI, qui ne soumet pas d'assets.
-type noopBC struct{}
+// noopPaymentGateway satisfait payment.PaymentGatewayPort tant qu'aucun adapter
+// de paiement n'est câblé — évite un service nil (panique) côté CLI.
+type noopPaymentGateway struct{}
 
-var errNoFabric = fmt.Errorf("aucune connexion Fabric configurée pour le CLI")
+var errNoPaymentGateway = fmt.Errorf("aucun gateway de paiement configuré pour le CLI")
 
-func (noopBC) StoreModelRecord(*model.Model3D) error                { return errNoFabric }
-func (noopBC) GetModelRecord(string, string) (*model.Model3D, error) { return nil, errNoFabric }
-func (noopBC) ListModelRecords(string) ([]*model.Model3D, error)    { return nil, errNoFabric }
-func (noopBC) VerifyIntegrity(string, string, string) (bool, error) { return false, errNoFabric }
+func (noopPaymentGateway) Transfer(*payment.Payment) error { return errNoPaymentGateway }
+func (noopPaymentGateway) GetHistory(string) ([]*payment.Payment, error) {
+	return nil, errNoPaymentGateway
+}
 
 // dataDir retourne le répertoire de données partagé avec myr-app.
 // Priorité : MYR_DATA_DIR > ~/.Myr/server-data
@@ -40,15 +42,27 @@ func main() {
 	data := dataDir()
 	_ = os.MkdirAll(data, 0700)
 
-	bc := noopBC{}
-	fs := localstorage.NewLocalStorage(filepath.Join(data, "models"))
-
-	modelSvc := model.NewService(bc, fs)
-
 	networkStore := localstorage.NewJSONNetworkStore(filepath.Join(data, "networks.json"))
 	networkSvc := network.NewService(networkStore, fabricadapter.GatewayTester{}).
 		WithProvisioner(fabricadapter.NewFabricPeerProvisioner()).
 		WithBootstrapper(fabricadapter.NewFabricNetworkBootstrapper())
+
+	active, _ := networkSvc.GetActive()
+
+	// ── Connexion Gateway Fabric (non bloquante) — même bascule que myr-app :
+	// si Fabric est indisponible, le CLI retombe sur le même store local de
+	// brouillons (modules.json, partagé avec myr-app via dataDir()).
+	localModuleStore := localstorage.NewJSONModuleStore(filepath.Join(data, "modules.json"))
+	var bc model.BlockchainPort = localModuleStore
+	if active != nil {
+		cfg := fabricadapter.ConfigFromProfile(active)
+		if gw, err := fabricadapter.NewGatewayClient(cfg); err == nil {
+			defer gw.Close()
+			bc = fabricadapter.NewFabricBlockchain(gw)
+		}
+	}
+	fs := localstorage.NewLocalStorage(filepath.Join(data, "models"))
+	modelSvc := model.NewService(bc, fs)
 
 	nodeStore := localstorage.NewJSONNodeStore(filepath.Join(data, "nodes.json"))
 	channelStore := localstorage.NewJSONChannelStore(filepath.Join(data, "channels.json"))
@@ -59,7 +73,7 @@ func main() {
 	roleSvc := role.NewService(roleStore)
 
 	var caPort identity.CAPort
-	if active, err := networkSvc.GetActive(); err == nil && active != nil && active.CAEndpoint != "" {
+	if active != nil && active.CAEndpoint != "" {
 		cfg := fabricadapter.ConfigFromProfile(active)
 		if ca, err := fabricadapter.NewCAClient(cfg); err == nil {
 			caPort = ca
@@ -69,5 +83,7 @@ func main() {
 	_ = os.MkdirAll(walletDir, 0700)
 	identitySvc := identity.NewService(walletDir, caPort)
 
-	cli.Execute(modelSvc, channelSvc, nil, networkSvc, roleSvc, identitySvc)
+	paymentSvc := payment.NewService(noopPaymentGateway{})
+
+	cli.Execute(modelSvc, channelSvc, paymentSvc, networkSvc, roleSvc, identitySvc)
 }

@@ -2,7 +2,7 @@
 package model
 
 // BlockchainPort est le contrat que tout adapter blockchain doit respecter.
-// Intentionnellement minimal pour rester compatible avec Fabric et la simulation JSON.
+// Intentionnellement minimal pour rester agnostique de la technologie sous-jacente.
 type BlockchainPort interface {
 	StoreModelRecord(m *Model3D) error
 	// GetModelRecord récupère un modèle par son ID sur le canal indiqué.

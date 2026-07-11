@@ -13,7 +13,7 @@ import (
 )
 
 type Service struct {
-	blockchain  BlockchainPort
+	blockchain  BlockchainPort // nullable — nil si Fabric indisponible (voir ErrBlockchainUnavailable)
 	fileStorage FileStoragePort
 	connStore   ConnectionStore // optionnel — nil hors mode GUI
 	thumbStore  ThumbnailStore  // optionnel — nil hors mode GUI
@@ -59,6 +59,9 @@ func (s *Service) Add(filePath, name, channelID, ownerID string, tags []string) 
 
 // AddFull crée un asset avec tous ses champs (mode GUI).
 func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	// Vérification de compatibilité de licence avec le parent (si renseigné).
 	if req.ParentID != "" && req.LicenseID != "" {
 		parent, err := s.blockchain.GetModelRecord(req.ParentID, req.ChannelID)
@@ -107,16 +110,25 @@ func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
 // Get récupère un modèle par son ID sur le canal indiqué.
 // channelID="" utilise le canal par défaut configuré dans l'adapter.
 func (s *Service) Get(id, channelID string) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	return s.blockchain.GetModelRecord(id, channelID)
 }
 
 func (s *Service) List(channelID string) ([]*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	return s.blockchain.ListModelRecords(channelID)
 }
 
 // Verify vérifie l'intégrité d'un modèle sur le canal indiqué.
 // channelID="" utilise le canal par défaut configuré dans l'adapter.
 func (s *Service) Verify(id, channelID string) (bool, error) {
+	if s.blockchain == nil {
+		return false, ErrBlockchainUnavailable
+	}
 	record, err := s.blockchain.GetModelRecord(id, channelID)
 	if err != nil {
 		return false, err
@@ -249,6 +261,9 @@ func (s *Service) ListConnections() ([]*Connection, error) {
 }
 
 func (s *Service) GetChildren(parentID string) ([]*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	all, err := s.blockchain.ListModelRecords("")
 	if err != nil {
 		return nil, err
@@ -382,6 +397,9 @@ func (s *Service) AddRefUnit(cat, unit string) error {
 // ── Suppression ─────────────────────────────────────────────────────────────
 
 func (s *Service) Remove(id string) error {
+	if s.blockchain == nil {
+		return ErrBlockchainUnavailable
+	}
 	if s.connStore != nil {
 		conns, _ := s.connStore.ListConnections()
 		for _, c := range conns {
@@ -408,6 +426,9 @@ func (s *Service) Remove(id string) error {
 // LicenseID change, contrairement à AddFull — voir specs/roadmap_dev.md
 // § Écarts — revue de code, E2.
 func (s *Service) UpdateAsset(req UpdateRequest) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(req.ID, "")
 	if err != nil {
 		return nil, fmt.Errorf("asset introuvable: %w", err)
@@ -433,6 +454,9 @@ func (s *Service) UpdateAsset(req UpdateRequest) (*Model3D, error) {
 // ── Modules ───────────────────────────────────────────────────────────────────
 
 func (s *Service) CreateModule(req ModuleRequest) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	m := &Model3D{
 		ID:                 generateID(),
 		Name:               req.Name,
@@ -450,10 +474,16 @@ func (s *Service) CreateModule(req ModuleRequest) (*Model3D, error) {
 }
 
 func (s *Service) GetModule(id string) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	return s.blockchain.GetModelRecord(id, "")
 }
 
 func (s *Service) ListModules(channelID string) ([]*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	all, err := s.blockchain.ListModelRecords(channelID)
 	if err != nil {
 		return nil, err
@@ -468,6 +498,9 @@ func (s *Service) ListModules(channelID string) ([]*Model3D, error) {
 }
 
 func (s *Service) AddAssemblyToModule(moduleID, connID string) error {
+	if s.blockchain == nil {
+		return ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(moduleID, "")
 	if err != nil {
 		return err
@@ -483,6 +516,9 @@ func (s *Service) AddAssemblyToModule(moduleID, connID string) error {
 }
 
 func (s *Service) RemoveAssemblyFromModule(moduleID, connID string) error {
+	if s.blockchain == nil {
+		return ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(moduleID, "")
 	if err != nil {
 		return err
@@ -500,6 +536,9 @@ func (s *Service) RemoveAssemblyFromModule(moduleID, connID string) error {
 
 // SubmitModule soumet le module à la blockchain et crée une version immuable.
 func (s *Service) SubmitModule(moduleID, note string) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(moduleID, "")
 	if err != nil {
 		return nil, err
@@ -533,6 +572,9 @@ func (s *Service) SubmitModule(moduleID, note string) (*Model3D, error) {
 // cyclique fait récurser indéfiniment GetModuleInterfaces (stack overflow) —
 // voir specs/roadmap_dev.md § Écarts — revue de code, E1.
 func (s *Service) AddAssetToWorkspace(moduleID, assetID string) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(moduleID, "")
 	if err != nil {
 		return nil, err
@@ -574,6 +616,9 @@ func (s *Service) ensureVirtualSlot(assetID string) { s.EnsureVirtualSlot(assetI
 // RemoveAssetFromWorkspace retire une instance spécifique (par instanceID) du module.
 // Supprime en cascade les connexions de cette instance dans le module.
 func (s *Service) RemoveAssetFromWorkspace(moduleID, instanceID string) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(moduleID, "")
 	if err != nil {
 		return nil, err
@@ -616,6 +661,9 @@ func (s *Service) RemoveAssetFromWorkspace(moduleID, instanceID string) (*Model3
 
 // UpdateInstancePosition met à jour la position persistée d'une instance d'un module.
 func (s *Service) UpdateInstancePosition(moduleID, instanceID string, x, y float64) (*Model3D, error) {
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
 	m, err := s.blockchain.GetModelRecord(moduleID, "")
 	if err != nil {
 		return nil, err
@@ -631,6 +679,9 @@ func (s *Service) UpdateInstancePosition(moduleID, instanceID string, x, y float
 }
 
 func (s *Service) RemoveModule(id string) error {
+	if s.blockchain == nil {
+		return ErrBlockchainUnavailable
+	}
 	type remover interface{ RemoveModelRecord(id string) error }
 	if r, ok := s.blockchain.(remover); ok {
 		return r.RemoveModelRecord(id)
@@ -657,7 +708,13 @@ func (s *Service) getModuleInterfacesInto(moduleID string, cache map[string][]*A
 	if ifaces, ok := cache[moduleID]; ok {
 		return ifaces, nil
 	}
-	mod, err := s.blockchain.GetModelRecord(moduleID, "")
+	var mod *Model3D
+	var err error
+	if s.blockchain != nil {
+		mod, err = s.blockchain.GetModelRecord(moduleID, "")
+	} else {
+		err = ErrBlockchainUnavailable
+	}
 	if err != nil {
 		// L'enregistrement est absent de la blockchain (asset non encore soumis, Fabric
 		// indisponible, ou module local). On suppose un composant simple : on retourne

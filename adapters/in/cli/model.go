@@ -13,8 +13,8 @@ var modelCmd = &cobra.Command{
 	Short: "Manage 3D models",
 	Long: `Commands to publish, inspect and verify 3D models on the Myr platform.
 
-Models are stored on the active blockchain network or in local JSON
-simulation mode. Each model has a unique ID and belongs to a channel.`,
+Models are stored on the active blockchain network. Each model has a
+unique ID and belongs to a channel.`,
 }
 
 var modelAddCmd = &cobra.Command{

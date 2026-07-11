@@ -103,7 +103,7 @@ end
 
 **Pas d'endpoint dédié :** `requireAuth` (`adapters/in/rest/handlers.go`) est un middleware appliqué à des routes métier — il n'existe pas de route « neutre » dont le seul rôle serait de vérifier/retourner l'état de connexion.
 
-**Mode simulation locale :** si aucun peer Fabric n'est configuré et qu'aucun service réseau n'est injecté (`h.netInfo.Network == "" && h.networkSvc == nil`), `requireAuth` **contourne entièrement l'authentification** et injecte une session `admin` factice — utile en développement local, mais à garder en tête pour ne pas confondre ce mode avec un comportement de production.
+`requireAuth` valide la session à chaque requête protégée, sans exception ni contournement.
 
 **Statut d'implémentation :**
 - Vérification de session sur requête protégée : **opérationnelle** (`requireAuth`)

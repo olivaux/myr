@@ -916,7 +916,7 @@ La commande `myr network destroy` est la seule commande CLI qui appelle directem
 |----|---------|--------|
 | DC-CLI-01 | Résolution du canal par défaut via le réseau actif | Évite à l'admin de répéter `--channel <id>` sur chaque commande — le réseau actif fournit le contexte implicite. |
 | DC-CLI-02 | `myr network destroy` opère en CLI Handler, pas dans le domaine | Les opérations OS (pkill, os.RemoveAll) violent ENF18 si placées dans `domain/network/`. Conforme à DC-D2-05. |
-| DC-CLI-03 | `ChannelConfigPort` nullable — service retourne `ErrFabricUnavailable` si nil | Permet d'utiliser le CLI sans adapter Fabric (mode dev, simulation). La commande existe et valide ses flags même sans Fabric. |
+| DC-CLI-03 | `ChannelConfigPort` nullable — service retourne `ErrFabricUnavailable` si nil | Permet d'utiliser le CLI sans adapter Fabric. La commande existe et valide ses flags même sans Fabric. |
 | DC-CLI-04 | `--confirm` obligatoire pour `destroy`, sans alternative interactive | Cohérence avec les outils d'admin Unix standard. Le `--confirm` est scriptable, le prompt interactif ne l'est pas. |
 | DC-CLI-05 | `myr network update` fusionne côté CLI Handler | `networkSvc.Update()` remplace tous les champs. La fusion (`Changed("flag")`) doit être faite dans le CLI Handler pour ne modifier que les champs fournis. |
 | DC-CLI-06 | `myr network import` supporte deux formats | Le format natif du backend (ex: Fabric gateway-connection.json) est parsé si détecté. Le format NetworkProfile JSON générique facilite la portabilité entre instances Myr et entre backends. |

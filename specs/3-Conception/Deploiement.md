@@ -87,7 +87,7 @@ Chaque instance `myr-app` est configurée via un `NetworkProfile` (JSON dans `da
 
 ### Variables d'environnement obligatoires
 
-Aucune variable n'est strictement obligatoire pour démarrer `myr-app` — les variables Fabric (`fabric.env` ou équivalent) sont nécessaires pour une connexion blockchain réelle, sinon le mode simulation JSON local s'active automatiquement.
+Aucune variable n'est strictement obligatoire pour démarrer `myr-app` — les variables Fabric (`fabric.env` ou équivalent) sont nécessaires pour toute opération sur les modèles 3D. Sans connexion Fabric, le serveur démarre normalement mais ces opérations échouent avec une erreur explicite (adaptateur blockchain non configuré) ; aucun repli automatique vers un autre stockage n'a lieu.
 
 > ⚠️ `JWT_SECRET` et `WALLET_ENCRYPT_KEY` ne sont lues nulle part dans le code actuel — il n'y a pas de JWT, et les wallets (fichiers PEM sous `~/.Myr/wallets/`) ne sont pas chiffrés au repos (écart de sécurité connu, voir `Securite.md` et `Conception_intro.md` ADR-03).
 

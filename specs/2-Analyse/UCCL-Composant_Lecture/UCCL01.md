@@ -40,13 +40,11 @@ La recherche par filtre est le point d'entrée principal sur les assets du rése
 
 Le système interroge la blockchain via `GET /api/components` avec des paramètres de filtre. Le résultat est un graphe `{ components, connections, total }` décrivant les assets correspondants et leurs liaisons.
 
-**Écart connu (E-UCCL01) :** La route `GET /api/components` est actuellement enveloppée dans `contrib()` (middleware `requireAuth` pour GET, `requireRole("contributor")` pour POST). L'accès visiteur non authentifié n'est pas encore implémenté — le middleware en mode simulation locale (`netInfo.Network == ""`) contourne cette contrainte en injectant une session fictive `admin`.
-
 ## Pré-conditions
 
 - Le serveur Myr est démarré et joignable
-- La blockchain (ou le stockage local JSON en mode développement) est accessible
-- Pour un visiteur : aucune authentification requise (comportement cible — voir écart ci-dessus)
+- La blockchain est accessible
+- Pour un visiteur : aucune authentification requise (lecture publique, EF17)
 - Pour un utilisateur authentifié : token de session opaque valide dans l'en-tête `X-Myr-Token`
 
 ## Scénario
@@ -83,11 +81,10 @@ Le système interroge la blockchain via `GET /api/components` avec des paramètr
 1. `blockchain.ListModelRecords()` retourne une erreur
 2. Le handler renvoie HTTP 500 avec `{ "error": "..." }`
 
-### Flux erreur — Accès refusé (écart actuel)
+### Flux erreur — Écriture non authentifiée
 
-1. Un visiteur non authentifié tente d'accéder à `GET /api/components` (hors mode simulation)
-2. Le middleware `requireAuth` renvoie HTTP 401 `{ "error": "authentification requise" }`
-3. **Comportement cible :** la route doit être ouverte en lecture pour les visiteurs — corriger le routage dans `server.go`
+1. Un client non authentifié tente une écriture (`POST`/`PUT`/`PATCH`/`DELETE`) sur `/api/components`
+2. Le middleware `requireRole("contributor")` renvoie HTTP 401 `{ "error": "authentification requise" }`
 
 ## Post-conditions
 
@@ -107,24 +104,15 @@ database "Fabric\n(adapters/out/fabric/)" as Fabric
 
 Browser -> REST : GET /api/components?q=...&categories=...
 
-alt Mode simulation locale (netInfo.Network == "" / pas de réseau Fabric actif)
-    REST -> REST : injecter session fictive admin\n(requireAuth bypass)
-else Visiteur non authentifié (comportement cible)
-    REST -> REST : pas de middleware auth\n(route publique à implémenter)
+alt Visiteur non authentifié
+    REST -> REST : pas de middleware auth (route publique, EF17)
 else Utilisateur authentifié
     REST -> REST : valider X-Myr-Token\n→ myrSession injectée dans contexte
 end
 
 REST -> Service : svcFor(r).List(channelID)
-
-alt Fabric disponible
-    Service -> Fabric : ListModelRecords(channelID)
-    Fabric --> Service : []*Model3D
-else Fallback JSON local
-    Service -> Local : ListModelRecords("")
-    Local --> Service : []*Model3D
-end
-
+Service -> Fabric : ListModelRecords(channelID)
+Fabric --> Service : []*Model3D
 Service --> REST : []*Model3D
 
 loop Pour chaque asset
@@ -170,8 +158,8 @@ Aucune règle métier de modification n'est déclenchée (lecture seule). Points
 
 ## Notes d'implémentation
 
-**Écart à corriger — accès visiteur :**
-Dans `adapters/in/rest/server.go`, la route `/api/components` est enveloppée dans `contrib()` qui impose `requireAuth` pour les requêtes GET. Pour autoriser les visiteurs, remplacer par un middleware conditionnel :
+**Routage `/api/components` — lecture publique, écriture protégée :**
+Dans `adapters/in/rest/server.go`, la route `/api/components` distingue la méthode HTTP :
 
 ```go
 // Lecture publique, écriture restreinte au rôle contributor

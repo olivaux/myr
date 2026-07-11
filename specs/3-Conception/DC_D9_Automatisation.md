@@ -91,7 +91,7 @@ type VersionDiff struct {
 
 **Lien avec RM01 (anti-plagiat) :** l'analyse (`specs/2-Analyse/UCAUT-Automatisation/UCAUT04.md`) note que les deltas XML produits ici pourraient alimenter l'algorithme de similarité structurelle SCM (`Architecture_Composition.md` §6). Ce document ne tranche pas ce couplage — il reste une piste d'implémentation future, pas une dépendance bloquante : `DiffVersions`/`PlagiarismChecker.CompareStructural` restent deux contrats indépendants tant que l'algorithme SCM n'est pas choisi.
 
-**Question ouverte pour le PO (non tranchée, cf. analyse) :** l'algorithme de diff géométrique (`GeometryDelta`) est-il une librairie Go existante, un outil CAO externe appelé en sous-processus, ou hors périmètre v1 (seul le diff des métadonnées/interfaces serait alors implémenté) ?
+**Question ouverte pour le PO (non tranchée, cf. analyse) :** l'algorithme de diff géométrique (`GeometryDelta`) est-il une librairie Go existante, un outil CAO externe appelé en sous-processus, ou hors périmètre v1 (seul le diff des métadonnées/interfaces serait alors implémenté) ? #remarque une piste possible (voir `roadmap_dev.md` § Compléments — Post-V1) : stocker nativement un format paramétrique (arbre de construction — schémas, extrusions, opérations successives) plutôt que le fichier 3D final, ce qui rendrait `GeometryDelta` diffable/fusionnable nativement au lieu de dépendre d'un outil de diff CAO externe — non tranché, décision PO.
 
 ---
 

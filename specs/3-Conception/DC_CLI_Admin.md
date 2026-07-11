@@ -1,6 +1,6 @@
 # DC — CLI Admin : Référence des commandes administrateur
 
-> Phase 3 — Arrington | Use cases : UCADM01–UCADM05, UCDEV02 | Outil : `myr` (`bin/myr-linux`, installé dans `~/.local/bin/myr` sur le serveur)
+> Phase 3 — Arrington | Use cases : UCADM01–UCADM05, UCDEV02 | Outil : `myr` (`bin/myr-cli`, installé dans `~/.local/bin/myr` sur le serveur)
 
 ---
 

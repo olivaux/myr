@@ -73,7 +73,7 @@ end note
 | Binaire | Description | Commande de build |
 |---------|-------------|------------------|
 | `bin/myr-app-linux` | Serveur HTTP — API REST uniquement (Linux amd64) | `make app` |
-| `bin/myr-linux` | CLI d'administration (Linux amd64) | `make cli` |
+| `bin/myr-cli` | CLI d'administration (Linux amd64) | `make cli` |
 
 ```bash
 make deploy  # compile + déploie les deux sur le serveur distant via scripts/deploy.ps1

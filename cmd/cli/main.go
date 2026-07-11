@@ -23,6 +23,10 @@ type noopPaymentGateway struct{}
 
 var errNoPaymentGateway = fmt.Errorf("aucun gateway de paiement configuré pour le CLI")
 
+// version est injectée via -ldflags "-X main.version=..." lors de la compilation
+// (voir Makefile : VERSION dérivé de `git describe --tags`).
+var version = "dev"
+
 func (noopPaymentGateway) Transfer(*payment.Payment) error { return errNoPaymentGateway }
 func (noopPaymentGateway) GetHistory(string) ([]*payment.Payment, error) {
 	return nil, errNoPaymentGateway
@@ -49,11 +53,11 @@ func main() {
 
 	active, _ := networkSvc.GetActive()
 
-	// ── Connexion Gateway Fabric (non bloquante) — même bascule que myr-app :
-	// si Fabric est indisponible, le CLI retombe sur le même store local de
-	// brouillons (modules.json, partagé avec myr-app via dataDir()).
-	localModuleStore := localstorage.NewJSONModuleStore(filepath.Join(data, "modules.json"))
-	var bc model.BlockchainPort = localModuleStore
+	// ── Connexion Gateway Fabric (non bloquante) ──────────────────────────────
+	// bc reste nil si Fabric est indisponible — pas de repli silencieux vers un
+	// autre stockage : les opérations sur les modèles retournent alors
+	// model.ErrBlockchainUnavailable (voir domain/model/service.go).
+	var bc model.BlockchainPort
 	if active != nil {
 		cfg := fabricadapter.ConfigFromProfile(active)
 		if gw, err := fabricadapter.NewGatewayClient(cfg); err == nil {
@@ -85,5 +89,6 @@ func main() {
 
 	paymentSvc := payment.NewService(noopPaymentGateway{})
 
+	cli.Version = version
 	cli.Execute(modelSvc, channelSvc, paymentSvc, networkSvc, roleSvc, identitySvc)
 }

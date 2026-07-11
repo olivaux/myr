@@ -23,6 +23,11 @@ var (
 	identitySvc identity.IdentityService
 )
 
+// Version est injectée par cmd/cli/main.go (elle-même reçue via -ldflags
+// "-X main.version=..." à la compilation — voir Makefile). Affichée par
+// le flag --version généré automatiquement par cobra.
+var Version = "dev"
+
 var rootCmd = &cobra.Command{
 	Use:   "myr",
 	Short: "Myr — 3D model platform on blockchain",
@@ -31,9 +36,6 @@ network.
 
 Publish, inspect and verify 3D assets, manage blockchain channels, process
 payments and administer network nodes.
-
-When no blockchain network is reachable, Myr operates in local JSON
-simulation mode.
 
 Run 'myr man [command]' to read the full manual for any command.`,
 }
@@ -54,6 +56,7 @@ func Execute(ms model.ModelService, cs channel.ChannelService, ps payment.Paymen
 	roleSvc = rs
 	identitySvc = is
 
+	rootCmd.Version = Version
 	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, manCmd)
 
 	if err := rootCmd.Execute(); err != nil {

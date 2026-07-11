@@ -59,7 +59,7 @@ Les groupes `model`, `channel`, `payment` et `peer` sont **implémentés** (`ada
 - L'administrateur est connecté au serveur distant (SSH ou accès direct)
 - `myr` est déployé sur le serveur (`make deploy` → installé dans `~/.local/bin/myr`)
 - Les variables d'environnement Fabric sont configurées (`fabricadapter.ConfigFromEnv()` ou `fabric.env`)
-- Les services domaine sont disponibles (Fabric ou mode simulation JSON local)
+- Les services domaine sont disponibles (adapter Fabric configuré pour les opérations blockchain)
 
 ## Scénario
 
@@ -102,13 +102,10 @@ Les groupes `model`, `channel`, `payment` et `peer` sont **implémentés** (`ada
 3. Comparaison avec le hash enregistré sur la blockchain
 4. Affichage : "OK modele [id] : integrité vérifiée" ou "KO modele [id] : integrité compromise"
 
-### Flux alternatif — Mode simulation (sans Fabric)
+### Flux erreur — Adapter Fabric non configuré
 
 1. Fabric n'est pas disponible (pas de réseau configuré)
-2. Le CLI bascule automatiquement en mode simulation JSON local
-3. Les opérations lisent/écrivent dans les fichiers JSON locaux (`adapters/out/localstorage/`)
-4. Un message indique que le mode simulation est actif
-5. Les commandes `myr org add`, `myr node add`, `myr node remove` retournent `ErrFabricUnavailable` — elles nécessitent un adapter Fabric configuré.
+2. Les commandes `myr org add`, `myr node add`, `myr node remove` retournent `ErrFabricUnavailable` — elles nécessitent un adapter Fabric configuré, sans repli vers un autre stockage.
 
 ### Flux erreur — Commande invalide ou arguments manquants
 
@@ -207,7 +204,7 @@ CLIHandler --> Dev : "Réseau démantelé."
 
 **Ports domaine à créer :** `ChannelService` doit être étendu avec `AddOrganisation()`, `AddNode()`, `RemoveNode()`. `NetworkProfile` doit recevoir le champ `IsProduction bool`. Voir `DC_CLI_Admin.md` § 6.
 
-**Mode simulation :** En l'absence de réseau Fabric configuré, les adapters `out/localstorage/` sont injectés à la place de `out/fabric/`. Les commandes `myr org add`, `myr node add`, `myr node remove` retournent `ErrFabricUnavailable` sans adapter Fabric — le reste fonctionne en mode local.
+**Adapter Fabric non configuré :** les commandes `myr org add`, `myr node add`, `myr node remove` retournent `ErrFabricUnavailable` sans adapter Fabric — elles nécessitent une connexion blockchain réelle, sans repli vers un autre stockage.
 
 **Domaines manquants dans le CLI :** `identity`, `session`, `auth` n'ont pas de commandes CLI. Ces domaines sont priorité HAUTE pour l'exposition REST — leur exposition CLI est MOYENNE.
 

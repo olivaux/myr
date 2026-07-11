@@ -74,7 +74,7 @@
 | GET | `/api/components` | Public (DC-D1-06) | Liste des composants (filtres: name, category, tags, channel) |
 | POST | `/api/components` | Contributor | Créer un composant (`AddFull`) |
 | GET | `/api/components/{id}` | Auth | Détail d'un composant |
-| PUT | `/api/components/{id}` | Contributor | Modifier (patch : name, description, tags, links, licenseID) |
+| PATCH | `/api/components/{id}` | Contributor | Modifier (patch : name, description, tags, links, licenseID) — #incoherence la méthode documentée ici était PUT, mais le handler (`adapters/in/rest/handlers.go`, `patchComponent`) répond uniquement à PATCH ; corrigé pour refléter le comportement réel, à confirmer que PUT n'était pas l'intention initiale |
 | DELETE | `/api/components/{id}` | Contributor | Supprimer (local uniquement — Fabric immuable) |
 | GET | `/api/components/{id}/interfaces` | Auth | Interfaces physiques d'un composant |
 | GET | `/api/components/{id}/compatible` | Auth | Composants compatibles (type d'interface, catégorie, tag, sens — `DC_D8_Recherche.md` §2, UCREC02) |
@@ -110,7 +110,7 @@
 | GET | `/api/modules` | Auth | Liste des modules |
 | POST | `/api/modules` | Contributor | Créer un module (draft) |
 | GET | `/api/modules/{id}` | Auth | Détail d'un module |
-| PUT | `/api/modules/{id}` | Contributor | Modifier un module (patch) |
+| PUT | `/api/modules/{id}` | Contributor | Modifier un module (patch) — #incoherence aucune méthode de mise à jour n'est câblée pour cette route dans `handleModule` (`adapters/in/rest/handlers.go`) : seuls GET et DELETE y répondent aujourd'hui, PUT/PATCH renvoient 405 |
 | DELETE | `/api/modules/{id}` | Contributor | Supprimer un module (draft uniquement) |
 | GET | `/api/modules/{id}/instances` | Auth | Instances d'un module |
 | POST | `/api/modules/{id}/instances` | Contributor | Ajouter un composant comme instance |
@@ -131,6 +131,8 @@
 |---------|-------|-------|-------------|
 | GET | `/api/licenses` | Auth | Catalogue des licences |
 | GET | `/api/licenses/{id}` | Auth | Détail d'une licence |
+| POST | `/api/licenses/check` | Auth | Vérifie la compatibilité `{ parent_license_id, proposed_license_id }` (règle 8) — #remarque route implémentée (`handleLicense`) mais absente de ce tableau jusqu'ici |
+| POST | `/api/licenses/check-product` | Auth | Vérifie la compatibilité d'un module assemblant plusieurs composants `{ component_license_ids[], proposed_module_license_id }` (règle 8) — #remarque idem |
 
 ---
 
@@ -138,8 +140,10 @@
 
 | Méthode | Route | Accès | Description |
 |---------|-------|-------|-------------|
-| POST | `/api/components/{id}/thumbnail` | Contributor | Sauvegarder une miniature STL (data URL base64) |
-| GET | `/api/components/{id}/thumbnail` | Auth | Récupérer la miniature |
+| POST | `/api/components/{id}/thumbnail` | Contributor | Sauvegarder une miniature STL (data URL base64) — #incoherence route absente du routeur (`server.go`) et du handler (`handleComponent` ne reconnaît que les suffixes `/interfaces` et `/tree`) ; la miniature d'un composant se fixe uniquement au moment de sa création via le champ `thumbnail` du formulaire multipart de `POST /api/components` |
+| GET | `/api/components/{id}/thumbnail` | Auth | Récupérer la miniature — #incoherence idem, non routée ; la miniature est aujourd'hui exposée via le champ `thumbnail` de `componentDTO` (`GET /api/components`, `GET /api/components/{id}`) |
+| POST | `/api/modules/{id}/thumbnail` | Contributor | Sauvegarder la miniature d'un module (data URL base64) — implémentée, absente jusqu'ici de ce tableau |
+| GET | `/api/modules/{id}/thumbnail` | Auth | Récupérer la miniature d'un module — implémentée, absente jusqu'ici de ce tableau |
 
 ---
 
@@ -188,3 +192,30 @@ Content-Security-Policy: default-src 'none'
 |---------|-------|---------|-----|
 | POST | `/api/components/{id}/versions` | D9 | UCAUT04 |
 | GET | `/api/components/{id}/versions/diff` | D9 | UCAUT04 |
+
+---
+
+## 13. Spec OpenAPI générée automatiquement
+
+Les tableaux ci-dessus décrivent le contrat cible de l'API (y compris des routes non encore câblées, ex. §11 D7 Paiement — voir § « CLAUDE.md n'est pas une spec » sur la distinction attendu / avancement). En complément, une **spec OpenAPI 3 est générée automatiquement à partir des commentaires Go** au-dessus de chaque handler REST — elle documente précisément ce que le serveur expose **réellement** à un instant donné (paramètres, schémas de requête/réponse, codes HTTP, exigence d'authentification), pour tout développeur tiers qui construit un logiciel consommant l'API (GUI externe, plugin CAO, script d'intégration).
+
+### Mécanisme
+
+- **Outil :** `swaggo/swag` — parse des commentaires `@Summary`, `@Param`, `@Success`, `@Router`, etc. placés directement au-dessus de chaque fonction handler dans `adapters/in/rest/*.go`, ainsi que le bloc d'annotations générales (`@title`, `@BasePath`, `@securityDefinitions`) au-dessus de `func main()` dans `cmd/api/main.go`.
+- **Aucune dépendance ajoutée à `go.mod`/`vendor/` :** le CLI `swag` s'exécute via `go run github.com/swaggo/swag/cmd/swag@<version>` — un outil de développement au même titre que `gofmt`, jamais compilé dans le binaire serveur. La génération produit uniquement `api/swagger.json` et `api/swagger.yaml` (flag `--outputTypes json,yaml` — pas de fichier Go `docs.go`, qui obligerait sinon à importer le package `swaggo/swag` au runtime).
+- **Commande :** `make docs-api` (cible du `Makefile`, version de l'outil pinée dans la variable `SWAG_VERSION`).
+- **Authentification documentée :** en-tête `X-Myr-Token` (schéma `apiKey`, nommé `MyrToken`) — jamais de JWT (voir règle 23 du domaine identité).
+
+### Convention d'annotation
+
+- Chaque fonction handler qui répond directement à une requête HTTP porte un bloc `// @Summary ... // @Router /chemin [méthode]` juste au-dessus de sa déclaration — sans ligne vide entre le commentaire et le `func`, faute de quoi `swag` ne l'associe pas à la fonction.
+- Les corps de requête décrits par une struct Go nommée au niveau paquet (ex. `connectionDTO`, `assemblyLinkRequest`, `walletDTO`) sont référencés par leur type — le schéma JSON exact apparaît dans la spec générée. Les corps décrits par une struct anonyme locale à la fonction (ex. `var body struct{...}` dans `patchComponent`) ne sont pas nommables par `swag` : ils apparaissent dans la spec comme un `object` générique, le détail des champs restant uniquement dans la description textuelle du commentaire — limite connue de l'outil, pas du domaine.
+- **Cas des handlers multi-routes** (ex. `handleModule`, qui route une dizaine de sous-ressources d'un module derrière un seul point d'entrée Go) : `swag` associe un commentaire à une fonction, pas à une route — un seul bloc `@Description`/`@Success` couvre alors plusieurs lignes `@Router`, avec une précision par sous-route moindre que pour les handlers dédiés à une seule route. Diviser ces fonctions uniquement pour affiner la documentation n'a pas été fait ici : cela reviendrait à refactorer du code qui fonctionne pour un besoin de documentation, hors du périmètre demandé — un futur découpage de ces handlers (s'il est motivé par autre chose que la doc) affinera la spec générée sans changement de convention.
+
+### Autorité en cas de divergence
+
+En cas d'écart entre les tableaux `§1`–`§12` de ce document et `api/swagger.json`/`api/swagger.yaml` : la spec générée fait foi de l'implémentation réelle (elle est dérivée du code), les tableaux ci-dessus font foi de l'intention cible. Les écarts déjà identifiés lors de la mise en place de la génération automatique sont marqués `#incoherence` / `#remarque` dans ce document (§4, §6, §7, §8) — à trancher par le product owner.
+
+### Régénération
+
+`api/swagger.json`/`.yaml` ne sont pas régénérés automatiquement à chaque modification d'un handler — exécuter `make docs-api` après tout changement de signature de route (nouveau paramètre, nouveau code retour, nouvelle route). Aucune vérification CI ne détecte aujourd'hui une spec désynchronisée du code (`make ci` ne couvre que ENF18/ENF25) ; l'ajout d'un tel contrôle est une évolution possible, non traitée ici faute de validation explicite.

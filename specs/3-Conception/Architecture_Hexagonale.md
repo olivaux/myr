@@ -295,7 +295,7 @@ BlockchainPort <|.. JSONBlockchain : dev/test fallback
 
 ```
 main.go
-├── Crée FabricBlockchain(networkProfile) ou JSONModuleStore (fallback)
+├── Crée FabricBlockchain(networkProfile) — laisse le port nil si Fabric est indisponible (aucun repli automatique)
 ├── Crée IPFSStorage() ou LocalStorage()
 ├── Crée LocalStore(dataDir) — connexions, interfaces (brouillon), rôles, requêtes de compte...
 ├── Injecte dans model.NewService(blockchain, storage).WithConnStore(...).WithIfaceStore(...) — les interfaces ne rejoignent `blockchain` (Model3D.Interfaces) qu'à la soumission de l'asset

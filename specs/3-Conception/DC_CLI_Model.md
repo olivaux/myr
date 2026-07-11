@@ -1,6 +1,6 @@
 # DC — CLI Modèle : Référence des commandes composant / interfaces / module
 
-> Phase 3 — Arrington | Use cases : UCCE01–06, UCAM01–03/05/07/08, UCMOD01–06, UCCL01, UCREC01–05 | Outil : `myr` (`bin/myr-linux`)
+> Phase 3 — Arrington | Use cases : UCCE01–06, UCAM01–03/05/07/08, UCMOD01–06, UCCL01, UCREC01–05 | Outil : `myr` (`bin/myr-cli`)
 
 ---
 

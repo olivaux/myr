@@ -12,8 +12,9 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"github.com/spf13/cobra"
 	"myr/domain/network"
+
+	"github.com/spf13/cobra"
 )
 
 // ── myr network ───────────────────────────────────────────────────────────────
@@ -58,7 +59,7 @@ func runNetworkList(w io.Writer, svc network.NetworkService) error {
 		return err
 	}
 	if len(networks) == 0 {
-		fmt.Fprintln(w, `Aucun réseau configuré. Utilisez "myr network add" ou "myr network import".`)
+		fmt.Fprintln(w, `Aucun réseau configuré. Si réseau existant, Utilisez "myr network add" ou "myr network import". Sinon "myr network create" pour créer depuis un serveur vierge.`)
 		return nil
 	}
 	tw := tabwriter.NewWriter(w, 0, 0, 2, ' ', 0)

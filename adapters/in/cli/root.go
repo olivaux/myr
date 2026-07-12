@@ -12,6 +12,7 @@ import (
 	"myr/domain/network"
 	"myr/domain/payment"
 	"myr/domain/role"
+	"myr/domain/session"
 )
 
 var (
@@ -43,21 +44,22 @@ Run 'myr man [command]' to read the full manual for any command.`,
 // CommandTree returns rootCmd with all subcommands registered.
 // Used by man page generation (no services required).
 func CommandTree() *cobra.Command {
-	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, manCmd)
+	rootCmd.AddCommand(modelCmd, moduleCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, sessionCmd, manCmd)
 	return rootCmd
 }
 
 // Execute injects services and starts the CLI.
-func Execute(ms model.ModelService, cs channel.ChannelService, ps payment.PaymentService, ns network.NetworkService, rs role.RoleService, is identity.IdentityService) {
+func Execute(ms model.ModelService, cs channel.ChannelService, ps payment.PaymentService, ns network.NetworkService, rs role.RoleService, is identity.IdentityService, ss session.SessionService) {
 	modelSvc = ms
 	channelSvc = cs
 	paymentSvc = ps
 	networkSvc = ns
 	roleSvc = rs
 	identitySvc = is
+	sessionSvc = ss
 
 	rootCmd.Version = Version
-	rootCmd.AddCommand(modelCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, manCmd)
+	rootCmd.AddCommand(modelCmd, moduleCmd, channelCmd, paymentCmd, networkCmd, orgCmd, nodeCmd, roleCmd, identityCmd, sessionCmd, manCmd)
 
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintln(os.Stderr, err)

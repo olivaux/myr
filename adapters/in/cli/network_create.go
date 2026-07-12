@@ -5,8 +5,9 @@ import (
 	"fmt"
 	"io"
 
-	"github.com/spf13/cobra"
 	"myr/domain/network"
+
+	"github.com/spf13/cobra"
 )
 
 var (
@@ -23,7 +24,7 @@ var (
 
 func runNetworkCreateCmd(w io.Writer, svc network.NetworkService, req network.CreateNetworkRequest, activate bool) error {
 	fmt.Fprintf(w, "Création du réseau %q — organisation %s, canal %s, %d nœud(s)...\n", req.Name, req.OrgMSPID, req.ChannelName, req.NumPeers+1)
-	fmt.Fprintln(w, "Cette opération démarre réellement des conteneurs Docker et peut prendre plusieurs minutes.")
+	fmt.Fprintln(w, "Cette opération démarre des conteneurs Docker. Cela peut prendre plusieurs minutes.")
 
 	n, err := svc.Create(req)
 	if err != nil {

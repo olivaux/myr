@@ -42,11 +42,22 @@ const (
 // Bootstrap crée un réseau blockchain from scratch : démarre la CA, provisionne
 // les identités (admin d'org, orderer, peers), génère configtx/genesis, démarre
 // les conteneurs Docker, fait rejoindre le canal à l'orderer et aux peers.
-func (b *FabricNetworkBootstrapper) Bootstrap(req network.CreateNetworkRequest) (*network.BootstrapResult, error) {
+func (b *FabricNetworkBootstrapper) Bootstrap(req network.CreateNetworkRequest) (result *network.BootstrapResult, err error) {
 	ctx := context.Background()
 
 	networkDirID := fmt.Sprintf("net-%d", time.Now().UnixNano())
 	base := filepath.Join(fabricBase(), "networks", networkDirID)
+	// Bootstrap est tout-ou-rien : les noms de conteneurs Docker sont déterministes
+	// par org (container_name: ca.{{.CAName}}, voir dockercompose_template.go), pas
+	// par networkDirID — une tentative avortée qui laisse ses conteneurs/répertoire
+	// derrière elle bloque donc *toute* tentative suivante pour la même org avec un
+	// conflit "container name already in use". Un échec à n'importe quelle étape
+	// nettoie donc ce que cette tentative a démarré.
+	defer func() {
+		if err != nil {
+			cleanupFailedBootstrap(ctx, base)
+		}
+	}()
 	cryptoDir := filepath.Join(base, "crypto")
 	artifactsDir := filepath.Join(base, "channel-artifacts")
 	for _, d := range []string{cryptoDir, artifactsDir} {
@@ -298,6 +309,38 @@ func (b *FabricNetworkBootstrapper) Bootstrap(req network.CreateNetworkRequest) 
 	}
 
 	return &network.BootstrapResult{Profile: profile, Nodes: nodes}, nil
+}
+
+// cleanupFailedBootstrap arrête et supprime les conteneurs Docker démarrés par une
+// tentative de Bootstrap avortée, puis supprime son répertoire de travail. Sans ce
+// nettoyage, les conteneurs (noms déterministes par org — container_name dans
+// dockercompose_template.go, pas de suffixe par networkDirID) restent en place et
+// toute tentative suivante échoue avec "Conflict: container name already in use".
+// `docker compose down` sur un fichier dont les services n'ont jamais démarré (ex:
+// échec avant l'étape 1) ne fait rien et ne renvoie pas d'erreur — l'appel est donc
+// sûr à n'importe quel stade de Bootstrap.
+func cleanupFailedBootstrap(ctx context.Context, base string) {
+	composePath := filepath.Join(base, "docker-compose.yaml")
+	if _, statErr := os.Stat(composePath); statErr == nil {
+		if _, err := runDocker(ctx, base, "compose", "-f", "docker-compose.yaml", "down", "-v", "--remove-orphans"); err != nil {
+			fmt.Fprintf(os.Stderr, "myr: nettoyage après échec du bootstrap réseau (%s) : %v\n", base, err)
+		}
+	}
+	// La CA (image hyperledger/fabric-ca, voir dockercompose_template.go) écrit
+	// dans son volume monté ({{.CryptoDir}}/ca) en tant que root — le process myr
+	// tourne lui en tant qu'utilisateur non-root et ne peut donc pas supprimer ces
+	// fichiers directement depuis l'hôte (os.RemoveAll échouerait avec
+	// "permission denied"). Un conteneur jetable, root côté conteneur, est
+	// autorisé sur le bind-mount quel que soit le propriétaire des fichiers créés
+	// par un conteneur précédent : on lui délègue la suppression du contenu avant
+	// de retirer le répertoire de base lui-même (celui-ci appartient à myr, donc
+	// supprimable normalement une fois vide).
+	if _, err := runDocker(ctx, base, "run", "--rm", "-v", base+":/data", "alpine", "sh", "-c", "rm -rf /data/*"); err != nil {
+		fmt.Fprintf(os.Stderr, "myr: nettoyage après échec du bootstrap réseau (%s) : suppression du contenu via conteneur jetable : %v\n", base, err)
+	}
+	if err := os.RemoveAll(base); err != nil {
+		fmt.Fprintf(os.Stderr, "myr: nettoyage après échec du bootstrap réseau : suppression %s : %v\n", base, err)
+	}
 }
 
 // provisionAdminMSP enregistre et enrôle une identité admin (Type "client"),

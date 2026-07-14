@@ -30,6 +30,8 @@ U --> UC1
 
 Le rôle attribué à l'identité connectée est consultable via l'API ou le CLI.
 
+<!-- #remarque : myr identity status / GET /api/identity/status retourne le statut d'enrôlement CA d'un wallet (pending/active/suspended), pas un rôle RBAC (reader/contributor/...). specs/2-Analyse/UCA-Compte_et_Acces/UCA07.md affirme au contraire qu'aucun endpoint ne permet de reconsulter le rôle après la connexion (le rôle n'est communiqué qu'une fois, dans la réponse de POST /api/identity/session). Les deux couches se contredisent sur la commande citée ici — à clarifier avant de considérer ce use case comme couvert. -->
+
 ## Pré-conditions
 
 - Être connecté au réseau

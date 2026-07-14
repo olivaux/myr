@@ -32,6 +32,8 @@ UC1 .> UC2 : <<extend>>
 
 L'état de connexion (connecté / déconnecté, réseau, organisation, peer) est consultable à tout moment via l'API ou le CLI.
 
+<!-- #remarque : myr identity status / GET /api/identity/status n'interroge que le statut d'enrôlement CA d'un wallet (pending/active/suspended) — il ne retourne ni réseau, ni organisation, ni peer. specs/2-Analyse/UCA-Compte_et_Acces/UCA04.md ne mentionne d'ailleurs aucun endpoint de ce type. Écart à clarifier : soit ce use case décrit une capacité pas encore modélisée côté domaine, soit son périmètre doit être réduit au statut CA seul. -->
+
 ## Pré-conditions
 
 - Disposer d'un token de session (le cas échéant)

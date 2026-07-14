@@ -59,7 +59,7 @@ Un utilisateur ne peut transmettre une requête d'accès qu'en texte libre : le 
 3. L'administrateur exécute `myr identity set-role --id <pseudo@org> --role <nouveau-rôle>`
 4. Le service appelle `CAPort.UpdateAttributes(ctx, name, {"Myr.role": newRole})`
 5. Le CLI affiche : « Rôle de "pseudo@org" mis à jour : nouveau-rôle. Le nouveau rôle s'applique au prochain ré-enrôlement de l'identité. »
-6. L'utilisateur doit se reconnecter (`POST /api/identity/session`) pour qu'un nouveau certificat portant l'attribut à jour soit émis — **cela ne met pas à jour le rôle de la session REST**, actuellement toujours fixé à `"contributor"` (voir écart UCA02)
+6. L'identité doit être ré-enrôlée pour qu'un nouveau certificat portant l'attribut à jour soit émis — soit côté CLI via `myr identity re-enroll <pseudo@org>` (renouvelle le wallet local sans passer par une session REST), soit côté REST via une nouvelle connexion (`POST /api/identity/session`). Dans ce second cas, **cela ne met pas à jour le rôle de la session REST**, actuellement toujours fixé à `"contributor"` (voir écart UCA02)
 
 ### Flux erreur — Identité ou rôle invalide
 
@@ -101,6 +101,8 @@ CLI --> ADM : "Rôle de alice@org1 mis à jour : contributor.\nLe nouveau rôle 
 ## Notes d'implémentation
 
 **Commande réelle :** `myr identity set-role --id <pseudo@org> --role <nom>` (`adapters/in/cli/identity.go`) → `IdentityService.SetRole` (`domain/identity/service.go`) → `CAPort.UpdateAttributes`.
+
+**Ré-enrôlement CLI :** `myr identity re-enroll <pseudo@org>` (`adapters/in/cli/identity.go`) → `IdentityService.ReEnroll` (retrouve le wallet local correspondant au handle via `ListLocalWallets`, puis émet un nouveau certificat). Ferme l'écart qui obligeait auparavant à passer par une session REST (`POST /api/identity/session`) pour tout ré-enrôlement — utile en particulier quand l'identité n'a pas vocation à obtenir de session REST.
 
 **⚠️ Écart — pas de canal structuré pour la demande :** `AccountRequest` (`domain/identity/entity.go`) n'a pas de champ « rôle souhaité » — seul un champ `message` libre existe. Une future itération pourrait ajouter un champ `requested_role` et un endpoint/commande d'approbation dédiés (voir écart similaire documenté dans UCA01, absence de flux d'approbation).
 

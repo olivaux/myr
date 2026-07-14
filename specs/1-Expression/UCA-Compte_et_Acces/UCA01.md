@@ -46,7 +46,7 @@ Pour obtenir un rôle supplémentaire (Concepteur, Consommateur…), une action 
 
 ## Scénario
 
-**Étape initiale :** Un client (interface graphique tierce, script, plugin...) soumet une demande d'accès via `POST /api/identity/request` — ou, pour le compte d'un utilisateur, un administrateur exécute la commande CLI équivalente
+**Étape initiale :** Un client (interface graphique tierce, script, plugin...) soumet une demande d'accès via `POST /api/identity/request` — ou, pour le compte d'un utilisateur, un administrateur exécute la commande CLI équivalente (`myr identity request --pseudo <p> --email <e> --org-id <id>`)
 
 ### Flux nominal — Auto-enregistrement
 

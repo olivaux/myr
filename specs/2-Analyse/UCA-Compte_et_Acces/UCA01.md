@@ -40,7 +40,7 @@ Il n'existe **pas de compte email + mot de passe** dans `myr`. L'identité d'un 
 Deux chemins existent pour l'obtenir :
 
 1. **Demande d'accès auto-traitée** : `POST /api/identity/request` — si le réseau actif a `AllowAutoRegister=true`, l'identité est enregistrée immédiatement auprès de la CA (rôle = `AutoRegisterRole` du profil réseau, ou `reader` par défaut — RM21) et le secret d'enrôlement est retourné directement dans la réponse.
-2. **Demande d'accès en attente** : si `AllowAutoRegister=false`, la demande est simplement stockée (`AccountRequest`, statut `pending`). **Aucun mécanisme REST ou CLI n'existe aujourd'hui pour qu'un administrateur l'approuve** — seul `GET /api/identity/requests` permet de la consulter. L'administrateur doit créer l'identité manuellement via l'outillage Fabric CA (hors périmètre `myr`) et transmettre le secret à l'utilisateur par un canal hors bande. C'est un écart fonctionnel réel, pas seulement un détail d'implémentation (voir Notes).
+2. **Demande d'accès en attente** : si `AllowAutoRegister=false`, la demande est simplement stockée (`AccountRequest`, statut `pending`). **Aucun mécanisme REST ou CLI n'existe aujourd'hui pour qu'un administrateur approuve une demande déjà en attente** — seul `GET /api/identity/requests` (ou `myr identity requests`) permet de la consulter. L'administrateur doit créer l'identité manuellement via l'outillage Fabric CA (hors périmètre `myr`) et transmettre le secret à l'utilisateur par un canal hors bande. C'est un écart fonctionnel réel, pas seulement un détail d'implémentation (voir Notes).
 
 Il existe aussi un accès **invité** sans aucune identité CA (voir UCA02, `POST /api/identity/guest`), qui n'entre pas dans ce use case.
 
@@ -66,7 +66,7 @@ Il existe aussi un accès **invité** sans aucune identité CA (voir UCA02, `POS
 1. Étapes 1 à 3 identiques
 2. Le profil réseau n'autorise pas l'auto-enregistrement (ou aucun réseau actif n'est configuré)
 3. Réponse `HTTP 201` avec `{id, pseudo, display_name, email, org_id, message, status:"pending", created_at}`
-4. **Écart connu** : aucun endpoint REST ni commande CLI ne permet à l'administrateur d'approuver cette demande et de déclencher l'enregistrement CA correspondant. Seule la consultation (`GET /api/identity/requests`) existe. Le traitement réel se fait aujourd'hui hors `myr` (CA tooling + communication manuelle du secret).
+4. **Écart connu** : aucun endpoint REST ni commande CLI ne permet à l'administrateur d'approuver une demande déjà en attente et de déclencher l'enregistrement CA correspondant après coup. Seule la consultation (`GET /api/identity/requests`, `myr identity requests`) existe. Le traitement réel se fait aujourd'hui hors `myr` (CA tooling + communication manuelle du secret).
 
 ### Flux erreur — Champs requis manquants
 
@@ -133,6 +133,8 @@ end
 - `POST /api/identity/request` → `handleIdentityRequest` (`adapters/in/rest/handlers_identity.go`)
 - `GET /api/identity/requests` → `handleIdentityRequests` (lecture seule, protégée par `requireAuth` — pas de contrôle de rôle admin spécifique constaté)
 
-**Écart — pas de flux d'approbation :** Il n'existe aucun endpoint REST (`POST /api/identity/requests/{id}/approve`) ni commande CLI équivalente pour transformer une `AccountRequest` en pause en identité CA active. C'est un vrai manque fonctionnel, pas une simplification de cette spec — `myr identity` ne propose que `set-role` (UCA08), qui suppose une identité déjà enregistrée.
+**Commande CLI équivalente :** `myr identity request --pseudo <p> --email <e> --org-id <id> [--display-name <n>] [--message <m>]` (`adapters/in/cli/identity.go`) reproduit exactement le flux REST ci-dessus, y compris l'auto-enregistrement transparent si le réseau actif a `AllowAutoRegister=true` — même service domaine (`identitySvc.SubmitRequest` puis `identitySvc.AutoRegister`), donc même comportement quel que soit le canal. `myr identity requests` est l'équivalent CLI de `GET /api/identity/requests`.
+
+**Écart — pas de flux d'approbation *a posteriori*:** Il n'existe toujours aucun endpoint REST (`POST /api/identity/requests/{id}/approve`) ni commande CLI équivalente pour transformer une `AccountRequest` déjà en attente en identité CA active. C'est un vrai manque fonctionnel, pas une simplification de cette spec : `myr identity request` ne fait qu'imiter la logique d'auto-approbation *au moment de la soumission* (comme l'endpoint REST) — il ne rejoue rien pour une demande déjà stockée avec le statut `pending`. `myr identity` propose par ailleurs `set-role` (UCA08) et `re-enroll`, qui supposent tous deux une identité déjà enregistrée auprès de la CA.
 
 **Rôle par défaut :** `RegisterRequest.Role` vide → la Fabric CA applique son propre défaut (probablement `reader` au niveau de la configuration CA, pas garanti par le code `myr`) — à vérifier côté configuration CA plutôt que côté application.

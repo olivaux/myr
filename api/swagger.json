@@ -1,0 +1,3472 @@
+{
+    "schemes": [
+        "http",
+        "https"
+    ],
+    "swagger": "2.0",
+    "info": {
+        "description": "API REST du backend myr — blockchain, stockage fichiers, identités, sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script) consomment cette même API via le domaine (`domain/`).",
+        "title": "Myr API",
+        "contact": {},
+        "version": "1.0"
+    },
+    "basePath": "/api",
+    "paths": {
+        "/admin/sessions": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Réservé au rôle admin. Le token n'est jamais renvoyé en entier (seulement les 8 premiers caractères) pour ne pas exposer un secret exploitable côté client.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Lister les sessions actives",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/admin/sessions/{token}": {
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Révoquer une session",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "token complet de la session (pas le préfixe renvoyé par GET /admin/sessions)",
+                        "name": "token",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "pas de contenu"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/assembly-links": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Déclenche automatiquement la vérification de compatibilité (règle 11) ; les liaisons incompatibles portent incompatible:true et ne se suppriment pas automatiquement (règle 12). Une interface est à usage unique dans une liaison (règle 10).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Créer une liaison entre deux interfaces",
+                "parameters": [
+                    {
+                        "description": "from_iface_id et to_iface_id requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.assemblyLinkRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.connectionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/channels": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET est public. PUT accepte X-Myr-Token ou une session déjà authentifiée et valide le canal contre la liste des canaux connus du réseau actif.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Lire ou changer le canal actif",
+                "parameters": [
+                    {
+                        "description": "{ \\",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET est public. PUT accepte X-Myr-Token ou une session déjà authentifiée et valide le canal contre la liste des canaux connus du réseau actif.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "admin"
+                ],
+                "summary": "Lire ou changer le canal actif",
+                "parameters": [
+                    {
+                        "description": "{ \\",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components": {
+            "get": {
+                "description": "Filtre côté serveur — ne renvoie qu'un sous-ensemble pour éviter de tout charger. Les modules sont exclus (voir /api/modules).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Lister les composants",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "recherche texte (nom, description, tags)",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "catégories séparées par virgule (ex: base,variation)",
+                        "name": "categories",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "filtre par propriétaire",
+                        "name": "owner_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "filtre par asset parent",
+                        "name": "parent_id",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "filtre par hash SHA-256 exact",
+                        "name": "hash",
+                        "in": "query"
+                    },
+                    {
+                        "type": "string",
+                        "description": "tags séparés par virgule (correspondance sur au moins un tag)",
+                        "name": "tags",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "nombre maximum de résultats (défaut 200, max 1000)",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.graphResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Crée un asset (catégorie par défaut \"base\"). Le fichier CAO 3D est optionnel (champ \"file\", ou \"stl\" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé.",
+                "consumes": [
+                    "multipart/form-data"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Créer un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "nom du composant (max 256 caractères)",
+                        "name": "name",
+                        "in": "formData",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "description (max 10000 caractères)",
+                        "name": "description",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "catégorie (défaut: base)",
+                        "name": "category",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "propriétaire",
+                        "name": "owner_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "asset parent (dérivation)",
+                        "name": "parent_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "canal cible (défaut: canal de la session)",
+                        "name": "channel_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "licence",
+                        "name": "license_id",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "tags séparés par virgule",
+                        "name": "tags",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "liens externes, tableau JSON encodé en chaîne",
+                        "name": "links",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "file",
+                        "description": "fichier CAO 3D",
+                        "name": "file",
+                        "in": "formData"
+                    },
+                    {
+                        "type": "string",
+                        "description": "miniature en data URL base64",
+                        "name": "thumbnail",
+                        "in": "formData"
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.componentDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Détail d'un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.componentDTO"
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Suppression locale uniquement — la blockchain Fabric ne supporte pas la suppression (règle 9) ; un composant déjà soumis reste sur le ledger.",
+                "tags": [
+                    "components"
+                ],
+                "summary": "Supprimer un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "pas de contenu"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Champs modifiables : name, description, license_id, tags, links. Le contenu blockchain déjà soumis reste immuable (règle 7) — seuls les champs hors ledger sont mis à jour.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Modifier un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "champs à modifier (name, description, license_id, tags, links)",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.componentDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{id}/interfaces": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Tant que l'asset porteur est en brouillon, les interfaces sont éditées librement en local et ne rejoignent la blockchain qu'à la soumission de l'asset (règle 27).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Interfaces d'un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "interface à ajouter — POST uniquement",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Tant que l'asset porteur est en brouillon, les interfaces sont éditées librement en local et ne rejoignent la blockchain qu'à la soumission de l'asset (règle 27).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Interfaces d'un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "interface à ajouter — POST uniquement",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            }
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{id}/tree": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Tous les ancêtres (via parent_id) et descendants (parcours en largeur) de l'asset, plus les connexions internes à cet ensemble.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Arbre d'évolution d'un composant",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.graphResponse"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/connections": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Créer une connexion",
+                "parameters": [
+                    {
+                        "description": "from et to requis ; label optionnel",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.connectionDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.connectionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/connections/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Supprimer une connexion",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant de la connexion",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "pas de contenu"
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/health": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infra"
+                ],
+                "summary": "Health check",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/enroll": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Enrôlement CA (sans session)",
+                "parameters": [
+                    {
+                        "description": "name, secret, org_id requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.walletDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/guest": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Accès invité automatique",
+                "parameters": [
+                    {
+                        "description": "pseudo, display_name, email, org_id, message — tous optionnels",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.sessionDTO"
+                        }
+                    },
+                    "403": {
+                        "description": "Forbidden",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/policy": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Politique d'accès du réseau actif",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.networkPolicyResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/request": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Demander un accès au réseau",
+                "parameters": [
+                    {
+                        "description": "pseudo, email, org_id requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.accountRequestDTO"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_identity.AccountRequest"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/requests": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Lister les demandes de compte",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/myr_domain_identity.AccountRequest"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/session": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Créer une session (utilisateur connu)",
+                "parameters": [
+                    {
+                        "description": "name, secret, org_id requis ; channel optionnel",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.sessionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "429": {
+                        "description": "Too Many Requests",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/status": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Statut CA d'un wallet",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant pseudo@org, ex: alice@Org1",
+                        "name": "handle",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/identity/wallets": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "identity"
+                ],
+                "summary": "Lister les wallets locaux",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/adapters_in_rest.walletDTO"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "Service Unavailable",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/interfaces/{id}": {
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "DELETE maintient l'invariant qu'un asset possède toujours au moins un slot virtuel (règle 13) : un nouveau slot virtuel est recréé si l'interface supprimée était physique et la dernière restante.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Modifier ou supprimer une interface",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant de l'interface",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "interface mise à jour — PATCH uniquement",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "DELETE maintient l'invariant qu'un asset possède toujours au moins un slot virtuel (règle 13) : un nouveau slot virtuel est recréé si l'interface supprimée était physique et la dernière restante.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Modifier ou supprimer une interface",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant de l'interface",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "interface mise à jour — PATCH uniquement",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "licenses"
+                ],
+                "summary": "Catalogue des licences",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/myr_domain_model.License"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/check": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET /api/licenses/{id} : détail. POST /api/licenses/check : { parent_license_id, proposed_license_id } → compatibilité pour une dérivation de composant. POST /api/licenses/check-product : { component_license_ids[], proposed_module_license_id } → compatibilité pour un module assemblant plusieurs composants.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "licenses"
+                ],
+                "summary": "Détail d'une licence ou vérification de compatibilité",
+                "parameters": [
+                    {
+                        "description": "corps de vérification — POST /api/licenses/check(-product)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.License"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/check-product": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET /api/licenses/{id} : détail. POST /api/licenses/check : { parent_license_id, proposed_license_id } → compatibilité pour une dérivation de composant. POST /api/licenses/check-product : { component_license_ids[], proposed_module_license_id } → compatibilité pour un module assemblant plusieurs composants.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "licenses"
+                ],
+                "summary": "Détail d'une licence ou vérification de compatibilité",
+                "parameters": [
+                    {
+                        "description": "corps de vérification — POST /api/licenses/check(-product)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.License"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/licenses/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET /api/licenses/{id} : détail. POST /api/licenses/check : { parent_license_id, proposed_license_id } → compatibilité pour une dérivation de composant. POST /api/licenses/check-product : { component_license_ids[], proposed_module_license_id } → compatibilité pour un module assemblant plusieurs composants.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "licenses"
+                ],
+                "summary": "Détail d'une licence ou vérification de compatibilité",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant de la licence — GET /api/licenses/{id}",
+                        "name": "id",
+                        "in": "path"
+                    },
+                    {
+                        "description": "corps de vérification — POST /api/licenses/check(-product)",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/myr_domain_model.License"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET liste les modules (filtre texte \"q\", pagination \"limit\"). POST crée un module en brouillon (status \"draft\") — un module exige au moins un assemblage avant d'être soumis (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Lister ou créer des modules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "recherche texte (nom, description) — GET uniquement",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "nombre maximum de résultats (défaut 200, max 1000) — GET uniquement",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "description": "name (requis), description, owner_id, channel_id, license_id — POST uniquement",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET : {items, total}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "201": {
+                        "description": "POST : module créé",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET liste les modules (filtre texte \"q\", pagination \"limit\"). POST crée un module en brouillon (status \"draft\") — un module exige au moins un assemblage avant d'être soumis (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Lister ou créer des modules",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "recherche texte (nom, description) — GET uniquement",
+                        "name": "q",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "description": "nombre maximum de résultats (défaut 200, max 1000) — GET uniquement",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "description": "name (requis), description, owner_id, channel_id, license_id — POST uniquement",
+                        "name": "body",
+                        "in": "body",
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "GET : {items, total}",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "201": {
+                        "description": "POST : module créé",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/assemblies": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Ajouter un assemblage à un module",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "connection_id requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/assemblies/{connID}": {
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/connections": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/instances": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/instances/{instanceId}": {
+            "delete": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/interfaces": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/thumbnail": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/networks": {
+            "get": {
+                "description": "Public — ne renvoie que des métadonnées, jamais de credentials.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "networks"
+                ],
+                "summary": "Lister les profils réseau",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/networks/active": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "networks"
+                ],
+                "summary": "Réseau actif de la session",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            },
+            "put": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "networks"
+                ],
+                "summary": "Changer le réseau actif de la session",
+                "parameters": [
+                    {
+                        "description": "network_id requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "401": {
+                        "description": "Unauthorized",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "501": {
+                        "description": "Not Implemented",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/ping": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infra"
+                ],
+                "summary": "Liveness",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    }
+                }
+            }
+        },
+        "/refs": {
+            "get": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "refs"
+                ],
+                "summary": "Vocabulaire de référence des interfaces",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/refs/categories": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "refs"
+                ],
+                "summary": "Ajouter une catégorie de référence",
+                "parameters": [
+                    {
+                        "description": "name requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/refs/types": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "refs"
+                ],
+                "summary": "Ajouter un type de référence",
+                "parameters": [
+                    {
+                        "description": "category et name requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/refs/units": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "refs"
+                ],
+                "summary": "Ajouter une unité de référence",
+                "parameters": [
+                    {
+                        "description": "category et name requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "type": "object"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": true
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/status": {
+            "get": {
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "infra"
+                ],
+                "summary": "Statut du serveur",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.statusResponse"
+                        }
+                    }
+                }
+            }
+        },
+        "/virtual-connect": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "connections"
+                ],
+                "summary": "Relier une interface virtuelle à une interface physique",
+                "parameters": [
+                    {
+                        "description": "virtual_iface_id et physical_iface_id requis",
+                        "name": "body",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.virtualConnectRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.connectionDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    },
+    "definitions": {
+        "adapters_in_rest.accountRequestDTO": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "message": {
+                    "type": "string"
+                },
+                "org_id": {
+                    "type": "string"
+                },
+                "pseudo": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.assemblyLinkRequest": {
+            "type": "object",
+            "properties": {
+                "fastener_asset_id": {
+                    "type": "string"
+                },
+                "from_iface_id": {
+                    "type": "string"
+                },
+                "from_instance_id": {
+                    "type": "string"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "to_iface_id": {
+                    "type": "string"
+                },
+                "to_instance_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.componentDTO": {
+            "type": "object",
+            "properties": {
+                "block_id": {
+                    "type": "string"
+                },
+                "category": {
+                    "$ref": "#/definitions/myr_domain_model.Category"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "license_id": {
+                    "type": "string"
+                },
+                "links": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "string"
+                },
+                "parent_id": {
+                    "type": "string"
+                },
+                "tags": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "thumbnail": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.connectionDTO": {
+            "type": "object",
+            "properties": {
+                "fastener_asset_id": {
+                    "type": "string"
+                },
+                "from": {
+                    "type": "string"
+                },
+                "from_iface_id": {
+                    "type": "string"
+                },
+                "from_instance_id": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "incompatible": {
+                    "type": "boolean"
+                },
+                "label": {
+                    "type": "string"
+                },
+                "to": {
+                    "type": "string"
+                },
+                "to_iface_id": {
+                    "type": "string"
+                },
+                "to_instance_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.graphResponse": {
+            "type": "object",
+            "properties": {
+                "components": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/adapters_in_rest.componentDTO"
+                    }
+                },
+                "connections": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/adapters_in_rest.connectionDTO"
+                    }
+                },
+                "total": {
+                    "type": "integer"
+                }
+            }
+        },
+        "adapters_in_rest.moduleDTO": {
+            "type": "object",
+            "properties": {
+                "assemblies": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "description": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "instances": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myr_domain_model.WorkspaceInstance"
+                    }
+                },
+                "license_id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "owner_id": {
+                    "type": "string"
+                },
+                "status": {
+                    "$ref": "#/definitions/myr_domain_model.ModuleStatus"
+                },
+                "thumbnail": {
+                    "type": "string"
+                },
+                "versions": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/myr_domain_model.ModuleVersion"
+                    }
+                }
+            }
+        },
+        "adapters_in_rest.networkPolicyResponse": {
+            "type": "object",
+            "properties": {
+                "allow_auto_guest": {
+                    "description": "le réseau délivre un accès reader automatiquement",
+                    "type": "boolean"
+                },
+                "allow_auto_register": {
+                    "description": "le réseau enregistre les comptes automatiquement",
+                    "type": "boolean"
+                },
+                "mode": {
+                    "description": "\"blockchain\"",
+                    "type": "string"
+                },
+                "network_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.sessionDTO": {
+            "type": "object",
+            "properties": {
+                "channel": {
+                    "description": "canal Fabric actif",
+                    "type": "string"
+                },
+                "guest": {
+                    "type": "boolean"
+                },
+                "pseudo": {
+                    "type": "string"
+                },
+                "role": {
+                    "description": "\"reader\" | \"contributor\" | ...",
+                    "type": "string"
+                },
+                "token": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.statusResponse": {
+            "type": "object",
+            "properties": {
+                "assets": {
+                    "type": "integer"
+                },
+                "channel": {
+                    "type": "string"
+                },
+                "connected": {
+                    "type": "boolean"
+                },
+                "mode": {
+                    "type": "string"
+                },
+                "network": {
+                    "type": "string"
+                },
+                "peer": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.virtualConnectRequest": {
+            "type": "object",
+            "properties": {
+                "from_instance_id": {
+                    "type": "string"
+                },
+                "is_range": {
+                    "type": "boolean"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "physical_iface_id": {
+                    "type": "string"
+                },
+                "to_instance_id": {
+                    "type": "string"
+                },
+                "unit": {
+                    "type": "string"
+                },
+                "value_max": {
+                    "type": "number"
+                },
+                "value_min": {
+                    "type": "number"
+                },
+                "virtual_iface_id": {
+                    "type": "string"
+                }
+            }
+        },
+        "adapters_in_rest.walletDTO": {
+            "type": "object",
+            "properties": {
+                "guest": {
+                    "description": "true = identité invité (lecture seule)",
+                    "type": "boolean"
+                },
+                "handle": {
+                    "description": "\"alice@Org1\"",
+                    "type": "string"
+                },
+                "name": {
+                    "description": "\"alice\"",
+                    "type": "string"
+                },
+                "org_id": {
+                    "description": "\"Org1MSP\"",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"pending\" | \"active\" | \"suspended\"",
+                    "type": "string"
+                }
+            }
+        },
+        "myr_domain_identity.AccountRequest": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "description": "ISO 8601",
+                    "type": "string"
+                },
+                "display_name": {
+                    "description": "nom affiché",
+                    "type": "string"
+                },
+                "email": {
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "message": {
+                    "description": "message libre pour l'admin",
+                    "type": "string"
+                },
+                "org_id": {
+                    "description": "organisation souhaitée (ex: Org1MSP)",
+                    "type": "string"
+                },
+                "pseudo": {
+                    "description": "identifiant souhaité",
+                    "type": "string"
+                },
+                "status": {
+                    "description": "\"pending\" | \"approved\" | \"rejected\"",
+                    "type": "string"
+                }
+            }
+        },
+        "myr_domain_model.AssetInterface": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "type": "string"
+                },
+                "category": {
+                    "description": "\"ELEC\", \"MECA\", \"HYD\" ou custom",
+                    "type": "string"
+                },
+                "direction": {
+                    "description": "\"in\", \"out\", \"bidir\"",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/myr_domain_model.IfaceDirection"
+                        }
+                    ]
+                },
+                "id": {
+                    "type": "string"
+                },
+                "is_range": {
+                    "description": "true si plage de valeurs",
+                    "type": "boolean"
+                },
+                "name": {
+                    "description": "label optionnel",
+                    "type": "string"
+                },
+                "type": {
+                    "description": "ex: \"DIN\", \"Vis M3\"",
+                    "type": "string"
+                },
+                "unit": {
+                    "description": "ex: \"V\", \"mm\", \"bar\"",
+                    "type": "string"
+                },
+                "value_max": {
+                    "description": "borne haute (si IsRange)",
+                    "type": "number"
+                },
+                "value_min": {
+                    "description": "valeur unique ou borne basse",
+                    "type": "number"
+                },
+                "virtual": {
+                    "description": "true = point de connexion non encore matérialisé",
+                    "type": "boolean"
+                }
+            }
+        },
+        "myr_domain_model.Category": {
+            "type": "string",
+            "enum": [
+                "base",
+                "amelioration",
+                "variation",
+                "adaptation",
+                "derivation",
+                "extension",
+                "regression"
+            ],
+            "x-enum-varnames": [
+                "CategoryBase",
+                "CategoryAmelioration",
+                "CategoryVariation",
+                "CategoryAdaptation",
+                "CategoryDerivation",
+                "CategoryExtension",
+                "CategoryRegression"
+            ]
+        },
+        "myr_domain_model.IfaceDirection": {
+            "type": "string",
+            "enum": [
+                "in",
+                "out",
+                "bidir"
+            ],
+            "x-enum-varnames": [
+                "IfaceIn",
+                "IfaceOut",
+                "IfaceBidi"
+            ]
+        },
+        "myr_domain_model.License": {
+            "type": "object",
+            "properties": {
+                "compatible_with": {
+                    "description": "CompatibleWith liste les IDs de licences autorisées pour les œuvres dérivées.\nVide = aucune dérivation permise.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "conditions": {
+                    "description": "ex: \"include-copyright\", \"same-license\"",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "description": {
+                    "description": "résumé humain",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "limitations": {
+                    "description": "ex: \"liability\", \"trademark-use\"",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "type": "string"
+                },
+                "permissions": {
+                    "description": "ex: \"commercial-use\", \"modifications\"",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "spdx": {
+                    "description": "identifiant SPDX normalisé (ex: \"CC-BY-4.0\")",
+                    "type": "string"
+                }
+            }
+        },
+        "myr_domain_model.ModuleStatus": {
+            "type": "string",
+            "enum": [
+                "draft",
+                "submitted"
+            ],
+            "x-enum-comments": {
+                "ModuleDraft": "en cours de composition",
+                "ModuleSubmitted": "soumis à la blockchain"
+            },
+            "x-enum-varnames": [
+                "ModuleDraft",
+                "ModuleSubmitted"
+            ]
+        },
+        "myr_domain_model.ModuleVersion": {
+            "type": "object",
+            "properties": {
+                "assemblies": {
+                    "description": "snapshot des IDs de connexions",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "block_id": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string"
+                },
+                "hash": {
+                    "type": "string"
+                },
+                "note": {
+                    "type": "string"
+                },
+                "number": {
+                    "type": "integer"
+                }
+            }
+        },
+        "myr_domain_model.WorkspaceInstance": {
+            "type": "object",
+            "properties": {
+                "asset_id": {
+                    "description": "ID du composant ou module référencé",
+                    "type": "string"
+                },
+                "id": {
+                    "type": "string"
+                },
+                "x": {
+                    "type": "number"
+                },
+                "y": {
+                    "type": "number"
+                }
+            }
+        }
+    },
+    "securityDefinitions": {
+        "MyrToken": {
+            "description": "Token opaque de session (32 octets hex), obtenu via POST /identity/session, /identity/guest ou /identity/enroll — pas de JWT (voir la règle d'authentification du domaine identité).",
+            "type": "apiKey",
+            "name": "X-Myr-Token",
+            "in": "header"
+        }
+    }
+}

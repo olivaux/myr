@@ -1,0 +1,2369 @@
+basePath: /api
+definitions:
+  adapters_in_rest.accountRequestDTO:
+    properties:
+      display_name:
+        type: string
+      email:
+        type: string
+      message:
+        type: string
+      org_id:
+        type: string
+      pseudo:
+        type: string
+    type: object
+  adapters_in_rest.assemblyLinkRequest:
+    properties:
+      fastener_asset_id:
+        type: string
+      from_iface_id:
+        type: string
+      from_instance_id:
+        type: string
+      label:
+        type: string
+      to_iface_id:
+        type: string
+      to_instance_id:
+        type: string
+    type: object
+  adapters_in_rest.componentDTO:
+    properties:
+      block_id:
+        type: string
+      category:
+        $ref: '#/definitions/myr_domain_model.Category'
+      created_at:
+        type: string
+      description:
+        type: string
+      hash:
+        type: string
+      id:
+        type: string
+      license_id:
+        type: string
+      links:
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      owner_id:
+        type: string
+      parent_id:
+        type: string
+      tags:
+        items:
+          type: string
+        type: array
+      thumbnail:
+        type: string
+    type: object
+  adapters_in_rest.connectionDTO:
+    properties:
+      fastener_asset_id:
+        type: string
+      from:
+        type: string
+      from_iface_id:
+        type: string
+      from_instance_id:
+        type: string
+      id:
+        type: string
+      incompatible:
+        type: boolean
+      label:
+        type: string
+      to:
+        type: string
+      to_iface_id:
+        type: string
+      to_instance_id:
+        type: string
+    type: object
+  adapters_in_rest.graphResponse:
+    properties:
+      components:
+        items:
+          $ref: '#/definitions/adapters_in_rest.componentDTO'
+        type: array
+      connections:
+        items:
+          $ref: '#/definitions/adapters_in_rest.connectionDTO'
+        type: array
+      total:
+        type: integer
+    type: object
+  adapters_in_rest.moduleDTO:
+    properties:
+      assemblies:
+        items:
+          type: string
+        type: array
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: string
+      instances:
+        items:
+          $ref: '#/definitions/myr_domain_model.WorkspaceInstance'
+        type: array
+      license_id:
+        type: string
+      name:
+        type: string
+      owner_id:
+        type: string
+      status:
+        $ref: '#/definitions/myr_domain_model.ModuleStatus'
+      thumbnail:
+        type: string
+      versions:
+        items:
+          $ref: '#/definitions/myr_domain_model.ModuleVersion'
+        type: array
+    type: object
+  adapters_in_rest.networkPolicyResponse:
+    properties:
+      allow_auto_guest:
+        description: le réseau délivre un accès reader automatiquement
+        type: boolean
+      allow_auto_register:
+        description: le réseau enregistre les comptes automatiquement
+        type: boolean
+      mode:
+        description: '"blockchain"'
+        type: string
+      network_name:
+        type: string
+    type: object
+  adapters_in_rest.sessionDTO:
+    properties:
+      channel:
+        description: canal Fabric actif
+        type: string
+      guest:
+        type: boolean
+      pseudo:
+        type: string
+      role:
+        description: '"reader" | "contributor" | ...'
+        type: string
+      token:
+        type: string
+    type: object
+  adapters_in_rest.statusResponse:
+    properties:
+      assets:
+        type: integer
+      channel:
+        type: string
+      connected:
+        type: boolean
+      mode:
+        type: string
+      network:
+        type: string
+      peer:
+        type: string
+    type: object
+  adapters_in_rest.virtualConnectRequest:
+    properties:
+      from_instance_id:
+        type: string
+      is_range:
+        type: boolean
+      name:
+        type: string
+      physical_iface_id:
+        type: string
+      to_instance_id:
+        type: string
+      unit:
+        type: string
+      value_max:
+        type: number
+      value_min:
+        type: number
+      virtual_iface_id:
+        type: string
+    type: object
+  adapters_in_rest.walletDTO:
+    properties:
+      guest:
+        description: true = identité invité (lecture seule)
+        type: boolean
+      handle:
+        description: '"alice@Org1"'
+        type: string
+      name:
+        description: '"alice"'
+        type: string
+      org_id:
+        description: '"Org1MSP"'
+        type: string
+      status:
+        description: '"pending" | "active" | "suspended"'
+        type: string
+    type: object
+  myr_domain_identity.AccountRequest:
+    properties:
+      created_at:
+        description: ISO 8601
+        type: string
+      display_name:
+        description: nom affiché
+        type: string
+      email:
+        type: string
+      id:
+        type: string
+      message:
+        description: message libre pour l'admin
+        type: string
+      org_id:
+        description: 'organisation souhaitée (ex: Org1MSP)'
+        type: string
+      pseudo:
+        description: identifiant souhaité
+        type: string
+      status:
+        description: '"pending" | "approved" | "rejected"'
+        type: string
+    type: object
+  myr_domain_model.AssetInterface:
+    properties:
+      asset_id:
+        type: string
+      category:
+        description: '"ELEC", "MECA", "HYD" ou custom'
+        type: string
+      direction:
+        allOf:
+        - $ref: '#/definitions/myr_domain_model.IfaceDirection'
+        description: '"in", "out", "bidir"'
+      id:
+        type: string
+      is_range:
+        description: true si plage de valeurs
+        type: boolean
+      name:
+        description: label optionnel
+        type: string
+      type:
+        description: 'ex: "DIN", "Vis M3"'
+        type: string
+      unit:
+        description: 'ex: "V", "mm", "bar"'
+        type: string
+      value_max:
+        description: borne haute (si IsRange)
+        type: number
+      value_min:
+        description: valeur unique ou borne basse
+        type: number
+      virtual:
+        description: true = point de connexion non encore matérialisé
+        type: boolean
+    type: object
+  myr_domain_model.Category:
+    enum:
+    - base
+    - amelioration
+    - variation
+    - adaptation
+    - derivation
+    - extension
+    - regression
+    type: string
+    x-enum-varnames:
+    - CategoryBase
+    - CategoryAmelioration
+    - CategoryVariation
+    - CategoryAdaptation
+    - CategoryDerivation
+    - CategoryExtension
+    - CategoryRegression
+  myr_domain_model.IfaceDirection:
+    enum:
+    - in
+    - out
+    - bidir
+    type: string
+    x-enum-varnames:
+    - IfaceIn
+    - IfaceOut
+    - IfaceBidi
+  myr_domain_model.License:
+    properties:
+      compatible_with:
+        description: |-
+          CompatibleWith liste les IDs de licences autorisées pour les œuvres dérivées.
+          Vide = aucune dérivation permise.
+        items:
+          type: string
+        type: array
+      conditions:
+        description: 'ex: "include-copyright", "same-license"'
+        items:
+          type: string
+        type: array
+      description:
+        description: résumé humain
+        type: string
+      id:
+        type: string
+      limitations:
+        description: 'ex: "liability", "trademark-use"'
+        items:
+          type: string
+        type: array
+      name:
+        type: string
+      permissions:
+        description: 'ex: "commercial-use", "modifications"'
+        items:
+          type: string
+        type: array
+      spdx:
+        description: 'identifiant SPDX normalisé (ex: "CC-BY-4.0")'
+        type: string
+    type: object
+  myr_domain_model.ModuleStatus:
+    enum:
+    - draft
+    - submitted
+    type: string
+    x-enum-comments:
+      ModuleDraft: en cours de composition
+      ModuleSubmitted: soumis à la blockchain
+    x-enum-varnames:
+    - ModuleDraft
+    - ModuleSubmitted
+  myr_domain_model.ModuleVersion:
+    properties:
+      assemblies:
+        description: snapshot des IDs de connexions
+        items:
+          type: string
+        type: array
+      block_id:
+        type: string
+      created_at:
+        type: string
+      hash:
+        type: string
+      note:
+        type: string
+      number:
+        type: integer
+    type: object
+  myr_domain_model.WorkspaceInstance:
+    properties:
+      asset_id:
+        description: ID du composant ou module référencé
+        type: string
+      id:
+        type: string
+      x:
+        type: number
+      "y":
+        type: number
+    type: object
+info:
+  contact: {}
+  description: API REST du backend myr — blockchain, stockage fichiers, identités,
+    sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script)
+    consomment cette même API via le domaine (`domain/`).
+  title: Myr API
+  version: "1.0"
+paths:
+  /admin/sessions:
+    get:
+      description: Réservé au rôle admin. Le token n'est jamais renvoyé en entier
+        (seulement les 8 premiers caractères) pour ne pas exposer un secret exploitable
+        côté client.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lister les sessions actives
+      tags:
+      - admin
+  /admin/sessions/{token}:
+    delete:
+      parameters:
+      - description: token complet de la session (pas le préfixe renvoyé par GET /admin/sessions)
+        in: path
+        name: token
+        required: true
+        type: string
+      responses:
+        "204":
+          description: pas de contenu
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Révoquer une session
+      tags:
+      - admin
+  /assembly-links:
+    post:
+      consumes:
+      - application/json
+      description: Déclenche automatiquement la vérification de compatibilité (règle
+        11) ; les liaisons incompatibles portent incompatible:true et ne se suppriment
+        pas automatiquement (règle 12). Une interface est à usage unique dans une
+        liaison (règle 10).
+      parameters:
+      - description: from_iface_id et to_iface_id requis
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/adapters_in_rest.assemblyLinkRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.connectionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Créer une liaison entre deux interfaces
+      tags:
+      - connections
+  /channels:
+    get:
+      consumes:
+      - application/json
+      description: GET est public. PUT accepte X-Myr-Token ou une session déjà authentifiée
+        et valide le canal contre la liste des canaux connus du réseau actif.
+      parameters:
+      - description: '{ \'
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lire ou changer le canal actif
+      tags:
+      - admin
+    put:
+      consumes:
+      - application/json
+      description: GET est public. PUT accepte X-Myr-Token ou une session déjà authentifiée
+        et valide le canal contre la liste des canaux connus du réseau actif.
+      parameters:
+      - description: '{ \'
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lire ou changer le canal actif
+      tags:
+      - admin
+  /components:
+    get:
+      description: Filtre côté serveur — ne renvoie qu'un sous-ensemble pour éviter
+        de tout charger. Les modules sont exclus (voir /api/modules).
+      parameters:
+      - description: recherche texte (nom, description, tags)
+        in: query
+        name: q
+        type: string
+      - description: 'catégories séparées par virgule (ex: base,variation)'
+        in: query
+        name: categories
+        type: string
+      - description: filtre par propriétaire
+        in: query
+        name: owner_id
+        type: string
+      - description: filtre par asset parent
+        in: query
+        name: parent_id
+        type: string
+      - description: filtre par hash SHA-256 exact
+        in: query
+        name: hash
+        type: string
+      - description: tags séparés par virgule (correspondance sur au moins un tag)
+        in: query
+        name: tags
+        type: string
+      - description: nombre maximum de résultats (défaut 200, max 1000)
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.graphResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Lister les composants
+      tags:
+      - components
+    post:
+      consumes:
+      - multipart/form-data
+      description: Crée un asset (catégorie par défaut "base"). Le fichier CAO 3D
+        est optionnel (champ "file", ou "stl" pour rétrocompatibilité) ; une miniature
+        base64 peut être fournie directement ou est dérivée de l'og:image du premier
+        lien si aucun fichier n'est envoyé.
+      parameters:
+      - description: nom du composant (max 256 caractères)
+        in: formData
+        name: name
+        required: true
+        type: string
+      - description: description (max 10000 caractères)
+        in: formData
+        name: description
+        type: string
+      - description: 'catégorie (défaut: base)'
+        in: formData
+        name: category
+        type: string
+      - description: propriétaire
+        in: formData
+        name: owner_id
+        type: string
+      - description: asset parent (dérivation)
+        in: formData
+        name: parent_id
+        type: string
+      - description: 'canal cible (défaut: canal de la session)'
+        in: formData
+        name: channel_id
+        type: string
+      - description: licence
+        in: formData
+        name: license_id
+        type: string
+      - description: tags séparés par virgule
+        in: formData
+        name: tags
+        type: string
+      - description: liens externes, tableau JSON encodé en chaîne
+        in: formData
+        name: links
+        type: string
+      - description: fichier CAO 3D
+        in: formData
+        name: file
+        type: file
+      - description: miniature en data URL base64
+        in: formData
+        name: thumbnail
+        type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.componentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Créer un composant
+      tags:
+      - components
+  /components/{id}:
+    delete:
+      description: Suppression locale uniquement — la blockchain Fabric ne supporte
+        pas la suppression (règle 9) ; un composant déjà soumis reste sur le ledger.
+      parameters:
+      - description: identifiant du composant
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: pas de contenu
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Supprimer un composant
+      tags:
+      - components
+    get:
+      parameters:
+      - description: identifiant du composant
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.componentDTO'
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Détail d'un composant
+      tags:
+      - components
+    patch:
+      consumes:
+      - application/json
+      description: 'Champs modifiables : name, description, license_id, tags, links.
+        Le contenu blockchain déjà soumis reste immuable (règle 7) — seuls les champs
+        hors ledger sont mis à jour.'
+      parameters:
+      - description: identifiant du composant
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: champs à modifier (name, description, license_id, tags, links)
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.componentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Modifier un composant
+      tags:
+      - components
+  /components/{id}/interfaces:
+    get:
+      consumes:
+      - application/json
+      description: Tant que l'asset porteur est en brouillon, les interfaces sont
+        éditées librement en local et ne rejoignent la blockchain qu'à la soumission
+        de l'asset (règle 27).
+      parameters:
+      - description: identifiant du composant
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: interface à ajouter — POST uniquement
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/myr_domain_model.AssetInterface'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/myr_domain_model.AssetInterface'
+            type: array
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/myr_domain_model.AssetInterface'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Interfaces d'un composant
+      tags:
+      - components
+    post:
+      consumes:
+      - application/json
+      description: Tant que l'asset porteur est en brouillon, les interfaces sont
+        éditées librement en local et ne rejoignent la blockchain qu'à la soumission
+        de l'asset (règle 27).
+      parameters:
+      - description: identifiant du composant
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: interface à ajouter — POST uniquement
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/myr_domain_model.AssetInterface'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/myr_domain_model.AssetInterface'
+            type: array
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/myr_domain_model.AssetInterface'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Interfaces d'un composant
+      tags:
+      - components
+  /components/{id}/tree:
+    get:
+      description: Tous les ancêtres (via parent_id) et descendants (parcours en largeur)
+        de l'asset, plus les connexions internes à cet ensemble.
+      parameters:
+      - description: identifiant du composant
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.graphResponse'
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Arbre d'évolution d'un composant
+      tags:
+      - components
+  /connections:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: from et to requis ; label optionnel
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/adapters_in_rest.connectionDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.connectionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Créer une connexion
+      tags:
+      - connections
+  /connections/{id}:
+    delete:
+      parameters:
+      - description: identifiant de la connexion
+        in: path
+        name: id
+        required: true
+        type: string
+      responses:
+        "204":
+          description: pas de contenu
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Supprimer une connexion
+      tags:
+      - connections
+  /health:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Health check
+      tags:
+      - infra
+  /identity/enroll:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: name, secret, org_id requis
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.walletDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Enrôlement CA (sans session)
+      tags:
+      - identity
+  /identity/guest:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: pseudo, display_name, email, org_id, message — tous optionnels
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.sessionDTO'
+        "403":
+          description: Forbidden
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Accès invité automatique
+      tags:
+      - identity
+  /identity/policy:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.networkPolicyResponse'
+      summary: Politique d'accès du réseau actif
+      tags:
+      - identity
+  /identity/request:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: pseudo, email, org_id requis
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/adapters_in_rest.accountRequestDTO'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/myr_domain_identity.AccountRequest'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Demander un accès au réseau
+      tags:
+      - identity
+  /identity/requests:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/myr_domain_identity.AccountRequest'
+            type: array
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lister les demandes de compte
+      tags:
+      - identity
+  /identity/session:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: name, secret, org_id requis ; channel optionnel
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.sessionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "429":
+          description: Too Many Requests
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Créer une session (utilisateur connu)
+      tags:
+      - identity
+  /identity/status:
+    get:
+      parameters:
+      - description: 'identifiant pseudo@org, ex: alice@Org1'
+        in: query
+        name: handle
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Statut CA d'un wallet
+      tags:
+      - identity
+  /identity/wallets:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/adapters_in_rest.walletDTO'
+            type: array
+        "503":
+          description: Service Unavailable
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lister les wallets locaux
+      tags:
+      - identity
+  /interfaces/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 'DELETE maintient l''invariant qu''un asset possède toujours au
+        moins un slot virtuel (règle 13) : un nouveau slot virtuel est recréé si l''interface
+        supprimée était physique et la dernière restante.'
+      parameters:
+      - description: identifiant de l'interface
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: interface mise à jour — PATCH uniquement
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/myr_domain_model.AssetInterface'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/myr_domain_model.AssetInterface'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Modifier ou supprimer une interface
+      tags:
+      - components
+    patch:
+      consumes:
+      - application/json
+      description: 'DELETE maintient l''invariant qu''un asset possède toujours au
+        moins un slot virtuel (règle 13) : un nouveau slot virtuel est recréé si l''interface
+        supprimée était physique et la dernière restante.'
+      parameters:
+      - description: identifiant de l'interface
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: interface mise à jour — PATCH uniquement
+        in: body
+        name: body
+        schema:
+          $ref: '#/definitions/myr_domain_model.AssetInterface'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/myr_domain_model.AssetInterface'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Modifier ou supprimer une interface
+      tags:
+      - components
+  /licenses:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            items:
+              $ref: '#/definitions/myr_domain_model.License'
+            type: array
+      security:
+      - MyrToken: []
+      summary: Catalogue des licences
+      tags:
+      - licenses
+  /licenses/{id}:
+    get:
+      consumes:
+      - application/json
+      description: 'GET /api/licenses/{id} : détail. POST /api/licenses/check : {
+        parent_license_id, proposed_license_id } → compatibilité pour une dérivation
+        de composant. POST /api/licenses/check-product : { component_license_ids[],
+        proposed_module_license_id } → compatibilité pour un module assemblant plusieurs
+        composants.'
+      parameters:
+      - description: identifiant de la licence — GET /api/licenses/{id}
+        in: path
+        name: id
+        type: string
+      - description: corps de vérification — POST /api/licenses/check(-product)
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/myr_domain_model.License'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Détail d'une licence ou vérification de compatibilité
+      tags:
+      - licenses
+  /licenses/check:
+    post:
+      consumes:
+      - application/json
+      description: 'GET /api/licenses/{id} : détail. POST /api/licenses/check : {
+        parent_license_id, proposed_license_id } → compatibilité pour une dérivation
+        de composant. POST /api/licenses/check-product : { component_license_ids[],
+        proposed_module_license_id } → compatibilité pour un module assemblant plusieurs
+        composants.'
+      parameters:
+      - description: corps de vérification — POST /api/licenses/check(-product)
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/myr_domain_model.License'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Détail d'une licence ou vérification de compatibilité
+      tags:
+      - licenses
+  /licenses/check-product:
+    post:
+      consumes:
+      - application/json
+      description: 'GET /api/licenses/{id} : détail. POST /api/licenses/check : {
+        parent_license_id, proposed_license_id } → compatibilité pour une dérivation
+        de composant. POST /api/licenses/check-product : { component_license_ids[],
+        proposed_module_license_id } → compatibilité pour un module assemblant plusieurs
+        composants.'
+      parameters:
+      - description: corps de vérification — POST /api/licenses/check(-product)
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/myr_domain_model.License'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Détail d'une licence ou vérification de compatibilité
+      tags:
+      - licenses
+  /modules:
+    get:
+      consumes:
+      - application/json
+      description: GET liste les modules (filtre texte "q", pagination "limit"). POST
+        crée un module en brouillon (status "draft") — un module exige au moins un
+        assemblage avant d'être soumis (règle 14).
+      parameters:
+      - description: recherche texte (nom, description) — GET uniquement
+        in: query
+        name: q
+        type: string
+      - description: nombre maximum de résultats (défaut 200, max 1000) — GET uniquement
+        in: query
+        name: limit
+        type: integer
+      - description: name (requis), description, owner_id, channel_id, license_id
+          — POST uniquement
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET : {items, total}'
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: 'POST : module créé'
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lister ou créer des modules
+      tags:
+      - modules
+    post:
+      consumes:
+      - application/json
+      description: GET liste les modules (filtre texte "q", pagination "limit"). POST
+        crée un module en brouillon (status "draft") — un module exige au moins un
+        assemblage avant d'être soumis (règle 14).
+      parameters:
+      - description: recherche texte (nom, description) — GET uniquement
+        in: query
+        name: q
+        type: string
+      - description: nombre maximum de résultats (défaut 200, max 1000) — GET uniquement
+        in: query
+        name: limit
+        type: integer
+      - description: name (requis), description, owner_id, channel_id, license_id
+          — POST uniquement
+        in: body
+        name: body
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: 'GET : {items, total}'
+          schema:
+            additionalProperties: true
+            type: object
+        "201":
+          description: 'POST : module créé'
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Lister ou créer des modules
+      tags:
+      - modules
+  /modules/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+    get:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/assemblies:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      - description: connection_id requis
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Ajouter un assemblage à un module
+      tags:
+      - modules
+  /modules/{id}/assemblies/{connID}:
+    delete:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/connections:
+    get:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/instances:
+    get:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+    post:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/instances/{instanceId}:
+    delete:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+    patch:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/interfaces:
+    get:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/submit:
+    post:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/thumbnail:
+    get:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+    post:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
+        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
+        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
+        : soumettre le module à la blockchain (règle 14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /networks:
+    get:
+      description: Public — ne renvoie que des métadonnées, jamais de credentials.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Lister les profils réseau
+      tags:
+      - networks
+  /networks/active:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Réseau actif de la session
+      tags:
+      - networks
+    put:
+      consumes:
+      - application/json
+      parameters:
+      - description: network_id requis
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "501":
+          description: Not Implemented
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Changer le réseau actif de la session
+      tags:
+      - networks
+  /ping:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Liveness
+      tags:
+      - infra
+  /refs:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Vocabulaire de référence des interfaces
+      tags:
+      - refs
+  /refs/categories:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: name requis
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Ajouter une catégorie de référence
+      tags:
+      - refs
+  /refs/types:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: category et name requis
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Ajouter un type de référence
+      tags:
+      - refs
+  /refs/units:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: category et name requis
+        in: body
+        name: body
+        required: true
+        schema:
+          type: object
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            additionalProperties: true
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Ajouter une unité de référence
+      tags:
+      - refs
+  /status:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.statusResponse'
+      summary: Statut du serveur
+      tags:
+      - infra
+  /virtual-connect:
+    post:
+      consumes:
+      - application/json
+      parameters:
+      - description: virtual_iface_id et physical_iface_id requis
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/adapters_in_rest.virtualConnectRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.connectionDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Relier une interface virtuelle à une interface physique
+      tags:
+      - connections
+schemes:
+- http
+- https
+securityDefinitions:
+  MyrToken:
+    description: Token opaque de session (32 octets hex), obtenu via POST /identity/session,
+      /identity/guest ou /identity/enroll — pas de JWT (voir la règle d'authentification
+      du domaine identité).
+    in: header
+    name: X-Myr-Token
+    type: apiKey
+swagger: "2.0"

@@ -29,6 +29,7 @@ myr model
 ├── children <parentID>                 — lister les dérivés d'un composant                UCREC03
 ├── thumbnail set <id> <fichier>        — associer une miniature
 ├── thumbnail get <id>                  — récupérer la miniature
+├── thumbnail regenerate <id>           — redériver la miniature depuis le lien source (og:image)
 ├── license list                        — lister le catalogue de licences
 ├── license get <id>                    — afficher une licence
 ├── license check                       — vérifier une compatibilité de licence            UCCE04
@@ -158,6 +159,7 @@ Mêmes conventions que `DC_CLI_Admin.md` § 7 : succès sur stdout, erreurs sur 
 | `Remove` | `myr model remove` | — |
 | `GetChildren` | `myr model children` | UCREC03, UCREC04 |
 | `SaveThumbnail` / `GetThumbnail` | `myr model thumbnail set/get` | — |
+| `RegenerateThumbnail` | `myr model thumbnail regenerate` | — |
 | `AddInterface` / `UpdateInterface` / `RemoveInterface` | `myr model interface add/update/remove` | UCAM03, UCCE06 |
 | `ListInterfacesForAsset` / `GetInterface` | `myr model interface list/get` | UCAM02 |
 | `EnsureVirtualSlot` | (appelé automatiquement par `interface list`) | UCAM03 (RM13) |

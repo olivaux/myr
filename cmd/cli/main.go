@@ -9,12 +9,14 @@ import (
 	"myr/adapters/in/cli"
 	fabricadapter "myr/adapters/out/fabric"
 	"myr/adapters/out/localstorage"
+	"myr/adapters/out/webimage"
 	"myr/domain/channel"
 	"myr/domain/identity"
 	"myr/domain/model"
 	"myr/domain/network"
 	"myr/domain/payment"
 	"myr/domain/role"
+	"myr/domain/session"
 )
 
 // noopPaymentGateway satisfait payment.PaymentGatewayPort tant qu'aucun adapter
@@ -32,7 +34,7 @@ func (noopPaymentGateway) GetHistory(string) ([]*payment.Payment, error) {
 	return nil, errNoPaymentGateway
 }
 
-// dataDir retourne le répertoire de données partagé avec myr-app.
+// dataDir retourne le répertoire de données partagé avec myr-api.
 // Priorité : MYR_DATA_DIR > ~/.Myr/server-data
 func dataDir() string {
 	if d := os.Getenv("MYR_DATA_DIR"); d != "" {
@@ -66,7 +68,14 @@ func main() {
 		}
 	}
 	fs := localstorage.NewLocalStorage(filepath.Join(data, "models"))
-	modelSvc := model.NewService(bc, fs)
+	// store partage le même fichier assets.json que myr-api (voir dataDir ci-dessus) —
+	// donne au CLI accès aux connexions/miniatures/interfaces hors blockchain gérées côté GUI.
+	store := localstorage.NewJSONBlockchain(filepath.Join(data, "assets.json"))
+	modelSvc := model.NewService(bc, fs).
+		WithConnStore(store).
+		WithThumbStore(store).
+		WithIfaceStore(store).
+		WithOGImageFetcher(webimage.New())
 
 	nodeStore := localstorage.NewJSONNodeStore(filepath.Join(data, "nodes.json"))
 	channelStore := localstorage.NewJSONChannelStore(filepath.Join(data, "channels.json"))
@@ -89,6 +98,9 @@ func main() {
 
 	paymentSvc := payment.NewService(noopPaymentGateway{})
 
+	sessionStore := localstorage.NewJSONSessionStore(filepath.Join(data, "session.json"))
+	sessionSvc := session.NewService(sessionStore)
+
 	cli.Version = version
-	cli.Execute(modelSvc, channelSvc, paymentSvc, networkSvc, roleSvc, identitySvc)
+	cli.Execute(modelSvc, channelSvc, paymentSvc, networkSvc, roleSvc, identitySvc, sessionSvc)
 }

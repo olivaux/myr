@@ -410,6 +410,7 @@ interface ModelService {
   ' D5 — Miniatures
   + SaveThumbnail(assetID, dataURL string) : error
   + GetThumbnail(assetID string) : (string, error)
+  + RegenerateThumbnail(assetID string) : (string, error)
   ' D6 — Modules
   + CreateModule(req ModuleRequest) : (*Model3D, error)
   + GetModule(id string) : (*Model3D, error)
@@ -475,6 +476,10 @@ interface ThumbnailStore {
   + GetThumbnail(assetID string) : (string, error)
 }
 
+interface OGImageFetcher {
+  + FetchOGImage(pageURL string) : (dataURL string, err error)
+}
+
 note bottom of BlockchainPort
   Implémenté par adapters/out/fabric/
   (production) — pas de fallback JSON
@@ -489,6 +494,13 @@ note bottom of ConnectionStore
   Implémenté par adapters/out/localstorage/
   Connexions = état de composition local,
   jamais sur Fabric directement (ADR-05)
+end note
+
+note bottom of OGImageFetcher
+  Implémenté par adapters/out/webimage/
+  Seule source de miniature régénérable
+  côté serveur (og:image d'un lien externe) —
+  un modèle 3D n'a pas de rendu serveur.
 end note
 
 @enduml

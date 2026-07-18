@@ -112,6 +112,7 @@ package "Domaine métier\n(domain/)" #fff9c4 {
     interface "ConnectionStore" as PConn
     interface "InterfaceStore" as PIface
     interface "ThumbnailStore" as PThumb
+    interface "OGImageFetcher" as PWebImg
     interface "CAPort" as PCA
     interface "RequestStore" as PReq
     interface "role.Repo" as PRole
@@ -127,6 +128,7 @@ package "Adapters sortants" #f0f4e8 {
   [JSONBlockchain (fallback)\nadapters/out/localstorage/\njson_blockchain.go] as AdJSON
   [IPFSStorage\nadapters/out/ipfs/] as AdIPFS
   [LocalStore\nadapters/out/localstorage/\nrole_store.go, request_store.go,\nsession_store.go, network_store.go...] as AdLocal
+  [Fetcher\nadapters/out/webimage/] as AdWebImg
 }
 
 ' ── Infrastructure ───────────────────────────────────
@@ -135,6 +137,7 @@ package "Infrastructure" {
   database "IPFS\n(Fichiers 3D)" as IPFSdb
   database "JSON files\ndata/, ~/.Myr/" as JSONdb
   database "Fichiers MSP\n~/.Myr/wallets/ (non chiffrés)" as MSPFiles
+  cloud "Pages web tierces\n(og:image)" as WebPages
 }
 
 ' ── Connexions ───────────────────────────────────────
@@ -165,6 +168,7 @@ SvcModel --> PFS
 SvcModel --> PConn
 SvcModel --> PIface
 SvcModel --> PThumb
+SvcModel --> PWebImg
 SvcIdentity --> PCA
 SvcIdentity --> PReq
 SvcRole --> PRole
@@ -178,6 +182,7 @@ PFS <|.. AdIPFS
 PConn <|.. AdLocal
 PIface <|.. AdLocal
 PThumb <|.. AdLocal
+PWebImg <|.. AdWebImg
 PNet <|.. AdLocal
 PReq <|.. AdLocal
 PRole <|.. AdLocal
@@ -189,6 +194,7 @@ AdFabric --> HLF
 AdIPFS --> IPFSdb
 AdJSON --> JSONdb
 AdLocal --> JSONdb
+AdWebImg --> WebPages
 SvcIdentity ..> MSPFiles : wallets locaux\n(fichiers PEM, non chiffrés)
 
 @enduml
@@ -243,6 +249,7 @@ done
 | `JSONBlockchain` | `adapters/out/localstorage/` | `BlockchainPort` | JSON files (fallback sans Fabric) |
 | `IPFSStorage` | `adapters/out/ipfs/` | `FileStoragePort` | IPFS (stockage fichiers 3D) |
 | `LocalStore` | `adapters/out/localstorage/` | `ConnectionStore`, `InterfaceStore`, `ThumbnailStore`, `NetworkStore`, `RequestStore`, `role.Repo`, `session.Store` | JSON files (`data/`) + fichiers MSP non chiffrés (wallets, `~/.Myr/wallets/`) |
+| `Fetcher` | `adapters/out/webimage/` | `OGImageFetcher` | Requêtes HTTP sortantes vers la page web du premier lien externe d'un asset (`Model3D.Links`) — dérive sa miniature depuis la balise `og:image` |
 
 > **`AssetInterface` (ADR-02) :** `InterfaceStore` est un **brouillon** — l'état de travail d'une interface tant que l'asset qui la porte n'est pas soumis. À la soumission (création d'un composant ou `SubmitModule`), les interfaces du brouillon sont embarquées dans `Model3D.Interfaces` et écrites une seule fois via `BlockchainPort` (`FabricBlockchain` ou son fallback `JSONBlockchain`). `InterfaceStore` n'est donc pas une persistance parallèle définitive : c'est la source de vérité avant soumission, la blockchain devenant la source de vérité après.
 

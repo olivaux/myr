@@ -38,6 +38,14 @@ type ThumbnailStore interface {
 	GetThumbnail(assetID string) (string, error)
 }
 
+// OGImageFetcher récupère l'image représentative (balise og:image) d'une page web
+// et la retourne encodée en data URL base64. Permet de redériver la miniature d'un
+// asset depuis sa source durable (Model3D.Links) quand aucun fichier 3D n'est fourni —
+// voir Service.RegenerateThumbnail.
+type OGImageFetcher interface {
+	FetchOGImage(pageURL string) (dataURL string, err error)
+}
+
 // InterfaceStore gère les interfaces physiques des assets et le vocabulaire de référence.
 // Non requis par Fabric ou NoOpBlockchain — activé uniquement en mode GUI.
 type InterfaceStore interface {

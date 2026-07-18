@@ -41,6 +41,7 @@ import (
 	"myr/adapters/in/rest"
 	fabricadapter "myr/adapters/out/fabric"
 	"myr/adapters/out/localstorage"
+	"myr/adapters/out/webimage"
 	"myr/domain/identity"
 	"myr/domain/model"
 	"myr/domain/network"
@@ -62,7 +63,7 @@ func main() {
 	flag.Parse()
 
 	if *showVersion {
-		fmt.Printf("myr-app %s (build %s)\n", version, BuildDate)
+		fmt.Printf("myr-api %s (build %s)\n", version, BuildDate)
 		return
 	}
 
@@ -122,7 +123,8 @@ func main() {
 	modelSvc := model.NewService(bc, fileStore).
 		WithConnStore(store).
 		WithThumbStore(store).
-		WithIfaceStore(store)
+		WithIfaceStore(store).
+		WithOGImageFetcher(webimage.New())
 
 	walletDir := filepath.Join(*dataDir, "wallets")
 	_ = os.MkdirAll(walletDir, 0700)

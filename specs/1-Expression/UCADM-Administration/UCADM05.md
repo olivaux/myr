@@ -87,7 +87,7 @@ Cette opération est **hors périmètre blockchain** : elle arrête des processu
 
 - Les processus Fabric sont arrêtés sur la machine locale
 - Toutes les données locales (ledger, certificats, artefacts cryptographiques) sont supprimées
-- Le profil de connexion est retiré de la liste des réseaux dans myr-app
+- Le profil de connexion est retiré de la liste des réseaux dans myr-api
 - Opération irréversible — aucune donnée récupérable
 
 ## Diagramme d'activités

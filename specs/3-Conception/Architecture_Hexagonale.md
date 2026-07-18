@@ -73,7 +73,7 @@ skinparam package {
 
 ' ── Entrypoints ──────────────────────────────────────
 package "Points d'entrée (cmd/)" {
-  [myr-app\ncmd/api/main.go] as App
+  [myr-api\ncmd/api/main.go] as App
   [myr-cli\ncmd/cli/main.go] as CLI
 }
 

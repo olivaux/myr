@@ -178,4 +178,4 @@ end
 
 **Répertoire ledger configurable :** Le chemin des données ledger Fabric doit être configurable (`MYR_FABRIC_DATA_PATH` ou dans `config/`) car il varie selon le mode de déploiement (Docker, bare-metal, dev local).
 
-**Scope limité :** Cette commande n'est disponible que dans `myr-cli` (binaire admin). Elle ne doit jamais être exposée dans `myr-app` (serveur HTTP).
+**Scope limité :** Cette commande n'est disponible que dans `myr-cli` (binaire admin). Elle ne doit jamais être exposée dans `myr-api` (serveur HTTP).

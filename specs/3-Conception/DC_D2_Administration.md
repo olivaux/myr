@@ -6,7 +6,7 @@
 
 ## 1. Objectif
 
-Ce document couvre les structures de données et contrats d'interface du domaine Administration réseau (D2). Il modélise la configuration d'un réseau HyperLedger Fabric depuis le point de vue de `myr-app` : un réseau est une connexion à un peer Fabric, pas la gestion de l'infrastructure Fabric elle-même.
+Ce document couvre les structures de données et contrats d'interface du domaine Administration réseau (D2). Il modélise la configuration d'un réseau HyperLedger Fabric depuis le point de vue de `myr-api` : un réseau est une connexion à un peer Fabric, pas la gestion de l'infrastructure Fabric elle-même.
 
 > **Rappel** : Myr ne gère pas la topologie réseau entre peers — c'est 100% Fabric (configtx.yaml). Myr se connecte à **un seul peer** (celui de son organisation). Fabric synchronise ensuite en arrière-plan.
 
@@ -147,7 +147,7 @@ NetworkProfile "1" --> "0..*" Channel : FabricChannel\n(default channel)
 
 ### Channel (domain/channel)
 
-- **Rôle :** Canal Fabric auquel l'application a accès. Énuméré depuis la configuration du réseau. **Lecture seule** côté myr-app.
+- **Rôle :** Canal Fabric auquel l'application a accès. Énuméré depuis la configuration du réseau. **Lecture seule** côté myr-api.
 - **Invariants :**
   - `ID` = nom du canal Fabric (ex. `greenchannel`) — défini dans `configtx.yaml`.
   - `Name` = `ID` pour les canaux Fabric (pas de nom d'affichage distinct en v1).
@@ -330,8 +330,8 @@ Annuaire des peers : déclaré dans `configtx.yaml`, distribué sur le ledger. C
 | ID | Décision | Raison |
 |----|---------|--------|
 | DC-D2-01 | `NetworkProfile` ne modélise pas les peers individuels | Myr se connecte à **un seul peer** par organisation. La topologie multi-peer est gérée par Fabric. Modéliser les peers dans Myr serait une duplication inutile. |
-| DC-D2-02 | `Channel` est en lecture seule | La création de canaux Fabric requiert des opérations d'admin (configtx, genesis block) hors du périmètre de l'API myr-app v1. |
-| DC-D2-03 | `ServerURL` permet le mode multi-tenant | Sans `ServerURL`, myr-app gère lui-même les identités CA (mode standalone, dev). Avec `ServerURL`, le client délègue au MYR Server central de l'organisation. |
+| DC-D2-02 | `Channel` est en lecture seule | La création de canaux Fabric requiert des opérations d'admin (configtx, genesis block) hors du périmètre de l'API myr-api v1. |
+| DC-D2-03 | `ServerURL` permet le mode multi-tenant | Sans `ServerURL`, myr-api gère lui-même les identités CA (mode standalone, dev). Avec `ServerURL`, le client délègue au MYR Server central de l'organisation. |
 | DC-D2-04 | Politique d'accès dans `NetworkProfile` | L'admin configure `AllowAutoGuest` et `AllowAutoRegister` au niveau du réseau — pas au niveau de l'application. Permet des réseaux publics ou privés selon le contexte. |
 | DC-D2-05 | Démantèlement réseau dans le CLI Handler, pas dans le domaine | Les opérations OS (arrêt processus, suppression fichiers) violent ENF18 si placées dans `domain/network/`. Elles restent dans `adapters/in/cli/`. Le domaine ne fait que `NetworkService.Delete(id)`. |
 | DC-D2-06 | `IsProduction` dans `NetworkProfile` pour protéger les réseaux réels | `myr network destroy` refuse d'agir sur `IsProduction: true`. Évite un démantèlement accidentel d'un réseau de production par une commande de test. |

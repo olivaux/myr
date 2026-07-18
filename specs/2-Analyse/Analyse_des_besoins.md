@@ -153,7 +153,7 @@ actor "Utilisateur\n(tout rôle)" as U
 actor "Administrateur" as ADM
 
 rectangle "Myr System" {
-    rectangle "myr-app\n(serveur HTTP)" as App {
+    rectangle "myr-api\n(serveur HTTP)" as App {
         rectangle "API REST\n/api/" as REST
         rectangle "Domaine métier\n/domain/" as Domain
     }

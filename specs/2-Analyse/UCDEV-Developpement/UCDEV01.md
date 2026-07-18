@@ -34,7 +34,7 @@ UC1 .> UC3 : <<include>>
 
 ## Contexte
 
-Les développeurs tiers peuvent utiliser l'API REST MYR pour intégrer ses fonctionnalités dans leurs applications (boutiques, éditeurs 3D, plugins CAO, systèmes de gestion). L'API REST est exposée sous le préfixe `/api/` par `myr-app`.
+Les développeurs tiers peuvent utiliser l'API REST MYR pour intégrer ses fonctionnalités dans leurs applications (boutiques, éditeurs 3D, plugins CAO, systèmes de gestion). L'API REST est exposée sous le préfixe `/api/` par `myr-api`.
 
 L'API (`adapters/in/rest/`) couvre les opérations sur les composants, modules, liaisons, canaux, réseaux, licences et l'identité (enrôlement CA, sessions par token opaque — pas de JWT, voir `specs/3-Conception/DC_D1_Auth_Identity.md`).
 
@@ -42,7 +42,7 @@ L'acteur "Développeur" est distinct de l'Administrateur : il accède à MYR exc
 
 ## Pré-conditions
 
-- `myr-app` est en cours d'exécution et accessible
+- `myr-api` est en cours d'exécution et accessible
 - Le développeur dispose d'un compte MYR avec les droits nécessaires (rôle Lecteur minimum)
 - Le développeur dispose d'un token de session opaque valide (obtenu via `POST /api/identity/session` ou `POST /api/identity/guest`)
 - La documentation de l'API REST (spec OpenAPI dans `api/`) est disponible

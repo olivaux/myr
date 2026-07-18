@@ -34,7 +34,7 @@ Ce document structure les contraintes non-fonctionnelles du projet Myr selon les
 | ENF20 | Maintenabilité | Durée de déploiement d'une mise à jour | `make deploy` complet ≤ 10 min sur le serveur cible (compilation Linux + transfert + redémarrage) | BASSE |
 | ENF21 | Maintenabilité | Compatibilité multi-réseaux blockchain | L'adapter Fabric est interchangeable sans modification du domaine — un nouvel adapter blockchain peut être branché en implémentant les ports `out` existants | HAUTE |
 | **Portabilité** | | | | |
-| ENF23 | Portabilité | Plateformes serveur | Binaires disponibles pour Linux amd64 et Windows amd64 (produits par `make app` et `make cli`) | HAUTE |
+| ENF23 | Portabilité | Plateformes serveur | Binaires disponibles pour Linux amd64 et Windows amd64 (produits par `make api` et `make cli`) | HAUTE |
 | **Conformité légale** | | | | |
 | ENF25 | Conformité | Licence du code source | Code source publié sous AGPL 3.0 ; toute contribution ou extension doit respecter cette licence | HAUTE |
 | ENF26 | Conformité | Compatibilité de licence des assets | La compatibilité entre licence parent et licence dérivé est vérifiée automatiquement avant toute soumission d'un asset dérivé (`ParentID != ""`) | HAUTE |

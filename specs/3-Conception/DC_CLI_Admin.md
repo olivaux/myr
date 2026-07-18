@@ -45,7 +45,7 @@ myr
 
 ## 3. Groupe `myr network` — Gestion des profils réseau
 
-Un **profil réseau** (`NetworkProfile`) est la configuration qui permet à `myr-app` de se connecter à un nœud blockchain d'une organisation. Myr se connecte à **un seul nœud** (celui de son organisation) — le réseau synchronise ensuite avec les autres organisations.
+Un **profil réseau** (`NetworkProfile`) est la configuration qui permet à `myr-api` de se connecter à un nœud blockchain d'une organisation. Myr se connecte à **un seul nœud** (celui de son organisation) — le réseau synchronise ensuite avec les autres organisations.
 
 ### 3.1 `myr network list`
 

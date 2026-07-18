@@ -62,7 +62,7 @@ skinparam rectangle {
 }
 
 package "Points d'entrée" {
-  [cmd/api\nmyr-app] as CmdAPI
+  [cmd/api\nmyr-api] as CmdAPI
   [cmd/cli\nmyr-cli] as CmdCLI
 }
 
@@ -274,6 +274,28 @@ end note
 **Justification :** La topologie réseau entre peers est entièrement gérée par Fabric via `configtx.yaml` distribué sur le ledger. Myr se connecte uniquement au peer de sa propre organisation. Fabric synchronise ensuite avec les peers des autres organisations en arrière-plan.
 
 **Conséquence :** Chaque organisation doit fournir : un serveur avec IP fixe, le port 7051 ouvert, des certificats Fabric CA (pas Let's Encrypt), et une entrée DNS recommandée (ex. `peer0.org.com`). Ces prérequis sont documentés dans les profils de connexion (`connection-profiles/`).
+
+---
+
+### ADR-07 — Émission d'identité permissionnée (Fabric CA), pas d'auto-génération de clé sans registrar
+
+**Décision :** Toute identité `myr` (UCA01) doit être émise par une Fabric CA à partir d'une identité **registrar** (attribut CA `hf.Registrar.*`) — il n'existe et n'existera pas de mécanisme où un client génère seul une paire de clés et l'auto-enregistre sur le réseau sans passer par ce registrar. C'est une contrainte native de Hyperledger Fabric CA, pas un choix `myr` : Fabric est une blockchain **permissionnée** par conception, à la différence d'une blockchain permissionless (ex. Bitcoin) où la génération de clé locale suffit sans autorité d'enregistrement.
+
+**Justification :** Le RBAC de `myr` (`domain/role`) s'appuie sur des attributs portés par le certificat CA (`Myr.role`, RM21/RM22) — un mécanisme d'identité sans CA romprait ce lien et exigerait de reconstruire l'autorisation autrement. Adopter une identité purement auto-générée (self-sovereign) sortirait du stack technique validé (`CLAUDE.md` § Stack technique, hors périmètre de cet ADR) et n'est pas retenu à ce jour.
+
+**Ce que fait réellement `AllowAutoRegister=true` (UCA01) :** ce réglage automatise le rôle de registrar côté serveur — aucune validation humaine n'est requise **par demande** — mais ne supprime pas le registrar lui-même. Une identité admin CA est enrôlée une seule fois à la création du réseau (`myr network create`) et ses certificat/clé (`NetworkProfile.CAAdminCertPath`/`CAAdminKeyPath`) signent ensuite chaque appel `Register`/`UpdateAttributes` effectué par le serveur en son nom.
+
+**Conséquence — point de confiance par organisation :** `CAAdminCertPath`/`CAAdminKeyPath` est un champ par `NetworkProfile`, donc par organisation — la compromission de cette clé sur le serveur d'une organisation ne permet de forger des identités que pour cette organisation, pas pour les autres organisations membres du même réseau décentralisé. Ce n'est donc pas un point de défaillance unique à l'échelle du réseau, mais ça en reste un à l'échelle d'une organisation : ce risque résiduel est tracé comme besoin de mitigation dans `specs/roadmap_dev.md` (§ Compléments — Post-V1), sans action corrective entreprise à ce jour.
+
+---
+
+### ADR-08 — Point ouvert : le client CA du serveur REST ignore le `NetworkProfile` actif
+
+**Constat vérifié (2026-07-17, serveur de production) :** `cmd/api/main.go` construit le client CA utilisé par `domain/identity` (`caPort`, ligne ~103) exclusivement depuis `fabricadapter.ConfigFromEnv()` (variables d'environnement `FABRIC_CA_*` ou un `fabric.env` optionnel), jamais depuis les champs `CAEndpoint`/`CAAdminCertPath`/`CAAdminKeyPath` du `NetworkProfile` actif — alors que `ConfigFromProfile(np *NetworkProfile)` existe dans `adapters/out/fabric/config.go` et est déjà utilisé pour construire la config Fabric à partir d'un profil réseau, à deux autres endroits : le CLI (`cmd/cli/main.go`) et le pool blockchain multi-réseau du serveur (`adapters/out/fabric/network_pool.go`, pour les opérations `model`/Fabric Gateway).
+
+**Conséquence observée :** un opérateur qui configure `AllowAutoRegister=true` et les identifiants CA admin via `myr network update` (règle 20 — configuration, pas nouvelle techno) obtient une confirmation cohérente côté CLI (`myr network show`) et côté API (`GET /api/identity/policy`), sans que l'auto-enregistrement (UCA01) ne fonctionne réellement si le processus `myr-api` n'a pas été lancé avec les variables d'environnement `FABRIC_CA_*` correspondantes (ou un `fabric.env`) — un état qui n'est signalé nulle part (voir aussi `specs/roadmap_dev.md` § Écarts Identité & Session, écart connexe sur l'absence de log de cet échec).
+
+**Point ouvert, non tranché par cet ADR :** faut-il (a) faire de `ConfigFromProfile(activeProfile)` la base de la config CA du serveur REST, les variables d'environnement ne servant plus que de surcharge optionnelle — alignant `cmd/api/main.go` sur ce que fait déjà le CLI et le `NetworkPool` — ou (b) une autre approche (ex. déprécier `CAAdminCertPath`/`CAAdminKeyPath` sur `NetworkProfile` si la configuration par environnement doit rester la seule source de vérité pour le serveur) ? Décision au product owner — suivi dans `specs/roadmap_dev.md`.
 
 ---
 

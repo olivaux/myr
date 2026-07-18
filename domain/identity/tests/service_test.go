@@ -161,6 +161,20 @@ func TestService_Enroll_CAError(t *testing.T) {
 	}
 }
 
+// / @brief  Enrôlement authentifie auprès de la CA avec l'identifiant complet pseudo@org, pas le pseudo seul
+// / @input  stubCA, appel Enroll(ctx, "alice", "secret123", "Org1MSP")
+// / @expect la CA reçoit "alice@Org1" comme nom — l'identifiant sous lequel AutoRegister a créé l'identité
+func TestService_Enroll_UsesFullHandleForCAAuth(t *testing.T) {
+	ca := &stubCA{}
+	svc := identity.NewService(t.TempDir(), ca)
+	if _, err := svc.Enroll(context.Background(), "alice", "secret123", "Org1MSP"); err != nil {
+		t.Fatalf("inattendu : %v", err)
+	}
+	if ca.lastEnrollName != "alice@Org1" {
+		t.Errorf("nom transmis à la CA : got %q, want %q", ca.lastEnrollName, "alice@Org1")
+	}
+}
+
 // / @brief  GetStatus échoue sans CA configurée
 // / @input  service sans CA (nil), entrée de wallet {Name:"alice"}
 // / @expect retourne une erreur indiquant l'absence de CA
@@ -212,6 +226,21 @@ func TestService_GetStatus_CAError(t *testing.T) {
 	_, err := svc.GetStatus(context.Background(), identity.WalletEntry{Name: "ghost"})
 	if !errors.Is(err, expected) {
 		t.Errorf("erreur attendue %v, obtenu %v", expected, err)
+	}
+}
+
+// / @brief  GetStatus interroge la CA avec l'identifiant complet pseudo@org (wallet.Handle), pas wallet.Name seul
+// / @input  stubCA, appel GetStatus avec WalletEntry{Handle:"alice@Org1", Name:"alice", OrgID:"Org1MSP"}
+// / @expect la CA reçoit "alice@Org1" comme nom
+func TestService_GetStatus_UsesHandleNotBareName(t *testing.T) {
+	ca := &stubCA{}
+	svc := identity.NewService(t.TempDir(), ca)
+	_, err := svc.GetStatus(context.Background(), identity.WalletEntry{Handle: "alice@Org1", Name: "alice", OrgID: "Org1MSP"})
+	if err != nil {
+		t.Fatalf("inattendu : %v", err)
+	}
+	if ca.lastStatusName != "alice@Org1" {
+		t.Errorf("nom transmis à la CA : got %q, want %q", ca.lastStatusName, "alice@Org1")
 	}
 }
 

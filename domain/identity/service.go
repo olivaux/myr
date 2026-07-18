@@ -87,12 +87,16 @@ func (s *Service) Enroll(ctx context.Context, name, secret, orgID string) (Walle
 	if s.ca == nil {
 		return WalletEntry{}, fmt.Errorf("aucun CA configuré")
 	}
-	certPEM, keyPEM, caCertPEM, err := s.ca.Enroll(ctx, name, secret)
+	// L'identifiant CA d'une identité auto-enregistrée est "pseudo@org" (voir
+	// AutoRegister) — l'authentification HTTP Basic de l'enrollment doit viser
+	// ce même identifiant, pas le pseudo seul, sous peine de "user not found"
+	// côté CA dès que le client suit la forme documentée {name, secret, org_id}.
+	handle := name + "@" + strings.TrimSuffix(orgID, "MSP")
+	certPEM, keyPEM, caCertPEM, err := s.ca.Enroll(ctx, handle, secret)
 	if err != nil {
 		return WalletEntry{}, fmt.Errorf("enrollment : %w", err)
 	}
 
-	handle := name + "@" + strings.TrimSuffix(orgID, "MSP")
 	mspDir := filepath.Join(s.walletDir, handle, "msp")
 	if err := saveWallet(mspDir, certPEM, keyPEM, caCertPEM); err != nil {
 		return WalletEntry{}, fmt.Errorf("sauvegarde wallet : %w", err)
@@ -112,7 +116,10 @@ func (s *Service) GetStatus(ctx context.Context, wallet WalletEntry) (string, er
 	if s.ca == nil {
 		return "", fmt.Errorf("aucun CA configuré")
 	}
-	return s.ca.GetStatus(ctx, wallet.Name)
+	// Comme pour Enroll : l'identifiant CA est "pseudo@org" (wallet.Handle),
+	// pas le pseudo seul (wallet.Name) — sans quoi la CA ne retrouve pas
+	// l'identité (même cause que le bug d'enrollment corrigé ci-dessus).
+	return s.ca.GetStatus(ctx, wallet.Handle)
 }
 
 // LoadGuestWallet charge un wallet invité depuis des fichiers de certificat existants

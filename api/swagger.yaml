@@ -33,7 +33,7 @@ definitions:
       block_id:
         type: string
       category:
-        $ref: '#/definitions/myr_domain_model.Category'
+        $ref: '#/definitions/myr-core_domain_model.Category'
       created_at:
         type: string
       description:
@@ -54,6 +54,13 @@ definitions:
         type: string
       parent_id:
         type: string
+      status:
+        allOf:
+        - $ref: '#/definitions/myr-core_domain_model.ModuleStatus'
+        description: |-
+          Status vaut "draft" (créé via draft:true, pas encore engagé sur la blockchain
+          — voir POST /components/{id}/submit) ou "submitted" (comportement nominal,
+          immédiat). Vide pour un composant créé avant l'introduction du brouillon.
       tags:
         items:
           type: string
@@ -111,7 +118,7 @@ definitions:
         type: string
       instances:
         items:
-          $ref: '#/definitions/myr_domain_model.WorkspaceInstance'
+          $ref: '#/definitions/myr-core_domain_model.WorkspaceInstance'
         type: array
       license_id:
         type: string
@@ -120,12 +127,12 @@ definitions:
       owner_id:
         type: string
       status:
-        $ref: '#/definitions/myr_domain_model.ModuleStatus'
+        $ref: '#/definitions/myr-core_domain_model.ModuleStatus'
       thumbnail:
         type: string
       versions:
         items:
-          $ref: '#/definitions/myr_domain_model.ModuleVersion'
+          $ref: '#/definitions/myr-core_domain_model.ModuleVersion'
         type: array
     type: object
   adapters_in_rest.networkPolicyResponse:
@@ -211,7 +218,7 @@ definitions:
         description: '"pending" | "active" | "suspended"'
         type: string
     type: object
-  myr_domain_identity.AccountRequest:
+  myr-core_domain_identity.AccountRequest:
     properties:
       created_at:
         description: ISO 8601
@@ -236,7 +243,7 @@ definitions:
         description: '"pending" | "approved" | "rejected"'
         type: string
     type: object
-  myr_domain_model.AssetInterface:
+  myr-core_domain_model.AssetInterface:
     properties:
       asset_id:
         type: string
@@ -245,7 +252,7 @@ definitions:
         type: string
       direction:
         allOf:
-        - $ref: '#/definitions/myr_domain_model.IfaceDirection'
+        - $ref: '#/definitions/myr-core_domain_model.IfaceDirection'
         description: '"in", "out", "bidir"'
       id:
         type: string
@@ -271,7 +278,7 @@ definitions:
         description: true = point de connexion non encore matérialisé
         type: boolean
     type: object
-  myr_domain_model.Category:
+  myr-core_domain_model.Category:
     enum:
     - base
     - amelioration
@@ -289,7 +296,7 @@ definitions:
     - CategoryDerivation
     - CategoryExtension
     - CategoryRegression
-  myr_domain_model.IfaceDirection:
+  myr-core_domain_model.IfaceDirection:
     enum:
     - in
     - out
@@ -299,7 +306,7 @@ definitions:
     - IfaceIn
     - IfaceOut
     - IfaceBidi
-  myr_domain_model.License:
+  myr-core_domain_model.License:
     properties:
       compatible_with:
         description: |-
@@ -334,7 +341,7 @@ definitions:
         description: 'identifiant SPDX normalisé (ex: "CC-BY-4.0")'
         type: string
     type: object
-  myr_domain_model.ModuleStatus:
+  myr-core_domain_model.ModuleStatus:
     enum:
     - draft
     - submitted
@@ -345,7 +352,7 @@ definitions:
     x-enum-varnames:
     - ModuleDraft
     - ModuleSubmitted
-  myr_domain_model.ModuleVersion:
+  myr-core_domain_model.ModuleVersion:
     properties:
       assemblies:
         description: snapshot des IDs de connexions
@@ -363,7 +370,7 @@ definitions:
       number:
         type: integer
     type: object
-  myr_domain_model.WorkspaceInstance:
+  myr-core_domain_model.WorkspaceInstance:
     properties:
       asset_id:
         description: ID du composant ou module référencé
@@ -377,9 +384,9 @@ definitions:
     type: object
 info:
   contact: {}
-  description: API REST du backend myr — blockchain, stockage fichiers, identités,
-    sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script)
-    consomment cette même API via le domaine (`domain/`).
+  description: API REST de myr-core — blockchain, stockage fichiers, identités, sessions.
+    Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script) consomment
+    cette même API via le domaine (`domain/`).
   title: Myr API
   version: "1.0"
 paths:
@@ -596,7 +603,10 @@ paths:
       description: Crée un asset (catégorie par défaut "base"). Le fichier CAO 3D
         est optionnel (champ "file", ou "stl" pour rétrocompatibilité) ; une miniature
         base64 peut être fournie directement ou est dérivée de l'og:image du premier
-        lien si aucun fichier n'est envoyé.
+        lien si aucun fichier n'est envoyé. Par défaut le composant est engagé immédiatement
+        sur la blockchain (une transaction, "status":"submitted"). Si "draft" vaut
+        true, il est stocké localement ("status":"draft", aucune transaction) — voir
+        POST /components/{id}/submit pour l'engager ensuite.
       parameters:
       - description: nom du composant (max 256 caractères)
         in: formData
@@ -643,6 +653,11 @@ paths:
         in: formData
         name: thumbnail
         type: string
+      - description: 'true : crée en brouillon local, sans transaction blockchain
+          (défaut: false)'
+        in: formData
+        name: draft
+        type: boolean
       produces:
       - application/json
       responses:
@@ -652,6 +667,12 @@ paths:
             $ref: '#/definitions/adapters_in_rest.componentDTO'
         "400":
           description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: blockchain indisponible (composant non-brouillon uniquement)
           schema:
             additionalProperties:
               type: string
@@ -769,7 +790,7 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/myr_domain_model.AssetInterface'
+          $ref: '#/definitions/myr-core_domain_model.AssetInterface'
       produces:
       - application/json
       responses:
@@ -777,12 +798,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/myr_domain_model.AssetInterface'
+              $ref: '#/definitions/myr-core_domain_model.AssetInterface'
             type: array
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/myr_domain_model.AssetInterface'
+            $ref: '#/definitions/myr-core_domain_model.AssetInterface'
         "400":
           description: Bad Request
           schema:
@@ -816,7 +837,7 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/myr_domain_model.AssetInterface'
+          $ref: '#/definitions/myr-core_domain_model.AssetInterface'
       produces:
       - application/json
       responses:
@@ -824,12 +845,12 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/myr_domain_model.AssetInterface'
+              $ref: '#/definitions/myr-core_domain_model.AssetInterface'
             type: array
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/myr_domain_model.AssetInterface'
+            $ref: '#/definitions/myr-core_domain_model.AssetInterface'
         "400":
           description: Bad Request
           schema:
@@ -845,6 +866,78 @@ paths:
       security:
       - MyrToken: []
       summary: Interfaces d'un composant
+      tags:
+      - components
+  /components/{id}/submit:
+    post:
+      description: Committe en une transaction les métadonnées et les interfaces locales
+        du composant, puis passe "status" à "submitted". Échoue si le composant n'est
+        pas un brouillon local (déjà soumis, ou inexistant).
+      parameters:
+      - description: identifiant du composant en brouillon
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.componentDTO'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "503":
+          description: blockchain indisponible
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Soumettre un composant en brouillon
+      tags:
+      - components
+  /components/{id}/thumbnail/regenerate:
+    post:
+      description: Redérive la miniature depuis l'og:image du premier lien externe
+        enregistré (Links). Échoue si l'asset n'a aucun lien externe — un modèle 3D
+        sans lien n'a pas de source régénérable côté serveur.
+      parameters:
+      - description: identifiant de l'asset (composant ou module)
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Régénérer la miniature d'un asset depuis son lien source
       tags:
       - components
   /components/{id}/tree:
@@ -1038,7 +1131,7 @@ paths:
         "201":
           description: Created
           schema:
-            $ref: '#/definitions/myr_domain_identity.AccountRequest'
+            $ref: '#/definitions/myr-core_domain_identity.AccountRequest'
         "400":
           description: Bad Request
           schema:
@@ -1069,7 +1162,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/myr_domain_identity.AccountRequest'
+              $ref: '#/definitions/myr-core_domain_identity.AccountRequest'
             type: array
         "503":
           description: Service Unavailable
@@ -1200,14 +1293,14 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/myr_domain_model.AssetInterface'
+          $ref: '#/definitions/myr-core_domain_model.AssetInterface'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/myr_domain_model.AssetInterface'
+            $ref: '#/definitions/myr-core_domain_model.AssetInterface'
         "204":
           description: pas de contenu (DELETE)
         "400":
@@ -1243,14 +1336,14 @@ paths:
         in: body
         name: body
         schema:
-          $ref: '#/definitions/myr_domain_model.AssetInterface'
+          $ref: '#/definitions/myr-core_domain_model.AssetInterface'
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/myr_domain_model.AssetInterface'
+            $ref: '#/definitions/myr-core_domain_model.AssetInterface'
         "204":
           description: pas de contenu (DELETE)
         "400":
@@ -1279,7 +1372,7 @@ paths:
           description: OK
           schema:
             items:
-              $ref: '#/definitions/myr_domain_model.License'
+              $ref: '#/definitions/myr-core_domain_model.License'
             type: array
       security:
       - MyrToken: []
@@ -1311,7 +1404,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/myr_domain_model.License'
+            $ref: '#/definitions/myr-core_domain_model.License'
         "400":
           description: Bad Request
           schema:
@@ -1350,7 +1443,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/myr_domain_model.License'
+            $ref: '#/definitions/myr-core_domain_model.License'
         "400":
           description: Bad Request
           schema:
@@ -1389,7 +1482,7 @@ paths:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/myr_domain_model.License'
+            $ref: '#/definitions/myr-core_domain_model.License'
         "400":
           description: Bad Request
           schema:
@@ -1504,10 +1597,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1551,10 +1646,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1633,10 +1730,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1681,10 +1780,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1729,10 +1830,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1776,10 +1879,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1824,10 +1929,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1871,10 +1978,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1919,10 +2028,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -1967,10 +2078,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -2015,10 +2128,12 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path
@@ -2062,10 +2177,62 @@ paths:
         uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
         GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
         : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
-        GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant.
-        DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des
-        connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit
-        : soumettre le module à la blockchain (règle 14).'
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
+      parameters:
+      - description: identifiant du module
+        in: path
+        name: id
+        required: true
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/adapters_in_rest.moduleDTO'
+        "204":
+          description: pas de contenu (DELETE)
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "404":
+          description: Not Found
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      security:
+      - MyrToken: []
+      summary: Opérations sur un module et ses sous-ressources
+      tags:
+      - modules
+  /modules/{id}/thumbnail/regenerate:
+    post:
+      consumes:
+      - application/json
+      description: 'GET/DELETE /api/modules/{id} : détail / suppression (brouillon
+        uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées.
+        GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID})
+        : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature.
+        POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis
+        le lien source (og:image). GET/POST /api/modules/{id}/instances : lister /
+        ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId}
+        : retirer (cascade des connexions, règle 15) / repositionner une instance.
+        POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle
+        14).'
       parameters:
       - description: identifiant du module
         in: path

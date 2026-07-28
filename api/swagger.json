@@ -5,7 +5,7 @@
     ],
     "swagger": "2.0",
     "info": {
-        "description": "API REST du backend myr — blockchain, stockage fichiers, identités, sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script) consomment cette même API via le domaine (`domain/`).",
+        "description": "API REST de myr-core — blockchain, stockage fichiers, identités, sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script) consomment cette même API via le domaine (`domain/`).",
         "title": "Myr API",
         "contact": {},
         "version": "1.0"
@@ -330,7 +330,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "Crée un asset (catégorie par défaut \"base\"). Le fichier CAO 3D est optionnel (champ \"file\", ou \"stl\" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé.",
+                "description": "Crée un asset (catégorie par défaut \"base\"). Le fichier CAO 3D est optionnel (champ \"file\", ou \"stl\" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé. Par défaut le composant est engagé immédiatement sur la blockchain (une transaction, \"status\":\"submitted\"). Si \"draft\" vaut true, il est stocké localement (\"status\":\"draft\", aucune transaction) — voir POST /components/{id}/submit pour l'engager ensuite.",
                 "consumes": [
                     "multipart/form-data"
                 ],
@@ -408,6 +408,12 @@
                         "description": "miniature en data URL base64",
                         "name": "thumbnail",
                         "in": "formData"
+                    },
+                    {
+                        "type": "boolean",
+                        "description": "true : crée en brouillon local, sans transaction blockchain (défaut: false)",
+                        "name": "draft",
+                        "in": "formData"
                     }
                 ],
                 "responses": {
@@ -419,6 +425,15 @@
                     },
                     "400": {
                         "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "blockchain indisponible (composant non-brouillon uniquement)",
                         "schema": {
                             "type": "object",
                             "additionalProperties": {
@@ -599,7 +614,7 @@
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     }
                 ],
@@ -609,14 +624,14 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                                "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                             }
                         }
                     },
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     },
                     "400": {
@@ -669,7 +684,7 @@
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     }
                 ],
@@ -679,14 +694,121 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                                "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                             }
                         }
                     },
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{id}/submit": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Committe en une transaction les métadonnées et les interfaces locales du composant, puis passe \"status\" à \"submitted\". Échoue si le composant n'est pas un brouillon local (déjà soumis, ou inexistant).",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Soumettre un composant en brouillon",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du composant en brouillon",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.componentDTO"
+                        }
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "503": {
+                        "description": "blockchain indisponible",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/components/{id}/thumbnail/regenerate": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "Redérive la miniature depuis l'og:image du premier lien externe enregistré (Links). Échoue si l'asset n'a aucun lien externe — un modèle 3D sans lien n'a pas de source régénérable côté serveur.",
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "components"
+                ],
+                "summary": "Régénérer la miniature d'un asset depuis son lien source",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant de l'asset (composant ou module)",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
                         }
                     },
                     "400": {
@@ -1010,7 +1132,7 @@
                     "201": {
                         "description": "Created",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_identity.AccountRequest"
+                            "$ref": "#/definitions/myr-core_domain_identity.AccountRequest"
                         }
                     },
                     "400": {
@@ -1063,7 +1185,7 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/myr_domain_identity.AccountRequest"
+                                "$ref": "#/definitions/myr-core_domain_identity.AccountRequest"
                             }
                         }
                     },
@@ -1269,7 +1391,7 @@
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     }
                 ],
@@ -1277,7 +1399,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     },
                     "204": {
@@ -1333,7 +1455,7 @@
                         "name": "body",
                         "in": "body",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     }
                 ],
@@ -1341,7 +1463,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.AssetInterface"
+                            "$ref": "#/definitions/myr-core_domain_model.AssetInterface"
                         }
                     },
                     "204": {
@@ -1388,7 +1510,7 @@
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/myr_domain_model.License"
+                                "$ref": "#/definitions/myr-core_domain_model.License"
                             }
                         }
                     }
@@ -1427,7 +1549,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.License"
+                            "$ref": "#/definitions/myr-core_domain_model.License"
                         }
                     },
                     "400": {
@@ -1483,7 +1605,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.License"
+                            "$ref": "#/definitions/myr-core_domain_model.License"
                         }
                     },
                     "400": {
@@ -1545,7 +1667,7 @@
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/myr_domain_model.License"
+                            "$ref": "#/definitions/myr-core_domain_model.License"
                         }
                     },
                     "400": {
@@ -1706,7 +1828,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1768,7 +1890,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1886,7 +2008,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -1950,7 +2072,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2014,7 +2136,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2076,7 +2198,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2140,7 +2262,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2202,7 +2324,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2266,7 +2388,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2330,7 +2452,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2394,7 +2516,7 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2456,7 +2578,71 @@
                         "MyrToken": []
                     }
                 ],
-                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "modules"
+                ],
+                "summary": "Opérations sur un module et ses sous-ressources",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "identifiant du module",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "201": {
+                        "description": "Created",
+                        "schema": {
+                            "$ref": "#/definitions/adapters_in_rest.moduleDTO"
+                        }
+                    },
+                    "204": {
+                        "description": "pas de contenu (DELETE)"
+                    },
+                    "400": {
+                        "description": "Bad Request",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    },
+                    "404": {
+                        "description": "Not Found",
+                        "schema": {
+                            "type": "object",
+                            "additionalProperties": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/modules/{id}/thumbnail/regenerate": {
+            "post": {
+                "security": [
+                    {
+                        "MyrToken": []
+                    }
+                ],
+                "description": "GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).",
                 "consumes": [
                     "application/json"
                 ],
@@ -2966,7 +3152,7 @@
                     "type": "string"
                 },
                 "category": {
-                    "$ref": "#/definitions/myr_domain_model.Category"
+                    "$ref": "#/definitions/myr-core_domain_model.Category"
                 },
                 "created_at": {
                     "type": "string"
@@ -2997,6 +3183,14 @@
                 },
                 "parent_id": {
                     "type": "string"
+                },
+                "status": {
+                    "description": "Status vaut \"draft\" (créé via draft:true, pas encore engagé sur la blockchain\n— voir POST /components/{id}/submit) ou \"submitted\" (comportement nominal,\nimmédiat). Vide pour un composant créé avant l'introduction du brouillon.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/myr-core_domain_model.ModuleStatus"
+                        }
+                    ]
                 },
                 "tags": {
                     "type": "array",
@@ -3085,7 +3279,7 @@
                 "instances": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myr_domain_model.WorkspaceInstance"
+                        "$ref": "#/definitions/myr-core_domain_model.WorkspaceInstance"
                     }
                 },
                 "license_id": {
@@ -3098,7 +3292,7 @@
                     "type": "string"
                 },
                 "status": {
-                    "$ref": "#/definitions/myr_domain_model.ModuleStatus"
+                    "$ref": "#/definitions/myr-core_domain_model.ModuleStatus"
                 },
                 "thumbnail": {
                     "type": "string"
@@ -3106,7 +3300,7 @@
                 "versions": {
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/myr_domain_model.ModuleVersion"
+                        "$ref": "#/definitions/myr-core_domain_model.ModuleVersion"
                     }
                 }
             }
@@ -3233,7 +3427,7 @@
                 }
             }
         },
-        "myr_domain_identity.AccountRequest": {
+        "myr-core_domain_identity.AccountRequest": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -3268,7 +3462,7 @@
                 }
             }
         },
-        "myr_domain_model.AssetInterface": {
+        "myr-core_domain_model.AssetInterface": {
             "type": "object",
             "properties": {
                 "asset_id": {
@@ -3282,7 +3476,7 @@
                     "description": "\"in\", \"out\", \"bidir\"",
                     "allOf": [
                         {
-                            "$ref": "#/definitions/myr_domain_model.IfaceDirection"
+                            "$ref": "#/definitions/myr-core_domain_model.IfaceDirection"
                         }
                     ]
                 },
@@ -3319,7 +3513,7 @@
                 }
             }
         },
-        "myr_domain_model.Category": {
+        "myr-core_domain_model.Category": {
             "type": "string",
             "enum": [
                 "base",
@@ -3340,7 +3534,7 @@
                 "CategoryRegression"
             ]
         },
-        "myr_domain_model.IfaceDirection": {
+        "myr-core_domain_model.IfaceDirection": {
             "type": "string",
             "enum": [
                 "in",
@@ -3353,7 +3547,7 @@
                 "IfaceBidi"
             ]
         },
-        "myr_domain_model.License": {
+        "myr-core_domain_model.License": {
             "type": "object",
             "properties": {
                 "compatible_with": {
@@ -3400,7 +3594,7 @@
                 }
             }
         },
-        "myr_domain_model.ModuleStatus": {
+        "myr-core_domain_model.ModuleStatus": {
             "type": "string",
             "enum": [
                 "draft",
@@ -3415,7 +3609,7 @@
                 "ModuleSubmitted"
             ]
         },
-        "myr_domain_model.ModuleVersion": {
+        "myr-core_domain_model.ModuleVersion": {
             "type": "object",
             "properties": {
                 "assemblies": {
@@ -3442,7 +3636,7 @@
                 }
             }
         },
-        "myr_domain_model.WorkspaceInstance": {
+        "myr-core_domain_model.WorkspaceInstance": {
             "type": "object",
             "properties": {
                 "asset_id": {

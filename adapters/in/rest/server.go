@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"time"
 
-	rbac "myr/domain/role"
+	rbac "myr-core/domain/role"
 )
 
 // Server expose l'API REST sur un port local. Aucune interface graphique

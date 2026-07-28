@@ -75,6 +75,7 @@ func main() {
 		WithConnStore(store).
 		WithThumbStore(store).
 		WithIfaceStore(store).
+		WithDraftStore(store).
 		WithOGImageFetcher(webimage.New())
 
 	nodeStore := localstorage.NewJSONNodeStore(filepath.Join(data, "nodes.json"))

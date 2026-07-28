@@ -19,10 +19,11 @@ type dbFile struct {
 	Connections []*model.Connection     `json:"connections"`
 	Interfaces  []*model.AssetInterface `json:"interfaces"`
 	Refs        *model.InterfaceRefs    `json:"refs"`
+	Drafts      []*model.Model3D        `json:"drafts"`
 }
 
-// JSONBlockchain persiste les données GUI locales (connexions, miniatures, interfaces).
-// Il implémente ConnectionStore, ThumbnailStore et InterfaceStore.
+// JSONBlockchain persiste les données GUI locales (connexions, miniatures, interfaces, brouillons).
+// Il implémente ConnectionStore, ThumbnailStore, InterfaceStore et DraftStore.
 type JSONBlockchain struct {
 	path string
 	mu   sync.RWMutex
@@ -51,6 +52,9 @@ func (j *JSONBlockchain) load() *dbFile {
 	}
 	if db.Interfaces == nil {
 		db.Interfaces = []*model.AssetInterface{}
+	}
+	if db.Drafts == nil {
+		db.Drafts = []*model.Model3D{}
 	}
 	// Refs : appliquer les valeurs par défaut si absentes ou sans catégories.
 	if db.Refs == nil || len(db.Refs.Categories) == 0 {
@@ -196,6 +200,64 @@ func (j *JSONBlockchain) GetInterface(id string) (*model.AssetInterface, error) 
 		}
 	}
 	return nil, fmt.Errorf("interface %q introuvable", id)
+}
+
+// ── model.DraftStore ─────────────────────────────────────────────────────────
+
+func (j *JSONBlockchain) SaveDraft(m *model.Model3D) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	db := j.load()
+	for i, existing := range db.Drafts {
+		if existing.ID == m.ID {
+			db.Drafts[i] = m
+			return j.save(db)
+		}
+	}
+	db.Drafts = append(db.Drafts, m)
+	return j.save(db)
+}
+
+func (j *JSONBlockchain) GetDraft(id string) (*model.Model3D, error) {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	db := j.load()
+	for _, m := range db.Drafts {
+		if m.ID == id {
+			return m, nil
+		}
+	}
+	return nil, fmt.Errorf("brouillon %q introuvable", id)
+}
+
+func (j *JSONBlockchain) RemoveDraft(id string) error {
+	j.mu.Lock()
+	defer j.mu.Unlock()
+	db := j.load()
+	filtered := db.Drafts[:0]
+	for _, m := range db.Drafts {
+		if m.ID != id {
+			filtered = append(filtered, m)
+		}
+	}
+	db.Drafts = filtered
+	return j.save(db)
+}
+
+func (j *JSONBlockchain) ListDrafts(channelID string) ([]*model.Model3D, error) {
+	j.mu.RLock()
+	defer j.mu.RUnlock()
+	db := j.load()
+	if channelID == "" {
+		return db.Drafts, nil
+	}
+	var result []*model.Model3D
+	for _, m := range db.Drafts {
+		if m.ChannelID == channelID {
+			result = append(result, m)
+		}
+	}
+	return result, nil
 }
 
 func (j *JSONBlockchain) GetRefs() (*model.InterfaceRefs, error) {

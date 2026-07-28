@@ -3,13 +3,11 @@ package rest
 
 import (
 	"context"
-	"encoding/base64"
 	"encoding/json"
+	"errors"
 	"fmt"
-	"io"
 	"log"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -113,6 +111,7 @@ type Handler struct {
 	modelSvc    model.ModelService
 	thumbStore  model.ThumbnailStore
 	ifaceStore  model.InterfaceStore
+	draftStore  model.DraftStore
 	identitySvc identity.IdentityService
 	networkSvc  network.NetworkService
 	roleSvc     rbac.RoleService
@@ -182,6 +181,12 @@ func (h *Handler) WithFileStore(fs model.FileStoragePort) *Handler {
 // WithConnStore attache le store de connexions pour svcFor.
 func (h *Handler) WithConnStore(cs model.ConnectionStore) *Handler {
 	h.connStore = cs
+	return h
+}
+
+// WithDraftStore attache le store de brouillons pour svcFor (composants créés draft:true).
+func (h *Handler) WithDraftStore(ds model.DraftStore) *Handler {
+	h.draftStore = ds
 	return h
 }
 
@@ -257,7 +262,7 @@ func (h *Handler) svcFor(r *http.Request) model.ModelService {
 	if h.connStore != nil {
 		svc = svc.WithConnStore(h.connStore)
 	}
-	return svc.WithThumbStore(h.thumbStore).WithIfaceStore(h.ifaceStore)
+	return svc.WithThumbStore(h.thumbStore).WithIfaceStore(h.ifaceStore).WithDraftStore(h.draftStore)
 }
 
 // channelFor retourne le canal actif de la session, ou le canal par défaut du réseau.
@@ -318,19 +323,23 @@ func (h *Handler) requireRole(perm rbac.Permission, next http.HandlerFunc) http.
 // ── DTOs ─────────────────────────────────────────────────────────────────────
 
 type componentDTO struct {
-	ID          string         `json:"id"`
-	Name        string         `json:"name"`
-	Description string         `json:"description,omitempty"`
-	Category    model.Category `json:"category"`
-	OwnerID     string         `json:"owner_id"`
-	ParentID    string         `json:"parent_id,omitempty"`
-	BlockID     string         `json:"block_id,omitempty"`
-	Hash        string         `json:"hash,omitempty"`
-	LicenseID   string         `json:"license_id,omitempty"`
-	Tags        []string       `json:"tags"`
-	Links       []string       `json:"links,omitempty"`
-	Thumbnail   string         `json:"thumbnail,omitempty"`
-	CreatedAt   time.Time      `json:"created_at"`
+	ID          string             `json:"id"`
+	Name        string             `json:"name"`
+	Description string             `json:"description,omitempty"`
+	Category    model.Category     `json:"category"`
+	OwnerID     string             `json:"owner_id"`
+	ParentID    string             `json:"parent_id,omitempty"`
+	BlockID     string             `json:"block_id,omitempty"`
+	Hash        string             `json:"hash,omitempty"`
+	LicenseID   string             `json:"license_id,omitempty"`
+	Tags        []string           `json:"tags"`
+	Links       []string           `json:"links,omitempty"`
+	Thumbnail   string             `json:"thumbnail,omitempty"`
+	// Status vaut "draft" (créé via draft:true, pas encore engagé sur la blockchain
+	// — voir POST /components/{id}/submit) ou "submitted" (comportement nominal,
+	// immédiat). Vide pour un composant créé avant l'introduction du brouillon.
+	Status    model.ModuleStatus `json:"status,omitempty"`
+	CreatedAt time.Time          `json:"created_at"`
 }
 
 type connectionDTO struct {
@@ -379,6 +388,7 @@ func toComponentDTO(m *model.Model3D, thumbnail string) componentDTO {
 		Tags:        tags,
 		Links:       m.Links,
 		Thumbnail:   thumbnail,
+		Status:      m.Status,
 		CreatedAt:   m.CreatedAt,
 	}
 }
@@ -534,7 +544,7 @@ func assetMatchesQuery(m *model.Model3D, q string) bool {
 // createAsset crée un composant à partir d'un formulaire multipart.
 //
 //	@Summary		Créer un composant
-//	@Description	Crée un asset (catégorie par défaut "base"). Le fichier CAO 3D est optionnel (champ "file", ou "stl" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé.
+//	@Description	Crée un asset (catégorie par défaut "base"). Le fichier CAO 3D est optionnel (champ "file", ou "stl" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé. Par défaut le composant est engagé immédiatement sur la blockchain (une transaction, "status":"submitted"). Si "draft" vaut true, il est stocké localement ("status":"draft", aucune transaction) — voir POST /components/{id}/submit pour l'engager ensuite.
 //	@Tags			components
 //	@Accept			multipart/form-data
 //	@Produce		json
@@ -549,8 +559,10 @@ func assetMatchesQuery(m *model.Model3D, q string) bool {
 //	@Param			links		formData	string	false	"liens externes, tableau JSON encodé en chaîne"
 //	@Param			file		formData	file	false	"fichier CAO 3D"
 //	@Param			thumbnail	formData	string	false	"miniature en data URL base64"
+//	@Param			draft		formData	bool	false	"true : crée en brouillon local, sans transaction blockchain (défaut: false)"
 //	@Success		201	{object}	componentDTO
 //	@Failure		400	{object}	map[string]string
+//	@Failure		503	{object}	map[string]string	"blockchain indisponible (composant non-brouillon uniquement)"
 //	@Security		MyrToken
 //	@Router			/components [post]
 func (h *Handler) createAsset(w http.ResponseWriter, r *http.Request) {
@@ -597,6 +609,7 @@ func (h *Handler) createAsset(w http.ResponseWriter, r *http.Request) {
 		ChannelID:   channelID,
 		LicenseID:   strings.TrimSpace(r.FormValue("license_id")),
 		Tags:        parseTags(r.FormValue("tags")),
+		Draft:       r.FormValue("draft") == "true",
 	}
 	if raw := r.FormValue("links"); raw != "" {
 		_ = json.Unmarshal([]byte(raw), &req.Links)
@@ -654,10 +667,8 @@ func (h *Handler) createAsset(w http.ResponseWriter, r *http.Request) {
 	if thumb := r.FormValue("thumbnail"); thumb != "" {
 		_ = h.svcFor(r).SaveThumbnail(m.ID, thumb)
 	} else if len(req.Links) > 0 {
-		// Pas de fichier 3D : tenter de récupérer l'og:image du premier lien
-		if dataURL, err := fetchOGImage(req.Links[0]); err == nil {
-			_ = h.svcFor(r).SaveThumbnail(m.ID, dataURL)
-		}
+		// Pas de fichier 3D : dériver la miniature de l'og:image du premier lien
+		_, _ = h.svcFor(r).RegenerateThumbnail(m.ID)
 	}
 
 	thumb, _ := h.svcFor(r).GetThumbnail(m.ID)
@@ -685,6 +696,18 @@ func (h *Handler) handleComponent(w http.ResponseWriter, r *http.Request) {
 		h.handleComponentTree(w, r, id)
 		return
 	}
+	// Sous-route /:id/thumbnail/regenerate — redérive la miniature depuis le lien source
+	if strings.HasSuffix(rest, "/thumbnail/regenerate") {
+		id := strings.TrimSuffix(rest, "/thumbnail/regenerate")
+		h.regenerateThumbnail(w, r, id)
+		return
+	}
+	// Sous-route /:id/submit — engage un composant brouillon sur la blockchain
+	if strings.HasSuffix(rest, "/submit") {
+		id := strings.TrimSuffix(rest, "/submit")
+		h.submitComponent(w, r, id)
+		return
+	}
 	id := rest
 	switch r.Method {
 	case http.MethodDelete:
@@ -696,6 +719,60 @@ func (h *Handler) handleComponent(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, "méthode non autorisée", http.StatusMethodNotAllowed)
 	}
+}
+
+// regenerateThumbnail redérive la miniature d'un asset (composant ou module) depuis
+// sa source durable — l'og:image du premier lien externe enregistré (Links). Sans
+// lien externe, il n'existe pas de source régénérable côté serveur (le rendu d'un
+// modèle 3D est produit par le client GUI, pas par myr) — voir ModelService.RegenerateThumbnail.
+//
+//	@Summary		Régénérer la miniature d'un asset depuis son lien source
+//	@Description	Redérive la miniature depuis l'og:image du premier lien externe enregistré (Links). Échoue si l'asset n'a aucun lien externe — un modèle 3D sans lien n'a pas de source régénérable côté serveur.
+//	@Tags			components
+//	@Produce		json
+//	@Param			id	path		string	true	"identifiant de l'asset (composant ou module)"
+//	@Success		200	{object}	map[string]string
+//	@Failure		400	{object}	map[string]string
+//	@Failure		500	{object}	map[string]string
+//	@Security		MyrToken
+//	@Router			/components/{id}/thumbnail/regenerate [post]
+func (h *Handler) regenerateThumbnail(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+	dataURL, err := h.svcFor(r).RegenerateThumbnail(id)
+	if err != nil {
+		internalErr(w, err)
+		return
+	}
+	jsonOK(w, map[string]string{"thumbnail": dataURL})
+}
+
+// submitComponent engage un composant créé en brouillon (draft:true) sur la blockchain.
+//
+//	@Summary		Soumettre un composant en brouillon
+//	@Description	Committe en une transaction les métadonnées et les interfaces locales du composant, puis passe "status" à "submitted". Échoue si le composant n'est pas un brouillon local (déjà soumis, ou inexistant).
+//	@Tags			components
+//	@Produce		json
+//	@Param			id	path		string	true	"identifiant du composant en brouillon"
+//	@Success		200	{object}	componentDTO
+//	@Failure		400	{object}	map[string]string
+//	@Failure		503	{object}	map[string]string	"blockchain indisponible"
+//	@Security		MyrToken
+//	@Router			/components/{id}/submit [post]
+func (h *Handler) submitComponent(w http.ResponseWriter, r *http.Request, id string) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "méthode non autorisée", http.StatusMethodNotAllowed)
+		return
+	}
+	m, err := h.svcFor(r).Submit(id)
+	if err != nil {
+		internalErr(w, err)
+		return
+	}
+	thumb, _ := h.svcFor(r).GetThumbnail(m.ID)
+	jsonOK(w, toComponentDTO(m, thumb))
 }
 
 // patchComponent modifie un composant existant (champs partiels).
@@ -1163,7 +1240,7 @@ func (h *Handler) handleModules(w http.ResponseWriter, r *http.Request) {
 // (api/swagger.json) partage donc les mêmes réponses génériques pour toutes.
 //
 //	@Summary		Opérations sur un module et ses sous-ressources
-//	@Description	GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).
+//	@Description	GET/DELETE /api/modules/{id} : détail / suppression (brouillon uniquement, règle 14). GET /api/modules/{id}/interfaces : interfaces exposées. GET /api/modules/{id}/connections : connexions internes. POST/DELETE /api/modules/{id}/assemblies(/{connID}) : ajouter/retirer un assemblage. GET/POST /api/modules/{id}/thumbnail : miniature. POST /api/modules/{id}/thumbnail/regenerate : redériver la miniature depuis le lien source (og:image). GET/POST /api/modules/{id}/instances : lister / ajouter une instance de composant. DELETE/PATCH /api/modules/{id}/instances/{instanceId} : retirer (cascade des connexions, règle 15) / repositionner une instance. POST /api/modules/{id}/submit : soumettre le module à la blockchain (règle 14).
 //	@Tags			modules
 //	@Accept			json
 //	@Produce		json
@@ -1181,6 +1258,7 @@ func (h *Handler) handleModules(w http.ResponseWriter, r *http.Request) {
 //	@Router			/modules/{id}/assemblies/{connID} [delete]
 //	@Router			/modules/{id}/thumbnail [get]
 //	@Router			/modules/{id}/thumbnail [post]
+//	@Router			/modules/{id}/thumbnail/regenerate [post]
 //	@Router			/modules/{id}/instances [get]
 //	@Router			/modules/{id}/instances [post]
 //	@Router			/modules/{id}/instances/{instanceId} [delete]
@@ -1263,6 +1341,12 @@ func (h *Handler) handleModule(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		jsonOK(w, h.toModuleDTO(p))
+		return
+	}
+	// /api/modules/:id/thumbnail/regenerate — redérive la miniature depuis le lien source
+	if strings.HasSuffix(rest, "/thumbnail/regenerate") {
+		id := strings.TrimSuffix(rest, "/thumbnail/regenerate")
+		h.regenerateThumbnail(w, r, id)
 		return
 	}
 	// /api/modules/:id/thumbnail
@@ -1807,8 +1891,14 @@ func jsonError(w http.ResponseWriter, msg string, code int) {
 }
 
 // internalErr logue l'erreur complète côté serveur et renvoie un message générique au client.
+// Distingue l'indisponibilité de la blockchain (503, transitoire — pas une erreur de
+// données) des autres échecs du service domaine (500).
 func internalErr(w http.ResponseWriter, err error) {
 	log.Printf("erreur interne : %v", err)
+	if errors.Is(err, model.ErrBlockchainUnavailable) {
+		jsonError(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
 	jsonError(w, err.Error(), http.StatusInternalServerError)
 }
 
@@ -1919,65 +2009,3 @@ func (h *Handler) handleLicense(w http.ResponseWriter, r *http.Request) {
 	jsonOK(w, l)
 }
 
-// fetchOGImage récupère l'image og:image d'une page web et la retourne en data URL base64.
-// Utilisé pour générer automatiquement la miniature d'un asset sans fichier 3D.
-var reOGImage = regexp.MustCompile(
-	`(?i)<meta[^>]+property=["']og:image["'][^>]+content=["']([^"']+)["']|` +
-		`<meta[^>]+content=["']([^"']+)["'][^>]+property=["']og:image["']`,
-)
-
-func fetchOGImage(pageURL string) (string, error) {
-	client := &http.Client{Timeout: 10 * time.Second}
-
-	resp, err := client.Get(pageURL)
-	if err != nil {
-		return "", fmt.Errorf("chargement page: %w", err)
-	}
-	defer resp.Body.Close()
-	body, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20)) // 2 Mo max
-	if err != nil {
-		return "", err
-	}
-
-	matches := reOGImage.FindSubmatch(body)
-	imgURL := ""
-	if len(matches) >= 3 {
-		if len(matches[1]) > 0 {
-			imgURL = string(matches[1])
-		} else {
-			imgURL = string(matches[2])
-		}
-	}
-	if imgURL == "" {
-		return "", fmt.Errorf("og:image introuvable sur %s", pageURL)
-	}
-
-	// Résoudre les URLs relatives
-	if !strings.HasPrefix(imgURL, "http") {
-		base, err := url.Parse(pageURL)
-		if err != nil {
-			return "", err
-		}
-		ref, err := url.Parse(imgURL)
-		if err != nil {
-			return "", err
-		}
-		imgURL = base.ResolveReference(ref).String()
-	}
-
-	imgResp, err := client.Get(imgURL)
-	if err != nil {
-		return "", fmt.Errorf("chargement image: %w", err)
-	}
-	defer imgResp.Body.Close()
-	imgData, err := io.ReadAll(io.LimitReader(imgResp.Body, 5<<20)) // 5 Mo max
-	if err != nil {
-		return "", err
-	}
-
-	ct := strings.Split(imgResp.Header.Get("Content-Type"), ";")[0]
-	if ct == "" {
-		ct = "image/jpeg"
-	}
-	return fmt.Sprintf("data:%s;base64,%s", ct, base64.StdEncoding.EncodeToString(imgData)), nil
-}

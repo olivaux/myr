@@ -40,16 +40,27 @@ type Model3D struct {
 	Versions    []Version
 	CreatedAt   time.Time
 
+	// Status (draft/submitted) s'applique à tout asset, composant ou module
+	// (cycle brouillon → soumission généralisé, voir Service.Submit/SubmitModule).
+	Status ModuleStatus `json:"status,omitempty"`
+	// Interfaces embarque l'état courant des AssetInterface de l'asset au moment
+	// de sa soumission (Service.Submit/SubmitModule) — source de vérité une fois
+	// sur la blockchain ; avant soumission, les interfaces vivent uniquement dans
+	// InterfaceStore (brouillon local).
+	Interfaces []AssetInterface `json:"interfaces,omitempty"`
+
 	// Champs module — peuplés quand le composant est un assemblage
-	Status             ModuleStatus        `json:"status,omitempty"`
-	Assemblies         []string            `json:"assemblies,omitempty"`
+	Assemblies         []string            `json:"assemblies"` // non-nil uniquement pour un module (CreateModule) — voir IsModule()
 	WorkspaceInstances []WorkspaceInstance `json:"workspace_instances,omitempty"`
 	ModuleVersions     []ModuleVersion     `json:"module_versions,omitempty"`
 }
 
-// IsModule retourne true si ce composant est un assemblage (contient des sous-composants).
+// IsModule retourne true si ce Model3D est un module (créé via CreateModule).
+// Le discriminant est la présence du slice Assemblies (non-nil dès la création
+// d'un module, jamais initialisé pour un composant) — pas Status, qui s'applique
+// désormais aussi aux composants en brouillon (draft) et ne distingue donc plus rien.
 func (m *Model3D) IsModule() bool {
-	return m.Status != "" || len(m.WorkspaceInstances) > 0
+	return m.Assemblies != nil
 }
 
 type Version struct {
@@ -97,6 +108,11 @@ type AddRequest struct {
 	LicenseID   string // ID dans le catalogue de licences (optionnel)
 	Tags        []string
 	Links       []string // URLs boutique / sources web
+	// Draft, si vrai, crée le composant en Status=draft sans transaction blockchain
+	// (Service.AddFull le stocke dans DraftStore) — il ne rejoint la blockchain
+	// qu'à un appel explicite à Service.Submit. Faux par défaut : comportement
+	// nominal inchangé, une seule transaction Fabric immédiate.
+	Draft bool
 }
 
 // ── Interfaces physiques ─────────────────────────────────────────────────────

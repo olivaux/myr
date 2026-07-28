@@ -1,4 +1,4 @@
-// cmd/api/main.go — point d'entrée principal de Myr.
+// cmd/api/main.go — point d'entrée principal de myr-core.
 //
 // Lance un serveur HTTP local qui sert exclusivement l'API REST — aucune
 // interface graphique n'est embarquée. Le GUI est un dépôt externe, client
@@ -16,7 +16,7 @@
 //
 //	@title			Myr API
 //	@version		1.0
-//	@description	API REST du backend myr — blockchain, stockage fichiers, identités, sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script) consomment cette même API via le domaine (`domain/`).
+//	@description	API REST de myr-core — blockchain, stockage fichiers, identités, sessions. Le CLI (`myr-cli`) et tout logiciel tiers (GUI, plugin CAO, script) consomment cette même API via le domaine (`domain/`).
 //	@BasePath		/api
 //	@schemes		http https
 //
@@ -38,14 +38,14 @@ import (
 	"strings"
 	"syscall"
 
-	"myr/adapters/in/rest"
-	fabricadapter "myr/adapters/out/fabric"
-	"myr/adapters/out/localstorage"
-	"myr/adapters/out/webimage"
-	"myr/domain/identity"
-	"myr/domain/model"
-	"myr/domain/network"
-	"myr/domain/role"
+	"myr-core/adapters/in/rest"
+	fabricadapter "myr-core/adapters/out/fabric"
+	"myr-core/adapters/out/localstorage"
+	"myr-core/adapters/out/webimage"
+	"myr-core/domain/identity"
+	"myr-core/domain/model"
+	"myr-core/domain/network"
+	"myr-core/domain/role"
 )
 
 // BuildDate est injecté via -ldflags "-X main.BuildDate=..." lors de la compilation.
@@ -124,6 +124,7 @@ func main() {
 		WithConnStore(store).
 		WithThumbStore(store).
 		WithIfaceStore(store).
+		WithDraftStore(store).
 		WithOGImageFetcher(webimage.New())
 
 	walletDir := filepath.Join(*dataDir, "wallets")
@@ -176,6 +177,7 @@ func main() {
 		WithBlockchainRouter(pool).
 		WithFileStore(fileStore).
 		WithConnStore(store).
+		WithDraftStore(store).
 		WithDefaultNetwork(defaultNetworkID).
 		WithFabricConnected(fabricConnected).
 		WithBuildDate(BuildDate).

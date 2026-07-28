@@ -11,3 +11,7 @@ var ErrIntegrityFailed = errors.New("model: integrity check failed")
 // autre stockage — voir domain/channel.ErrFabricUnavailable pour le même
 // principe appliqué au domaine channel.
 var ErrBlockchainUnavailable = errors.New("model: adapter blockchain non configuré")
+
+// ErrNoThumbnailSource est retournée par Service.RegenerateThumbnail quand l'asset
+// n'a aucun lien externe (Links) — seule source de miniature régénérable côté serveur.
+var ErrNoThumbnailSource = errors.New("model: aucun lien externe enregistré pour régénérer la miniature")

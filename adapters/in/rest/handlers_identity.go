@@ -372,6 +372,9 @@ func (h *Handler) handleIdentitySession(w http.ResponseWriter, r *http.Request) 
 	if channel == "" {
 		channel = h.netInfo.Channel // canal par défaut du réseau
 	}
+	// #question rôle codé en dur — ignore l'attribut Myr.role du certificat CA
+	// réellement enrôlé (voir UCA02.md, écart documenté). Faut-il le lire depuis
+	// WalletEntry/attributs CA plutôt que de le figer ici ?
 	sess, err := h.sessions.create(req.Name, "contributor", channel)
 	if err != nil {
 		jsonError(w, "erreur interne", http.StatusInternalServerError)

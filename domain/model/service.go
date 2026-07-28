@@ -18,6 +18,7 @@ type Service struct {
 	connStore      ConnectionStore // optionnel — nil hors mode GUI
 	thumbStore     ThumbnailStore  // optionnel — nil hors mode GUI
 	ifaceStore     InterfaceStore  // optionnel — nil hors mode GUI
+	draftStore     DraftStore      // optionnel — requis uniquement pour AddRequest.Draft / Submit
 	ogImageFetcher OGImageFetcher  // optionnel — nil si non câblé (pas d'accès réseau depuis les tests domaine)
 }
 
@@ -46,6 +47,12 @@ func (s *Service) WithIfaceStore(is InterfaceStore) *Service {
 	return s
 }
 
+// WithDraftStore attache un store de brouillons (requis pour AddRequest.Draft et Submit).
+func (s *Service) WithDraftStore(ds DraftStore) *Service {
+	s.draftStore = ds
+	return s
+}
+
 // WithOGImageFetcher attache la source de régénération de miniature depuis un lien web.
 func (s *Service) WithOGImageFetcher(f OGImageFetcher) *Service {
 	s.ogImageFetcher = f
@@ -65,12 +72,17 @@ func (s *Service) Add(filePath, name, channelID, ownerID string, tags []string) 
 }
 
 // AddFull crée un asset avec tous ses champs (mode GUI).
+// Si req.Draft, l'asset est stocké dans DraftStore (aucune transaction blockchain) —
+// il ne rejoint la blockchain qu'à un appel explicite à Submit.
 func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
-	if s.blockchain == nil {
+	if !req.Draft && s.blockchain == nil {
 		return nil, ErrBlockchainUnavailable
 	}
 	// Vérification de compatibilité de licence avec le parent (si renseigné).
 	if req.ParentID != "" && req.LicenseID != "" {
+		if s.blockchain == nil {
+			return nil, ErrBlockchainUnavailable
+		}
 		parent, err := s.blockchain.GetModelRecord(req.ParentID, req.ChannelID)
 		if err == nil && parent.LicenseID != "" {
 			check := CheckLicenseCompatibility(parent.LicenseID, req.LicenseID)
@@ -107,6 +119,17 @@ func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
 		m.Versions = []Version{{Number: 1, Hash: storageRef, CreatedAt: time.Now()}}
 	}
 
+	if req.Draft {
+		if s.draftStore == nil {
+			return nil, fmt.Errorf("stockage de brouillons non configuré")
+		}
+		m.Status = ModuleDraft
+		if err := s.draftStore.SaveDraft(m); err != nil {
+			return nil, fmt.Errorf("saving draft: %w", err)
+		}
+		return m, nil
+	}
+
 	if err := s.blockchain.StoreModelRecord(m); err != nil {
 		return nil, fmt.Errorf("storing on blockchain: %w", err)
 	}
@@ -114,20 +137,72 @@ func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
 	return m, nil
 }
 
+// Submit engage sur la blockchain un composant créé en brouillon (AddRequest.Draft) :
+// une seule transaction committe les métadonnées et les interfaces locales
+// (Model3D.Interfaces, depuis InterfaceStore), puis Status passe à submitted.
+// Généralise SubmitModule à tout Model3D, sans la vérification d'assemblage
+// (RM17, propre aux modules — voir DC_CLI_Model.md §3.6bis).
+func (s *Service) Submit(assetID string) (*Model3D, error) {
+	if s.draftStore == nil {
+		return nil, fmt.Errorf("stockage de brouillons non configuré")
+	}
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
+	m, err := s.draftStore.GetDraft(assetID)
+	if err != nil {
+		return nil, fmt.Errorf("brouillon introuvable : %w", err)
+	}
+	if s.ifaceStore != nil {
+		ifaces, err := s.ifaceStore.ListInterfacesForAsset(assetID)
+		if err != nil {
+			return nil, fmt.Errorf("listing interfaces: %w", err)
+		}
+		m.Interfaces = make([]AssetInterface, len(ifaces))
+		for i, iface := range ifaces {
+			m.Interfaces[i] = *iface
+		}
+	}
+	m.Status = ModuleSubmitted
+	if err := s.blockchain.StoreModelRecord(m); err != nil {
+		return nil, fmt.Errorf("storing on blockchain: %w", err)
+	}
+	_ = s.draftStore.RemoveDraft(assetID)
+	return m, nil
+}
+
 // Get récupère un modèle par son ID sur le canal indiqué.
 // channelID="" utilise le canal par défaut configuré dans l'adapter.
+// Cherche d'abord dans DraftStore (asset pas encore soumis), puis sur la blockchain.
 func (s *Service) Get(id, channelID string) (*Model3D, error) {
+	if s.draftStore != nil {
+		if m, err := s.draftStore.GetDraft(id); err == nil {
+			return m, nil
+		}
+	}
 	if s.blockchain == nil {
 		return nil, ErrBlockchainUnavailable
 	}
 	return s.blockchain.GetModelRecord(id, channelID)
 }
 
+// List retourne les brouillons locaux (DraftStore) suivis des assets de la blockchain.
 func (s *Service) List(channelID string) ([]*Model3D, error) {
+	var drafts []*Model3D
+	if s.draftStore != nil {
+		drafts, _ = s.draftStore.ListDrafts(channelID)
+	}
 	if s.blockchain == nil {
+		if len(drafts) > 0 {
+			return drafts, nil
+		}
 		return nil, ErrBlockchainUnavailable
 	}
-	return s.blockchain.ListModelRecords(channelID)
+	onChain, err := s.blockchain.ListModelRecords(channelID)
+	if err != nil {
+		return nil, err
+	}
+	return append(drafts, onChain...), nil
 }
 
 // Verify vérifie l'intégrité d'un modèle sur le canal indiqué.
@@ -433,18 +508,30 @@ func (s *Service) AddRefUnit(cat, unit string) error {
 
 // ── Suppression ─────────────────────────────────────────────────────────────
 
+// removeConnectionsFor supprime en cascade les connexions impliquant un asset (règle 15).
+func (s *Service) removeConnectionsFor(id string) {
+	if s.connStore == nil {
+		return
+	}
+	conns, _ := s.connStore.ListConnections()
+	for _, c := range conns {
+		if c.From == id || c.To == id {
+			_ = s.connStore.RemoveConnection(c.ID)
+		}
+	}
+}
+
 func (s *Service) Remove(id string) error {
+	if s.draftStore != nil {
+		if _, err := s.draftStore.GetDraft(id); err == nil {
+			s.removeConnectionsFor(id)
+			return s.draftStore.RemoveDraft(id)
+		}
+	}
 	if s.blockchain == nil {
 		return ErrBlockchainUnavailable
 	}
-	if s.connStore != nil {
-		conns, _ := s.connStore.ListConnections()
-		for _, c := range conns {
-			if c.From == id || c.To == id {
-				_ = s.connStore.RemoveConnection(c.ID)
-			}
-		}
-	}
+	s.removeConnectionsFor(id)
 	// Fabric ne supporte pas la suppression — on délègue à l'adapter
 	// qui peut retourner ErrNotSupported si besoin.
 	// #incoherence — ErrNotSupported n'existe nulle part dans domain/model
@@ -457,19 +544,11 @@ func (s *Service) Remove(id string) error {
 	return fmt.Errorf("suppression non supportée par cet adapter blockchain")
 }
 
-// UpdateAsset applique un patch partiel sur un asset existant.
-// Seuls les champs non-vides de req écrasent les valeurs actuelles.
+// applyAssetPatch applique sur m les champs non-vides d'un UpdateRequest.
 // #incoherence — ne réapplique pas CheckLicenseCompatibility (RM03) quand
 // LicenseID change, contrairement à AddFull — voir specs/roadmap_dev.md
 // § Écarts — revue de code, E2.
-func (s *Service) UpdateAsset(req UpdateRequest) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(req.ID, "")
-	if err != nil {
-		return nil, fmt.Errorf("asset introuvable: %w", err)
-	}
+func applyAssetPatch(m *Model3D, req UpdateRequest) {
 	if req.Name != "" {
 		m.Name = req.Name
 	}
@@ -485,6 +564,24 @@ func (s *Service) UpdateAsset(req UpdateRequest) (*Model3D, error) {
 	if req.Links != nil {
 		m.Links = req.Links
 	}
+}
+
+// UpdateAsset applique un patch partiel sur un asset existant (brouillon local ou blockchain).
+func (s *Service) UpdateAsset(req UpdateRequest) (*Model3D, error) {
+	if s.draftStore != nil {
+		if m, err := s.draftStore.GetDraft(req.ID); err == nil {
+			applyAssetPatch(m, req)
+			return m, s.draftStore.SaveDraft(m)
+		}
+	}
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
+	}
+	m, err := s.blockchain.GetModelRecord(req.ID, "")
+	if err != nil {
+		return nil, fmt.Errorf("asset introuvable: %w", err)
+	}
+	applyAssetPatch(m, req)
 	return m, s.blockchain.StoreModelRecord(m)
 }
 

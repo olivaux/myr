@@ -16,6 +16,11 @@ type ModelService interface {
 
 	// Mode GUI — création enrichie
 	AddFull(req AddRequest) (*Model3D, error)
+	// Submit engage sur la blockchain un composant créé en brouillon (AddRequest.Draft=true) :
+	// une seule transaction committe les métadonnées et les interfaces locales
+	// (Model3D.Interfaces), puis Status passe à submitted. Généralise SubmitModule
+	// à tout Model3D, sans la vérification d'assemblage (RM17, propre aux modules).
+	Submit(assetID string) (*Model3D, error)
 	Remove(id string) error
 
 	// Connexions d'assemblage (optionnel selon adapter)

@@ -30,6 +30,10 @@ func runModelAdd(w io.Writer, svc model.ModelService, req model.AddRequest) erro
 	if err != nil {
 		return err
 	}
+	if req.Draft {
+		fmt.Fprintf(w, "Modèle ajouté en brouillon : %s  id=%s (myr model submit %s pour l'engager sur la blockchain)\n", m.Name, m.ID, m.ID)
+		return nil
+	}
 	fmt.Fprintf(w, "Modèle ajouté : %s  id=%s\n", m.Name, m.ID)
 	return nil
 }
@@ -56,6 +60,7 @@ Examples:
 		licenseID, _ := cmd.Flags().GetString("license")
 		ownerID, _ := cmd.Flags().GetString("owner-id")
 		tagsStr, _ := cmd.Flags().GetString("tags")
+		draft, _ := cmd.Flags().GetBool("draft")
 
 		var tags []string
 		if tagsStr != "" {
@@ -72,7 +77,35 @@ Examples:
 			ParentID:    parentID,
 			LicenseID:   licenseID,
 			Tags:        tags,
+			Draft:       draft,
 		})
+	},
+}
+
+// ── submit ────────────────────────────────────────────────────────────────────
+
+func runModelSubmit(w io.Writer, svc model.ModelService, id string) error {
+	m, err := svc.Submit(id)
+	if err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "Modèle %s soumis à la blockchain (status=%s).\n", m.ID, m.Status)
+	return nil
+}
+
+var modelSubmitCmd = &cobra.Command{
+	Use:   "submit <id>",
+	Short: "Submit a draft component to the blockchain",
+	Long: `Commit the current state of a draft component (metadata and local interfaces)
+to the blockchain in a single transaction, then mark it as submitted. Only
+applies to a component created with "myr model add --draft" — a submitted
+asset becomes immutable (fork to evolve it further).
+
+Example:
+  myr model submit abc123def456`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runModelSubmit(cmd.OutOrStdout(), modelSvc, args[0])
 	},
 }
 
@@ -83,8 +116,8 @@ func runModelGet(w io.Writer, svc model.ModelService, id string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "ID      : %s\nNom     : %s\nCanal   : %s\nOwner   : %s\nParent  : %s\nLicence : %s\nTags    : %s\n",
-		m.ID, m.Name, m.ChannelID, m.OwnerID, m.ParentID, m.LicenseID, strings.Join(m.Tags, ", "))
+	fmt.Fprintf(w, "ID      : %s\nNom     : %s\nCanal   : %s\nOwner   : %s\nParent  : %s\nLicence : %s\nTags    : %s\nStatus  : %s\n",
+		m.ID, m.Name, m.ChannelID, m.OwnerID, m.ParentID, m.LicenseID, strings.Join(m.Tags, ", "), m.Status)
 	return nil
 }
 
@@ -335,6 +368,29 @@ Examples:
 	},
 }
 
+func runModelThumbnailRegenerate(w io.Writer, svc model.ModelService, id string) error {
+	if _, err := svc.RegenerateThumbnail(id); err != nil {
+		return err
+	}
+	fmt.Fprintf(w, "Miniature régénérée pour %s.\n", id)
+	return nil
+}
+
+var modelThumbnailRegenerateCmd = &cobra.Command{
+	Use:   "regenerate <id>",
+	Short: "Regenerate an asset's thumbnail from its source link",
+	Long: `Redérive la miniature depuis l'og:image du premier lien externe enregistré sur
+l'asset (Links). Un modèle 3D sans lien n'a pas de source régénérable côté serveur :
+sa miniature ne peut être fournie que via "myr model thumbnail set" (rendu client).
+
+Example:
+  myr model thumbnail regenerate abc123def456`,
+	Args: cobra.ExactArgs(1),
+	RunE: func(cmd *cobra.Command, args []string) error {
+		return runModelThumbnailRegenerate(cmd.OutOrStdout(), modelSvc, args[0])
+	},
+}
+
 func init() {
 	modelAddCmd.Flags().String("name", "", "Nom du modele (requis)")
 	modelAddCmd.Flags().String("description", "", "Description du modèle")
@@ -344,6 +400,7 @@ func init() {
 	modelAddCmd.Flags().String("license", "", "ID de licence dans le catalogue")
 	modelAddCmd.Flags().String("owner-id", "", "ID de l'identité propriétaire")
 	modelAddCmd.Flags().String("tags", "", "Tags separes par des virgules")
+	modelAddCmd.Flags().Bool("draft", false, "Créer en brouillon local (aucune transaction blockchain) — voir 'myr model submit'")
 	modelAddCmd.MarkFlagRequired("name")
 
 	modelListCmd.Flags().String("channel", "", "ID du canal")
@@ -355,10 +412,10 @@ func init() {
 	modelUpdateCmd.Flags().String("links", "", "Nouveaux liens séparés par des virgules (remplace l'existant)")
 
 	modelThumbnailGetCmd.Flags().String("out", "", "Fichier de sortie (décode le base64 au lieu d'imprimer la data URL)")
-	modelThumbnailCmd.AddCommand(modelThumbnailSetCmd, modelThumbnailGetCmd)
+	modelThumbnailCmd.AddCommand(modelThumbnailSetCmd, modelThumbnailGetCmd, modelThumbnailRegenerateCmd)
 
 	modelCmd.AddCommand(
-		modelAddCmd, modelGetCmd, modelListCmd, modelVerifyCmd,
+		modelAddCmd, modelSubmitCmd, modelGetCmd, modelListCmd, modelVerifyCmd,
 		modelUpdateCmd, modelRemoveCmd, modelChildrenCmd, modelThumbnailCmd,
 	)
 }

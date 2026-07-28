@@ -16,6 +16,10 @@ Ce document conçoit D9, qui n'avait aucune trace dans `specs/3-Conception/` jus
 
 Point spécifique à D9 non couvert ailleurs : le rôle `manufacturer` (déclencheur `POST /api/orders/:id/deliver`) n'existe pas par défaut dans le RBAC dynamique (`domain/role`) — à créer via `myr role create manufacturer --permission order.deliver` (cf. `specs/2-Analyse/UCAUT-Automatisation/UCAUT01.md` § Notes d'implémentation). C'est une opération de configuration RBAC standard (`domain/role`, déjà conçu), pas un nouveau mécanisme.
 
+**Deux canaux de déclenchement (`OrderItem.FulfillmentChannel`, `Conception_intro.md` ADR-09, `DC_D7_Payment.md` §3/§5) :**
+- `network_node` — le rôle RBAC `manufacturer` ci-dessus s'applique : le fabricant est une organisation du réseau et confirme lui-même via `POST /api/orders/:id/deliver` depuis son propre nœud.
+- `external_adapter` — un partenaire industriel externe (Sculpteo, Xometry, PCBWay...) n'a pas d'identité RBAC Myr : la commande lui est transmise via `ManufacturingPort` (`DC_D7_Payment.md` §5), et sa confirmation de livraison arrive par webhook. C'est le backend Myr, pas le partenaire, qui appelle alors `ConfirmDelivery` — le contrôle d'accès porte sur la validité du webhook (signature de l'intégration), pas sur un rôle RBAC porté par le partenaire.
+
 ---
 
 ## 3. UCAUT02 — Commande via boutique partenaire (API tierce)

@@ -61,6 +61,12 @@ Conformément au principe de parité CLI/REST (« le CLI n'est pas un citoyen de
 2. La commande de fabrication est transmise via la blockchain
 3. Une confirmation avec délai de fabrication est retournée
 
+### Flux nominal — Fabrication via un partenaire industriel externe
+
+1. Le système identifie un partenaire de fabrication externe déjà établi (ex. Sculpteo, Xometry, PCBWay), intégré à Myr sans qu'il opère de nœud ni de compte sur le réseau blockchain
+2. La commande de fabrication lui est transmise via l'intégration propre à ce partenaire (son API commerciale existante)
+3. Une confirmation avec délai de fabrication est retournée
+
 ## Post-conditions
 
 - La commande est enregistrée sur la blockchain

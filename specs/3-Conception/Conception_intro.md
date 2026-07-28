@@ -299,6 +299,25 @@ end note
 
 ---
 
+### ADR-09 — Deux canaux de fabrication : organisation réseau (nœud propre) pour un atelier qui rejoint le réseau, adaptateur externe (oracle) pour un partenaire industriel
+
+**Décision :** UCAUT01 (fabrication/livraison) et UCPI01 (commande) sont servis par **deux canaux distincts et coexistants** :
+
+1. **Fabricant réseau natif** — un atelier qui rejoint réellement le réseau décentralisé Myr comme organisation Fabric (`myr org add --role manufacturer`, éventuellement son propre nœud via `myr node add`/`node provision`, UCADM03). Il confirme la livraison lui-même, depuis son propre nœud, via `POST /api/orders/:id/deliver` (rôle RBAC `manufacturer`) — c'est le canal déjà documenté par `DC-D7-08` (`DC_D7_Payment.md`).
+2. **Fabricant partenaire externe** — un acteur industriel déjà établi (ex. Sculpteo, Xometry, PCBWay) qui expose sa propre API commerciale mais n'a ni raison ni intérêt à opérer un pair blockchain pour rejoindre le réseau Myr. Myr intègre son API via un nouveau port sortant `ManufacturingPort`, avec un adapter dédié par partenaire (`adapters/out/manufacturing/<partenaire>/`, même pattern que `adapters/out/fabric`/`ipfs` — un adapter par technologie/partenaire implémentant le même port). Myr transmet la commande (fichier CAO + spécifications + adresse de livraison) via l'API propre du partenaire ; la confirmation de livraison revient par webhook vers un endpoint Myr dédié, et c'est **le backend Myr lui-même** (pas le partenaire) qui soumet alors `ConfirmDelivery` au smart contract — Myr agit ici comme tiers de confiance (oracle) attestant qu'un événement hors-chaîne a eu lieu.
+
+**Justification :** Exiger un nœud ou un compte blockchain de tout fabricant (modèle initial de `DC-D7-08`) est réaliste pour un petit atelier qui souhaite réellement participer au réseau décentralisé, mais irréaliste pour un acteur industriel qui ne changera pas son système d'information pour intégrer Myr. Les deux canaux coexistent : aucun n'est retiré, le second s'ajoute pour ne pas fermer la porte aux gros volumes de fabrication externalisée.
+
+**Conséquence :**
+- `OrderItem` (`DC_D7_Payment.md` §3) porte un champ `FulfillmentChannel` (`network_node` / `external_adapter`) déterminant qui est autorisé à confirmer la livraison et par quel mécanisme.
+- Le rôle RBAC `manufacturer` (RM22, `myr role create manufacturer`) ne s'applique qu'au canal `network_node` — un partenaire externe n'est jamais authentifié dans le RBAC Myr ; l'authenticité de son webhook repose sur un secret propre à l'intégration (signature HMAC par adapter), pas sur une identité CA Fabric.
+- Aucune nouvelle technologie n'est introduite : chaque adapter `adapters/out/manufacturing/<partenaire>/` appelle l'API HTTP déjà documentée du partenaire via `net/http` stdlib, au même titre que n'importe quel client REST — cohérent avec le stack technique existant (§ Stack technique, `CLAUDE.md`).
+- Une blockchain de traçabilité propre au partenaire (s'il en opère une de son côté) ou le choix d'une cryptomonnaie pour les transactions du réseau Myr restent des choix d'infrastructure hors du périmètre de ce dépôt — cohérent avec le principe d'interchangeabilité technologique déjà acté (aucun de ces choix ne modifie le domaine `myr`).
+
+**Point ouvert pour le PO :** le taux de commission (RM29) et la répartition (RM24) s'appliquent-ils identiquement sur le canal `external_adapter`, sachant que le partenaire prélève probablement sa propre marge de fabrication en amont, hors du prix suivi par `AssetPrice` ? Non tranché — suivi dans `specs/roadmap_dev.md`.
+
+---
+
 ## 7. Contraintes techniques transversales
 
 | Contrainte | Variable / Mécanisme | Impact |

@@ -71,6 +71,14 @@ La livraison confirmée → distribution des commissions est une opération **at
 8. Chaque auteur reçoit une notification de commission créditée
 9. Le consommateur reçoit une notification de livraison confirmée
 
+### Flux alternatif — Fabricant partenaire industriel externe (canal `external_adapter`)
+
+1. La commande est confiée à un fabricant partenaire déjà établi (ex. Sculpteo, Xometry, PCBWay), intégré à Myr via un port sortant dédié (`ManufacturingPort`) plutôt que comme organisation du réseau — il n'a ni rôle RBAC `manufacturer` ni nœud blockchain propre
+2. Le fichier CAO, les spécifications et l'adresse de livraison lui sont transmis via l'intégration propre à ce partenaire (son API commerciale existante), pas via la blockchain
+3. Le partenaire produit et livre le composant selon son propre processus
+4. Sa confirmation de livraison arrive par webhook vers un endpoint Myr dédié ; après vérification de l'authenticité du webhook, **c'est le backend myr-core lui-même** qui soumet `ConfirmDelivery` au smart contract — la suite (calcul et distribution des commissions, étape 6 du flux nominal) est identique
+5. Le partenaire n'a jamais d'accès direct à la blockchain ni au RBAC Myr — la confiance repose sur l'intégration (secret partagé propre à l'adapter), pas sur une identité CA Fabric
+
 ### Flux alternatif — Commande en lot (quantité > 1) avec répartition multi-manufactureurs
 
 1. La commande a été répartie entre N manufactureurs (voir UCPI01 flux alternatif)
@@ -195,6 +203,7 @@ REST --> BrowserCons : 200 {status: delivered, timestamp}
 - **À créer** : Routes `PUT /api/orders/{id}/status` et `POST /api/orders/{id}/deliver` dans `adapters/in/rest/handlers_payment.go`
 - **À créer** : Fonction chaincode `ConfirmDelivery(orderID)` qui encapsule le calcul et la distribution des commissions dans un seul bloc Fabric (atomicité)
 - **À créer** : Entité `Order` dans le domaine payment — l'entité `Payment` actuelle ne modélise pas le cycle commande/livraison
-- Le rôle `manufacturer` n'existe pas encore par défaut dans le RBAC dynamique (`domain/role`) — à créer via `myr role create manufacturer --permission ...` (voir note §3.1 de l'Analyse des besoins)
+- Le rôle `manufacturer` n'existe pas encore par défaut dans le RBAC dynamique (`domain/role`) — à créer via `myr role create manufacturer --permission ...` (voir note §3.1 de l'Analyse des besoins). Ce rôle ne concerne que le canal `network_node` (voir flux alternatif ci-dessus, `Conception_intro.md` ADR-09) — le canal `external_adapter` n'authentifie jamais le partenaire dans le RBAC Myr
+- **Non implémenté** : `ManufacturingPort` et ses adapters (`adapters/out/manufacturing/<partenaire>/`) pour le canal `external_adapter`, ainsi que le champ `OrderItem.FulfillmentChannel` (voir `DC_D7_Payment.md` §3/§5)
 - L'atomicité livraison + commissions dans un seul bloc Fabric est une contrainte forte — Hyperledger Fabric supporte plusieurs écritures dans une seule transaction, mais les limites de taille de bloc sont à surveiller pour les modules avec de nombreux co-auteurs
 - **Parité CLI/REST :** conformément au principe de parité, la confirmation de livraison par un manufactureur devrait être déclenchable en CLI pour son compte. Comme noté ci-dessus, l'entité `Order` et la fonction chaincode `ConfirmDelivery` n'existent pas encore — une commande CLI (par ex. `myr order deliver <id>`) ne pourra être ajoutée qu'une fois ce domaine conçu, en parallèle des routes REST manquantes.

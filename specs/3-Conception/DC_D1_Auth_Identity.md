@@ -177,7 +177,13 @@ myrSession ..> Role : Role vérifié via RoleService.HasPermission
   - `Status` initial est `pending`.
   - `CreatedAt` est une chaîne ISO 8601 (`string`, pas `time.Time`).
   - **Aucun champ structuré pour un rôle souhaité** — seul `Message` (texte libre) existe (voir Écart E3).
-- **Cycle de vie :** `pending` → `approved` (auto-enregistrement CA réussi, voir UCA01) | reste `pending` indéfiniment en l'absence de mécanisme d'approbation manuelle (voir Écart E2).
+- **Cycle de vie :** `pending` → `approved` (auto-enregistrement CA réussi, voir UCA01) | reste `pending` indéfiniment en l'absence de mécanisme d'approbation manuelle (voir Écart E2) | reste `pending` même quand `AllowAutoRegister=true` si le client CA du serveur n'est pas configuré (voir Écart E4).
+
+
+**⚠️ Écart E4 (critique) — le passage `pending` → `approved` dépend d'une configuration invisible depuis le `NetworkProfile` :** le client CA utilisé par `identitySvc.AutoRegister` (`cmd/api/main.go`) est construit une fois au démarrage depuis les variables d'environnement (`FABRIC_CA_ENDPOINT`, `FABRIC_CA_ADMIN_CERT_PATH`...) ou un `fabric.env` optionnel — jamais depuis les champs `CAEndpoint`/`CAAdminCertPath`/`CAAdminKeyPath` du `NetworkProfile` actif, alors que ces champs existent précisément pour ça et sont déjà utilisés ainsi par le CLI et par le pool blockchain multi-réseau du serveur (`ConfigFromProfile`, voir `specs/roadmap_dev.md` § Écarts Identité & Session pour le détail vérifié). Conséquence : `myr network update --auto-register` peut afficher une configuration entièrement correcte (CLI et `GET /api/identity/policy` inclus) sans que l'auto-enregistrement ne fonctionne réellement — la demande reste `pending` silencieusement.
+
+#ecart "a trancher"
+ 
 
 ### Role / Permission (`domain/role`)
 

@@ -60,6 +60,13 @@ Conformément au principe de parité CLI/REST, la confirmation de livraison par 
 4. Le composant est livré à l'adresse définie
 5. Le statut de commande est mis à jour sur le réseau
 
+### Flux alternatif — Fabricant partenaire industriel externe (sans nœud réseau)
+
+1. Le composant est confié à un fabricant partenaire déjà établi (ex. imprimeur 3D ou façonnier industriel), intégré à Myr sans qu'il opère lui-même de nœud ni de compte sur le réseau blockchain
+2. Le fichier CAO, les spécifications et l'adresse de livraison lui sont transmis via l'intégration propre à ce partenaire (son API commerciale existante)
+3. Le partenaire produit et livre le composant selon son propre processus
+4. Sa confirmation de livraison est reçue par le réseau Myr via cette même intégration, qui enregistre le statut de commande et déclenche la distribution des commissions exactement comme dans le flux nominal
+
 ### Flux alternatif — Commande en lot (quantité > 1)
 
 1. Le consommateur saisit une quantité supérieure à 1 dans sa commande

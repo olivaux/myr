@@ -88,11 +88,12 @@ package "domain/payment (à concevoir)" {
   class OrderItem {
     + ID : string
     + OrderID : string <<FK Order>>
-    + ManufacturerID : string <<UserID>>
+    + ManufacturerID : string <<UserID ou ID partenaire externe>>
     + ComponentID : string <<Model3D.ID>>
     + Quantity : int
     + UnitPrice : float64
     + Status : OrderItemStatus
+    + FulfillmentChannel : FulfillmentChannel
   }
 
   enum OrderItemStatus {
@@ -102,6 +103,23 @@ package "domain/payment (à concevoir)" {
     shipped
     delivered
   }
+
+  enum FulfillmentChannel {
+    network_node
+    external_adapter
+  }
+
+  note right of FulfillmentChannel
+    network_node : organisation Fabric agréée,
+    confirme elle-même via son propre nœud
+    (rôle RBAC manufacturer).
+    external_adapter : partenaire industriel
+    externe (Sculpteo, Xometry, PCBWay...),
+    intégré via ManufacturingPort — la
+    confirmation revient par webhook et c'est
+    myr qui soumet ConfirmDelivery (oracle).
+    Voir Conception_intro.md ADR-09.
+  end note
 
   class Commission {
     + ID : string <<uuid>>
@@ -229,6 +247,22 @@ interface PaymentPort {
 @enduml
 ```
 
+### Port sortant — ManufacturingPort (à créer, canal `external_adapter` — ADR-09)
+
+Un adapter par partenaire industriel externe (`adapters/out/manufacturing/<partenaire>/`), chacun implémentant ce même port — pattern identique à `adapters/out/fabric`/`ipfs` (un adapter par technologie/fournisseur, domaine et CLI inchangés).
+
+```plantuml
+@startuml
+skinparam classAttributeIconSize 0
+interface ManufacturingPort {
+  + SubmitFabricationOrder(ctx, item OrderItem, caoFileRef, deliveryAddress string) : (externalRef string, err)
+  + GetFabricationStatus(ctx, externalRef string) : (OrderItemStatus, error)
+}
+@enduml
+```
+
+**Réception du webhook :** une route REST dédiée par partenaire (ex. `POST /api/manufacturing/:partner/webhook`) reçoit la confirmation de livraison, vérifie la signature (secret propre à l'intégration, pas une identité CA Fabric — voir ADR-09), puis appelle en interne le même chemin de service que `POST /api/orders/:id/deliver` pour soumettre `ConfirmDelivery` au smart contract. Le partenaire externe n'a donc jamais d'accès direct à la blockchain ni au RBAC Myr.
+
 ---
 
 ## 6. Décisions de conception
@@ -250,6 +284,7 @@ interface PaymentPort {
 | `Payment` est un paiement manuel sans distribution automatique | RM23/RM24 non implémentées |
 | Smart contract de commission absent du chaincode | Bloquerait UCAUT01 en production |
 | Entités Order, Commission, AssetPrice, PITransfer, CloneRecord absentes | UCPI01-09 entièrement non implémentables |
+| `ManufacturingPort` et ses adapters (`adapters/out/manufacturing/<partenaire>/`) absents ; `OrderItem.FulfillmentChannel` absent | Le canal `external_adapter` (ADR-09) — donc toute intégration avec un partenaire industriel externe (Sculpteo, Xometry, PCBWay...) — est non implémentable |
 
 ---
 
@@ -265,7 +300,8 @@ interface PaymentPort {
 | **Wallet de paiement** | En V1 : comptabilité interne — les commissions sont enregistrées sur Fabric comme des écritures comptables (crédit/débit). Pas de transfert crypto ou fiat réel. L'encaissement effectif se fait hors système (accord direct manufactureur/auteur). Le solde de commissions est lisible depuis la blockchain. Post-V1 : intégration d'un mécanisme de paiement réel à définir (token réseau, passerelle fiat). | DC-D7-05 (nouveau) |
 | **Wallet inactif** | Si un auteur destinataire de commission n'a plus de wallet actif : la commission est mise en séquestre (état `sequestered`) pendant 90 jours. Après ce délai, elle est redistribuée proportionnellement aux autres auteurs impliqués dans la commande. | DC-D7-06 (nouveau) |
 | **Escrow** | Pas d'escrow en V1 — le débit côté consommateur est supposé acquis à la commande (hors système). Le système enregistre les obligations de paiement, pas les flux financiers réels. | DC-D7-07 (nouveau) |
-| **Registre boutiques et manufactureurs** | Tenu sur la blockchain (canal dédié ou attributs d'identité Fabric CA). L'administrateur agrée les manufactureurs via `myr org add` avec rôle `manufacturer`. Les boutiques partenaires sont enregistrées comme organisations avec rôle `shop`. | UCADM01, DC-D7-08 (nouveau) |
+| **Registre boutiques et manufactureurs** | Tenu sur la blockchain (canal dédié ou attributs d'identité Fabric CA) pour le canal `network_node` uniquement : l'administrateur agrée les manufactureurs via `myr org add` avec rôle `manufacturer`. Les boutiques partenaires sont enregistrées comme organisations avec rôle `shop`. Un fabricant intégré via le canal `external_adapter` (partenaire industriel externe, ADR-09) n'est jamais une organisation Fabric — son identifiant est celui de l'adapter (`adapters/out/manufacturing/<partenaire>/`), pas un `UserID` RBAC. | UCADM01, DC-D7-08 |
+| **Fabrication via partenaire industriel externe** | Deux canaux coexistent sur `OrderItem.FulfillmentChannel` : `network_node` (organisation Fabric, confirme elle-même) et `external_adapter` (ManufacturingPort, confirmation par webhook, myr soumet `ConfirmDelivery` en tant qu'oracle). Voir `Conception_intro.md` ADR-09. | DC-D7-09 (nouveau) |
 
 ### Nouvelles décisions de conception
 
@@ -274,7 +310,14 @@ interface PaymentPort {
 | DC-D7-05 | Commissions = écritures comptables sur blockchain en V1, pas de flux financier réel | Évite la complexité d'un système de paiement réel en V1 tout en garantissant la traçabilité immuable des droits à percevoir. |
 | DC-D7-06 | Commission séquestrée 90j puis redistribuée si wallet inactif | Préserve les droits de l'auteur absent sans bloquer indéfiniment la distribution. |
 | DC-D7-07 | Pas d'escrow en V1 — obligations enregistrées, flux hors système | Simplifie radicalement l'implémentation. Le système est un registre de droits, pas un processeur de paiement. |
-| DC-D7-08 | Manufactureurs et boutiques = organisations Fabric avec rôle spécifique | Réutilise le mécanisme d'organisation Fabric existant (UCADM01) plutôt qu'un registre externe séparé. |
+| DC-D7-08 | Manufactureurs et boutiques du canal `network_node` = organisations Fabric avec rôle spécifique | Réutilise le mécanisme d'organisation Fabric existant (UCADM01) plutôt qu'un registre externe séparé. |
+| DC-D7-09 | Canal `external_adapter` : partenaire industriel externe intégré via `ManufacturingPort`, confirmation de livraison par webhook soumise au smart contract par myr (oracle) | Un acteur industriel établi (Sculpteo, Xometry, PCBWay...) n'a ni raison ni intérêt à opérer un pair blockchain pour rejoindre le réseau Myr — voir `Conception_intro.md` ADR-09. |
+
+### Champ à ajouter à `OrderItem`
+
+| Champ | Type | Description |
+|-------|------|-------------|
+| `FulfillmentChannel` | `FulfillmentChannel` (`network_node` / `external_adapter`) | Détermine qui peut confirmer la livraison et par quel mécanisme (RBAC `manufacturer` vs webhook `ManufacturingPort`) — ADR-09 |
 
 ### Champ à ajouter à `AssetPrice`
 

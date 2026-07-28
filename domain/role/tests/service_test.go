@@ -4,7 +4,7 @@ package role_test
 import (
 	"testing"
 
-	"myr/domain/role"
+	"myr-core/domain/role"
 )
 
 // ── Mock Repo (Pattern A — struct concrète, état en mémoire) ─────────────────

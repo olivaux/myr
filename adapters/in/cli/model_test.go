@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModelAdd doit appeler AddFull avec la requête construite et afficher l'id créé

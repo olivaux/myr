@@ -4,7 +4,7 @@ package cli
 import (
 	"context"
 
-	"myr/domain/identity"
+	"myr-core/domain/identity"
 )
 
 type mockIdentitySvc struct {

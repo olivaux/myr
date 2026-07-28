@@ -6,7 +6,7 @@ import (
 	"errors"
 	"os"
 
-	"myr/domain/session"
+	"myr-core/domain/session"
 )
 
 var _ session.Store = (*JSONSessionStore)(nil)

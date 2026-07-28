@@ -19,9 +19,9 @@ import (
 	"strings"
 	"time"
 
-	"myr/adapters/out/localstorage"
-	"myr/domain/channel"
-	"myr/domain/network"
+	"myr-core/adapters/out/localstorage"
+	"myr-core/domain/channel"
+	"myr-core/domain/network"
 )
 
 // FabricChannelConfig implémente channel.ChannelConfigPort.

@@ -6,17 +6,17 @@ import (
 	"os"
 	"path/filepath"
 
-	"myr/adapters/in/cli"
-	fabricadapter "myr/adapters/out/fabric"
-	"myr/adapters/out/localstorage"
-	"myr/adapters/out/webimage"
-	"myr/domain/channel"
-	"myr/domain/identity"
-	"myr/domain/model"
-	"myr/domain/network"
-	"myr/domain/payment"
-	"myr/domain/role"
-	"myr/domain/session"
+	"myr-core/adapters/in/cli"
+	fabricadapter "myr-core/adapters/out/fabric"
+	"myr-core/adapters/out/localstorage"
+	"myr-core/adapters/out/webimage"
+	"myr-core/domain/channel"
+	"myr-core/domain/identity"
+	"myr-core/domain/model"
+	"myr-core/domain/network"
+	"myr-core/domain/payment"
+	"myr-core/domain/role"
+	"myr-core/domain/session"
 )
 
 // noopPaymentGateway satisfait payment.PaymentGatewayPort tant qu'aucun adapter

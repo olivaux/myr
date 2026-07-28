@@ -1,12 +1,12 @@
 package localstorage_test
 
 import (
-	"myr/adapters/out/localstorage"
+	"myr-core/adapters/out/localstorage"
 	"os"
 	"path/filepath"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────
@@ -348,6 +348,115 @@ func TestInterface_Persistence(t *testing.T) {
 	}
 	if got.AssetID != "asset-A" {
 		t.Fatalf("wrong asset ID after reload: %q", got.AssetID)
+	}
+}
+
+// ── SaveDraft / GetDraft / RemoveDraft / ListDrafts ───────────────────────────
+
+func newDraft(id, channelID string) *model.Model3D {
+	return &model.Model3D{ID: id, Name: "brouillon " + id, ChannelID: channelID, Status: model.ModuleDraft}
+}
+
+// / @brief  Vérifie que SaveDraft persiste un brouillon et que GetDraft le retrouve
+// / @input  Brouillon "d1" sauvegardé dans une base vide
+// / @expect GetDraft("d1") retourne le brouillon, sans erreur
+func TestSaveDraft_And_GetDraft(t *testing.T) {
+	db, _ := tmpDB(t)
+	if err := db.SaveDraft(newDraft("d1", "ch1")); err != nil {
+		t.Fatalf("SaveDraft: %v", err)
+	}
+	got, err := db.GetDraft("d1")
+	if err != nil {
+		t.Fatalf("GetDraft: %v", err)
+	}
+	if got.ID != "d1" || got.ChannelID != "ch1" {
+		t.Fatalf("unexpected draft: %+v", got)
+	}
+}
+
+// / @brief  Vérifie que SaveDraft met à jour un brouillon existant (upsert)
+// / @input  Brouillon "d1" sauvegardé, puis re-sauvegardé avec Name modifié
+// / @expect GetDraft retourne le brouillon avec le nom mis à jour
+func TestSaveDraft_Update(t *testing.T) {
+	db, _ := tmpDB(t)
+	d := newDraft("d1", "ch1")
+	_ = db.SaveDraft(d)
+	d.Name = "vis M4"
+	_ = db.SaveDraft(d)
+	got, _ := db.GetDraft("d1")
+	if got.Name != "vis M4" {
+		t.Fatalf("expected updated name, got %q", got.Name)
+	}
+}
+
+// / @brief  Vérifie que GetDraft retourne une erreur pour un brouillon inexistant
+// / @input  Base vide
+// / @expect GetDraft("absent") retourne une erreur
+func TestGetDraft_NotFound(t *testing.T) {
+	db, _ := tmpDB(t)
+	if _, err := db.GetDraft("absent"); err == nil {
+		t.Fatal("expected error for missing draft")
+	}
+}
+
+// / @brief  Vérifie que ListDrafts filtre par channelID, et retourne tout si channelID=""
+// / @input  Brouillons d1/d2 sur "ch1", d3 sur "ch2"
+// / @expect ListDrafts("ch1") retourne 2 éléments ; ListDrafts("") retourne 3 éléments
+func TestListDrafts_FiltersByChannel(t *testing.T) {
+	db, _ := tmpDB(t)
+	_ = db.SaveDraft(newDraft("d1", "ch1"))
+	_ = db.SaveDraft(newDraft("d2", "ch1"))
+	_ = db.SaveDraft(newDraft("d3", "ch2"))
+
+	ch1, err := db.ListDrafts("ch1")
+	if err != nil {
+		t.Fatalf("ListDrafts(ch1): %v", err)
+	}
+	if len(ch1) != 2 {
+		t.Fatalf("expected 2 drafts for ch1, got %d", len(ch1))
+	}
+	all, err := db.ListDrafts("")
+	if err != nil {
+		t.Fatalf("ListDrafts(\"\"): %v", err)
+	}
+	if len(all) != 3 {
+		t.Fatalf("expected 3 drafts total, got %d", len(all))
+	}
+}
+
+// / @brief  Vérifie que RemoveDraft supprime le brouillon et le rend inaccessible
+// / @input  Brouillons d1 et d2, suppression de d1
+// / @expect GetDraft("d1") retourne une erreur ; ListDrafts("") retourne 1 élément
+func TestRemoveDraft(t *testing.T) {
+	db, _ := tmpDB(t)
+	_ = db.SaveDraft(newDraft("d1", "ch1"))
+	_ = db.SaveDraft(newDraft("d2", "ch1"))
+	if err := db.RemoveDraft("d1"); err != nil {
+		t.Fatalf("RemoveDraft: %v", err)
+	}
+	if _, err := db.GetDraft("d1"); err == nil {
+		t.Fatal("expected error for removed draft")
+	}
+	all, _ := db.ListDrafts("")
+	if len(all) != 1 {
+		t.Fatalf("expected 1 draft after remove, got %d", len(all))
+	}
+}
+
+// / @brief  Vérifie que les brouillons sauvegardés sont relus correctement après rechargement du fichier
+// / @input  Brouillon d1 sauvegardé, rechargement via un nouveau JSONBlockchain
+// / @expect GetDraft("d1") retourne le brouillon avec ChannelID="ch1", sans erreur
+func TestDraft_Persistence(t *testing.T) {
+	db, path := tmpDB(t)
+	_ = db.SaveDraft(newDraft("d1", "ch1"))
+
+	db2 := localstorage.NewJSONBlockchain(path)
+	got, err := db2.GetDraft("d1")
+	if err != nil {
+		t.Fatalf("draft not persisted: %v", err)
+	}
+	if got.ChannelID != "ch1" {
+		t.Fatalf("wrong channel ID after reload: %q", got.ChannelID)
 	}
 }
 

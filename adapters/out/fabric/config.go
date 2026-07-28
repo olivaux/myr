@@ -4,7 +4,7 @@ package fabric
 import (
 	"os"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // Config contient les paramètres de connexion au réseau Hyperledger Fabric.

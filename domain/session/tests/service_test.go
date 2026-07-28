@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"myr/domain/session"
+	"myr-core/domain/session"
 )
 
 // ── Mock Store ────────────────────────────────────────────────────────────────

@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"myr/domain/identity"
+	"myr-core/domain/identity"
 )
 
 type stubCA struct {

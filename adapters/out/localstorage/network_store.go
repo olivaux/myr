@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 var _ network.Repo = (*JSONNetworkStore)(nil)

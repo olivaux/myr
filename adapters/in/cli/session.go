@@ -10,7 +10,7 @@ import (
 	"io"
 
 	"github.com/spf13/cobra"
-	"myr/domain/session"
+	"myr-core/domain/session"
 )
 
 var sessionSvc session.SessionService

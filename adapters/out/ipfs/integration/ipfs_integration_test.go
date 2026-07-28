@@ -21,7 +21,7 @@ import (
 	"testing"
 	"time"
 
-	"myr/adapters/out/ipfs"
+	"myr-core/adapters/out/ipfs"
 )
 
 // checkDaemon vérifie que le daemon IPFS est accessible ; skip si absent.

@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 // #incoherence — ce fichier n'expose que FileStoragePort (blobs bruts) ; il

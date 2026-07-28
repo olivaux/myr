@@ -18,10 +18,10 @@ import (
 	"sync"
 	"time"
 
-	"myr/domain/identity"
-	"myr/domain/model"
-	"myr/domain/network"
-	rbac "myr/domain/role"
+	"myr-core/domain/identity"
+	"myr-core/domain/model"
+	"myr-core/domain/network"
+	rbac "myr-core/domain/role"
 )
 
 // validFieldID valide les identifiants libres (owner_id, channel_id, parent_id…).

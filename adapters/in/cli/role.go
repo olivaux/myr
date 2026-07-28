@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"myr/domain/role"
+	"myr-core/domain/role"
 )
 
 var roleCmd = &cobra.Command{

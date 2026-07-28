@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModelRefList affiche chaque catégorie avec ses types et unités

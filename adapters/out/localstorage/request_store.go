@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"os"
 
-	"myr/domain/identity"
+	"myr-core/domain/identity"
 )
 
 var _ identity.RequestStore = (*JSONRequestStore)(nil)

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"os"
 
-	"myr/domain/channel"
+	"myr-core/domain/channel"
 )
 
 var (

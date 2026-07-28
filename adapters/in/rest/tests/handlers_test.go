@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"myr/adapters/in/rest"
-	"myr/domain/model"
+	"myr-core/adapters/in/rest"
+	"myr-core/domain/model"
 )
 
 // ── Mock ModelService ─────────────────────────────────────────────────────────

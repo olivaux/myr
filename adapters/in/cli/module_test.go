@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModuleCreate crée un module en état draft et affiche son id

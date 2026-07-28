@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModelInterfaceAdd appelle AddInterface et affiche l'id généré

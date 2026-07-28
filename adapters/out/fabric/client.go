@@ -3,7 +3,7 @@ package fabric
 
 import (
 	"encoding/json"
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 // #incoherence — duplique le même port que FabricBlockchain (blockchain.go,

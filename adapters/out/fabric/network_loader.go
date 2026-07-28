@@ -8,7 +8,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 
 	"gopkg.in/yaml.v3"
 )

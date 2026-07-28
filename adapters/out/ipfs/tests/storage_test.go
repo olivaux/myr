@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/adapters/out/ipfs"
+	"myr-core/adapters/out/ipfs"
 )
 
 // newTestServer crée un httptest.Server dont le handler est configurable par test.

@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/channel"
+	"myr-core/domain/channel"
 )
 
 // --- stub in-memory repo ---

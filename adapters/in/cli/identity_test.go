@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/identity"
-	"myr/domain/network"
+	"myr-core/domain/identity"
+	"myr-core/domain/network"
 )
 
 /// @brief  runIdentityWallets liste les wallets locaux

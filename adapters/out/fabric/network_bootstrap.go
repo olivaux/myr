@@ -16,7 +16,7 @@ import (
 	"strings"
 	"time"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // FabricNetworkBootstrapper implémente network.NetworkBootstrapper.

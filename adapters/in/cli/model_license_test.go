@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModelLicenseList affiche une ligne par licence du catalogue

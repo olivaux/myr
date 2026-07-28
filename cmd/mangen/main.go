@@ -14,7 +14,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra/doc"
-	"myr/adapters/in/cli"
+	"myr-core/adapters/in/cli"
 )
 
 func main() {

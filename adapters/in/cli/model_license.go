@@ -8,7 +8,7 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 var modelLicenseCmd = &cobra.Command{

@@ -21,9 +21,9 @@ import (
 	"sync"
 	"testing"
 
-	"myr/adapters/in/rest"
-	"myr/adapters/out/localstorage"
-	"myr/domain/model"
+	"myr-core/adapters/in/rest"
+	"myr-core/adapters/out/localstorage"
+	"myr-core/domain/model"
 )
 
 // ── In-memory blockchain (remplace Fabric en test d'intégration) ──────────────

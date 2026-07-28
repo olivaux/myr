@@ -6,8 +6,8 @@ import (
 	"log"
 	"sync"
 
-	"myr/domain/model"
-	"myr/domain/network"
+	"myr-core/domain/model"
+	"myr-core/domain/network"
 )
 
 // NetworkPool gère un ensemble de GatewayClient ouverts, un par réseau Fabric.

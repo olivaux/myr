@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"myr/domain/payment"
+	"myr-core/domain/payment"
 )
 
 // ── Mock Gateway ──────────────────────────────────────────────────────────────

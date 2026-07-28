@@ -6,13 +6,13 @@ import (
 	"os"
 
 	"github.com/spf13/cobra"
-	"myr/domain/channel"
-	"myr/domain/identity"
-	"myr/domain/model"
-	"myr/domain/network"
-	"myr/domain/payment"
-	"myr/domain/role"
-	"myr/domain/session"
+	"myr-core/domain/channel"
+	"myr-core/domain/identity"
+	"myr-core/domain/model"
+	"myr-core/domain/network"
+	"myr-core/domain/payment"
+	"myr-core/domain/role"
+	"myr-core/domain/session"
 )
 
 var (

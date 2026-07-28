@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModelInstanceAdd ajoute un asset comme instance et affiche le total

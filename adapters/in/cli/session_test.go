@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	"myr/domain/session"
+	"myr-core/domain/session"
 )
 
 // ── mock SessionService (Pattern B — fn-func) ──────────────────────────────────

@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 /// @brief  runModelLinkAdd crée une liaison directe et affiche son id

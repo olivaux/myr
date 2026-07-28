@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"myr/domain/identity"
+	"myr-core/domain/identity"
 )
 
 // GuestHandle est le nom réservé pour l'identité invité partagée.

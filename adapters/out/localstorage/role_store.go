@@ -8,7 +8,7 @@ import (
 	"os"
 	"sync"
 
-	"myr/domain/role"
+	"myr-core/domain/role"
 )
 
 var _ role.Repo = (*JSONRoleStore)(nil)

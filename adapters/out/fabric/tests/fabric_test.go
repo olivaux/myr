@@ -7,10 +7,10 @@ package fabric_test
 import (
 	"encoding/json"
 	"errors"
-	"myr/adapters/out/fabric"
+	"myr-core/adapters/out/fabric"
 	"testing"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 // ── Stubs ─────────────────────────────────────────────────────────────────────

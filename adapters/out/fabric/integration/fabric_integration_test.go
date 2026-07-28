@@ -19,14 +19,14 @@ package fabric_test
 import (
 	"bufio"
 	"fmt"
-	"myr/adapters/out/fabric"
+	"myr-core/adapters/out/fabric"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 // ── helpers ──────────────────────────────────────────────────────────────────

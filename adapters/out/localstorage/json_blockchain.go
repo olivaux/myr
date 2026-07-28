@@ -11,7 +11,7 @@ import (
 	"os"
 	"sync"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 type dbFile struct {

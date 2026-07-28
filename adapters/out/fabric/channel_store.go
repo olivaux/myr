@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"myr/domain/channel"
+	"myr-core/domain/channel"
 )
 
 // FabricChannelStore lit les canaux disponibles depuis le ledger (lecture seule).

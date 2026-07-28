@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"myr/adapters/out/fabric"
-	"myr/domain/network"
+	"myr-core/adapters/out/fabric"
+	"myr-core/domain/network"
 )
 
 // / @brief  PeerMSPFiles construit le layout de fichiers Fabric (MSP + TLS) à partir des credentials générés

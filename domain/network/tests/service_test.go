@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // ── Mock Repo ─────────────────────────────────────────────────────────────────

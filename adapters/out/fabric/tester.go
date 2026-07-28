@@ -2,7 +2,7 @@
 package fabric
 
 import (
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // GatewayTester implémente network.ConnectionTester via une connexion Gateway complète.

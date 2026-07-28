@@ -9,8 +9,8 @@ import (
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
-	"myr/domain/identity"
-	"myr/domain/network"
+	"myr-core/domain/identity"
+	"myr-core/domain/network"
 )
 
 var identityCmd = &cobra.Command{

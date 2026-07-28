@@ -22,7 +22,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // FabricPeerProvisioner implémente network.PeerProvisioner.

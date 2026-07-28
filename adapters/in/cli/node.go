@@ -10,8 +10,8 @@ import (
 	"strings"
 
 	"github.com/spf13/cobra"
-	"myr/domain/channel"
-	"myr/domain/network"
+	"myr-core/domain/channel"
+	"myr-core/domain/network"
 )
 
 // ── myr node ──────────────────────────────────────────────────────────────────

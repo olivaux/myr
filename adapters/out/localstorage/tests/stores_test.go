@@ -9,11 +9,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"myr/adapters/out/localstorage"
-	"myr/domain/channel"
-	"myr/domain/identity"
-	"myr/domain/network"
-	"myr/domain/session"
+	"myr-core/adapters/out/localstorage"
+	"myr-core/domain/channel"
+	"myr-core/domain/identity"
+	"myr-core/domain/network"
+	"myr-core/domain/session"
 )
 
 func tmpFile(t *testing.T, suffix string) string {

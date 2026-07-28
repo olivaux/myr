@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra"
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // ── Mock NetworkService (Pattern B — fn-func) ─────────────────────────────────

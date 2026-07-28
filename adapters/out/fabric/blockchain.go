@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"regexp"
 
-	"myr/domain/model"
+	"myr-core/domain/model"
 )
 
 var validID = regexp.MustCompile(`^[a-zA-Z0-9_\-\.]{1,128}$`)

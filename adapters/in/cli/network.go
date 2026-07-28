@@ -12,7 +12,7 @@ import (
 	"strings"
 	"text/tabwriter"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 
 	"github.com/spf13/cobra"
 )

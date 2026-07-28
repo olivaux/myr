@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"myr/domain/channel"
-	"myr/domain/network"
+	"myr-core/domain/channel"
+	"myr-core/domain/network"
 )
 
 // ── Mock ChannelService (Pattern B — fn-func) ─────────────────────────────────

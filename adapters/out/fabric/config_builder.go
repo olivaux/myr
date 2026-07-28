@@ -6,7 +6,7 @@ package fabric
 import (
 	"fmt"
 
-	"myr/domain/network"
+	"myr-core/domain/network"
 )
 
 // ConfigFromNetworkProfile construit une Config Fabric depuis un NetworkProfile.

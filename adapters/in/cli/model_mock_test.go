@@ -1,7 +1,7 @@
 // adapters/in/cli/model_mock_test.go — mock partagé ModelService (Pattern B — fn-func)
 package cli
 
-import "myr/domain/model"
+import "myr-core/domain/model"
 
 type mockModelSvc struct {
 	add                             func(filePath, name, channelID, ownerID string, tags []string) (*model.Model3D, error)
@@ -9,6 +9,7 @@ type mockModelSvc struct {
 	list                            func(channelID string) ([]*model.Model3D, error)
 	verify                          func(id, channelID string) (bool, error)
 	addFull                         func(req model.AddRequest) (*model.Model3D, error)
+	submit                          func(assetID string) (*model.Model3D, error)
 	remove                          func(id string) error
 	addConnection                   func(from, to, label string) (*model.Connection, error)
 	addAssemblyLink                 func(fromIfaceID, toIfaceID, label, fromInstanceID, toInstanceID, fastenerAssetID string) (*model.Connection, error)
@@ -17,6 +18,7 @@ type mockModelSvc struct {
 	getChildren                     func(parentID string) ([]*model.Model3D, error)
 	saveThumbnail                   func(assetID, dataURL string) error
 	getThumbnail                    func(assetID string) (string, error)
+	regenerateThumbnail             func(assetID string) (string, error)
 	addInterface                    func(iface *model.AssetInterface) error
 	updateInterface                 func(iface *model.AssetInterface) error
 	removeInterface                 func(id string) error
@@ -76,6 +78,12 @@ func (m *mockModelSvc) AddFull(req model.AddRequest) (*model.Model3D, error) {
 	}
 	return &model.Model3D{ID: "m-test", Name: req.Name}, nil
 }
+func (m *mockModelSvc) Submit(assetID string) (*model.Model3D, error) {
+	if m.submit != nil {
+		return m.submit(assetID)
+	}
+	return &model.Model3D{ID: assetID, Status: model.ModuleSubmitted}, nil
+}
 func (m *mockModelSvc) Remove(id string) error {
 	if m.remove != nil {
 		return m.remove(id)
@@ -121,6 +129,12 @@ func (m *mockModelSvc) SaveThumbnail(assetID, dataURL string) error {
 func (m *mockModelSvc) GetThumbnail(assetID string) (string, error) {
 	if m.getThumbnail != nil {
 		return m.getThumbnail(assetID)
+	}
+	return "", nil
+}
+func (m *mockModelSvc) RegenerateThumbnail(assetID string) (string, error) {
+	if m.regenerateThumbnail != nil {
+		return m.regenerateThumbnail(assetID)
 	}
 	return "", nil
 }

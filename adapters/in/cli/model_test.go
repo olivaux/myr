@@ -45,6 +45,58 @@ func TestRunModelAdd_ServiceError_Rejected(t *testing.T) {
 	}
 }
 
+/// @brief  runModelAdd avec Draft:true doit indiquer le statut brouillon et l'id à soumettre
+/// @input  AddRequest{Name: "Vis", Draft: true}, service retournant un Model3D{ID: "d1", Status: draft}
+/// @expect Sortie mentionne "brouillon" et l'id, invite à "myr model submit"
+func TestRunModelAdd_Draft_NominalCase(t *testing.T) {
+	svc := &mockModelSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
+		return &model.Model3D{ID: "d1", Name: req.Name, Status: model.ModuleDraft}, nil
+	}}
+	var buf bytes.Buffer
+	err := runModelAdd(&buf, svc, model.AddRequest{Name: "Vis", Draft: true})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	out := buf.String()
+	if !strings.Contains(out, "brouillon") || !strings.Contains(out, "d1") || !strings.Contains(out, "submit") {
+		t.Fatalf("unexpected output: %q", out)
+	}
+}
+
+/// @brief  runModelSubmit doit appeler Submit et afficher le statut final
+/// @input  id="d1", service retournant Model3D{ID: "d1", Status: submitted}
+/// @expect Sortie contient l'id et "submitted", pas d'erreur
+func TestRunModelSubmit_NominalCase(t *testing.T) {
+	var captured string
+	svc := &mockModelSvc{submit: func(assetID string) (*model.Model3D, error) {
+		captured = assetID
+		return &model.Model3D{ID: assetID, Status: model.ModuleSubmitted}, nil
+	}}
+	var buf bytes.Buffer
+	if err := runModelSubmit(&buf, svc, "d1"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if captured != "d1" {
+		t.Fatalf("Submit appelé avec %q, want %q", captured, "d1")
+	}
+	if !strings.Contains(buf.String(), "d1") || !strings.Contains(buf.String(), "submitted") {
+		t.Fatalf("unexpected output: %q", buf.String())
+	}
+}
+
+/// @brief  runModelSubmit doit propager l'erreur du service (ex : brouillon introuvable)
+/// @input  service retournant une erreur
+/// @expect L'erreur est retournée telle quelle
+func TestRunModelSubmit_ServiceError_Rejected(t *testing.T) {
+	wantErr := errors.New("brouillon introuvable")
+	svc := &mockModelSvc{submit: func(string) (*model.Model3D, error) { return nil, wantErr }}
+	var buf bytes.Buffer
+	err := runModelSubmit(&buf, svc, "unknown")
+	if !errors.Is(err, wantErr) {
+		t.Fatalf("expected %v, got %v", wantErr, err)
+	}
+}
+
 /// @brief  runModelGet doit afficher les métadonnées d'un modèle
 /// @input  id="abc", service retournant Model3D{ID: "abc", Name: "Roue"}
 /// @expect Sortie contient l'id et le nom
@@ -252,5 +304,40 @@ func TestRunModelThumbnailGet_WritesFile(t *testing.T) {
 	}
 	if writtenName != "preview.png" || string(writtenData) != "ABC" {
 		t.Fatalf("unexpected write: name=%q data=%q", writtenName, writtenData)
+	}
+}
+
+/// @brief  runModelThumbnailRegenerate délègue à RegenerateThumbnail et confirme sur la sortie
+/// @input  id="abc", RegenerateThumbnail simulé retournant une data URL sans erreur
+/// @expect Pas d'erreur, message de confirmation contenant l'id sur la sortie
+func TestRunModelThumbnailRegenerate_NominalCase(t *testing.T) {
+	var gotID string
+	svc := &mockModelSvc{regenerateThumbnail: func(assetID string) (string, error) {
+		gotID = assetID
+		return "data:image/png;base64,AAAA", nil
+	}}
+	var buf bytes.Buffer
+	err := runModelThumbnailRegenerate(&buf, svc, "abc")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if gotID != "abc" {
+		t.Fatalf("RegenerateThumbnail appelé avec %q, want abc", gotID)
+	}
+	if !strings.Contains(buf.String(), "abc") {
+		t.Fatalf("message de confirmation attendu contenant l'id, got %q", buf.String())
+	}
+}
+
+/// @brief  runModelThumbnailRegenerate propage l'erreur du service (ex: aucun lien externe)
+/// @input  RegenerateThumbnail simulé retournant une erreur
+/// @expect L'erreur est propagée telle quelle
+func TestRunModelThumbnailRegenerate_PropagatesError(t *testing.T) {
+	svc := &mockModelSvc{regenerateThumbnail: func(assetID string) (string, error) {
+		return "", model.ErrNoThumbnailSource
+	}}
+	err := runModelThumbnailRegenerate(&bytes.Buffer{}, svc, "abc")
+	if !errors.Is(err, model.ErrNoThumbnailSource) {
+		t.Fatalf("erreur attendue ErrNoThumbnailSource, got %v", err)
 	}
 }

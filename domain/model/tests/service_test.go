@@ -143,6 +143,19 @@ func (s *mockThumbStore) GetThumbnail(assetID string) (string, error) {
 	return s.thumbs[assetID], nil
 }
 
+// ── OGImageFetcher ────────────────────────────────────────────────────────────
+
+type mockOGImageFetcher struct {
+	fetchFn func(pageURL string) (string, error)
+}
+
+func (f *mockOGImageFetcher) FetchOGImage(pageURL string) (string, error) {
+	if f.fetchFn != nil {
+		return f.fetchFn(pageURL)
+	}
+	return "data:image/png;base64,regenerated", nil
+}
+
 // ── InterfaceStore ────────────────────────────────────────────────────────────
 
 type mockIfaceStore struct {
@@ -205,6 +218,44 @@ func (s *mockIfaceStore) AddRefUnit(cat, unit string) error {
 	return nil
 }
 
+// ── DraftStore ────────────────────────────────────────────────────────────────
+
+type mockDraftStore struct {
+	drafts map[string]*model.Model3D
+}
+
+func newMockDraftStore() *mockDraftStore {
+	return &mockDraftStore{drafts: make(map[string]*model.Model3D)}
+}
+
+func (s *mockDraftStore) SaveDraft(m *model.Model3D) error {
+	s.drafts[m.ID] = m
+	return nil
+}
+
+func (s *mockDraftStore) GetDraft(id string) (*model.Model3D, error) {
+	m, ok := s.drafts[id]
+	if !ok {
+		return nil, fmt.Errorf("brouillon introuvable: %s", id)
+	}
+	return m, nil
+}
+
+func (s *mockDraftStore) RemoveDraft(id string) error {
+	delete(s.drafts, id)
+	return nil
+}
+
+func (s *mockDraftStore) ListDrafts(channelID string) ([]*model.Model3D, error) {
+	var list []*model.Model3D
+	for _, m := range s.drafts {
+		if channelID == "" || m.ChannelID == channelID {
+			list = append(list, m)
+		}
+	}
+	return list, nil
+}
+
 // ══════════════════════════════════════════════════════════════════════════════
 // Helpers
 // ══════════════════════════════════════════════════════════════════════════════
@@ -226,7 +277,8 @@ func newFullSvc(t *testing.T) *model.Service {
 	return model.NewService(newMockBC(), &mockFS{}).
 		WithConnStore(newMockConnStore()).
 		WithThumbStore(newMockThumbStore()).
-		WithIfaceStore(newMockIfaceStore())
+		WithIfaceStore(newMockIfaceStore()).
+		WithDraftStore(newMockDraftStore())
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
@@ -777,6 +829,100 @@ func TestThumbnail_NilStore_GetReturnsEmpty(t *testing.T) {
 	}
 	if got != "" {
 		t.Errorf("attendu chaîne vide, got %q", got)
+	}
+}
+
+// / @brief  Régénère la miniature d'un asset depuis l'og:image de son premier lien externe
+// / @input  Asset "asset1" avec Links=["https://boutique.example/piece"], mockOGImageFetcher retournant une dataURL fixe
+// / @expect RegenerateThumbnail retourne la dataURL fetchée et la persiste dans le thumbStore
+func TestRegenerateThumbnail_OK(t *testing.T) {
+	bc := newMockBC()
+	bc.records["asset1"] = &model.Model3D{ID: "asset1", Links: []string{"https://boutique.example/piece"}}
+	thumbs := newMockThumbStore()
+
+	var gotURL string
+	svc := model.NewService(bc, &mockFS{}).
+		WithThumbStore(thumbs).
+		WithOGImageFetcher(&mockOGImageFetcher{
+			fetchFn: func(pageURL string) (string, error) {
+				gotURL = pageURL
+				return "data:image/png;base64,regenerated", nil
+			},
+		})
+
+	got, err := svc.RegenerateThumbnail("asset1")
+	if err != nil {
+		t.Fatalf("RegenerateThumbnail: %v", err)
+	}
+	if got != "data:image/png;base64,regenerated" {
+		t.Errorf("dataURL: got %q", got)
+	}
+	if gotURL != "https://boutique.example/piece" {
+		t.Errorf("lien passé au fetcher: got %q", gotURL)
+	}
+	if saved, _ := thumbs.GetThumbnail("asset1"); saved != got {
+		t.Errorf("miniature non persistée: got %q", saved)
+	}
+}
+
+// / @brief  RM — un asset sans lien externe n'a pas de source régénérable côté serveur
+// / @input  Asset "asset1" sans Links, thumbStore et ogImageFetcher configurés
+// / @expect RegenerateThumbnail retourne model.ErrNoThumbnailSource
+func TestRegenerateThumbnail_NoLinks_Rejected(t *testing.T) {
+	bc := newMockBC()
+	bc.records["asset1"] = &model.Model3D{ID: "asset1"}
+	svc := model.NewService(bc, &mockFS{}).
+		WithThumbStore(newMockThumbStore()).
+		WithOGImageFetcher(&mockOGImageFetcher{})
+
+	_, err := svc.RegenerateThumbnail("asset1")
+	if !errors.Is(err, model.ErrNoThumbnailSource) {
+		t.Fatalf("erreur attendue ErrNoThumbnailSource, got %v", err)
+	}
+}
+
+// / @brief  Sans thumbStore configuré, la régénération échoue proprement
+// / @input  Service sans WithThumbStore
+// / @expect RegenerateThumbnail retourne une erreur
+func TestRegenerateThumbnail_NilThumbStore_Rejected(t *testing.T) {
+	svc := model.NewService(newMockBC(), &mockFS{}).
+		WithOGImageFetcher(&mockOGImageFetcher{})
+
+	if _, err := svc.RegenerateThumbnail("asset1"); err == nil {
+		t.Error("RegenerateThumbnail sans thumbStore doit retourner une erreur")
+	}
+}
+
+// / @brief  Sans OGImageFetcher configuré, la régénération échoue proprement
+// / @input  Service sans WithOGImageFetcher
+// / @expect RegenerateThumbnail retourne une erreur
+func TestRegenerateThumbnail_NilFetcher_Rejected(t *testing.T) {
+	svc := model.NewService(newMockBC(), &mockFS{}).
+		WithThumbStore(newMockThumbStore())
+
+	if _, err := svc.RegenerateThumbnail("asset1"); err == nil {
+		t.Error("RegenerateThumbnail sans ogImageFetcher doit retourner une erreur")
+	}
+}
+
+// / @brief  Une erreur de récupération de l'og:image (page injoignable, balise absente...) est propagée
+// / @input  Asset avec un lien, mockOGImageFetcher retournant une erreur
+// / @expect RegenerateThumbnail retourne une erreur et ne persiste rien
+func TestRegenerateThumbnail_FetchError_Propagates(t *testing.T) {
+	bc := newMockBC()
+	bc.records["asset1"] = &model.Model3D{ID: "asset1", Links: []string{"https://boutique.example/piece"}}
+	thumbs := newMockThumbStore()
+	svc := model.NewService(bc, &mockFS{}).
+		WithThumbStore(thumbs).
+		WithOGImageFetcher(&mockOGImageFetcher{
+			fetchFn: func(string) (string, error) { return "", fmt.Errorf("og:image introuvable") },
+		})
+
+	if _, err := svc.RegenerateThumbnail("asset1"); err == nil {
+		t.Error("erreur de fetch attendue")
+	}
+	if saved, _ := thumbs.GetThumbnail("asset1"); saved != "" {
+		t.Errorf("aucune miniature ne doit être persistée en cas d'échec, got %q", saved)
 	}
 }
 
@@ -2017,5 +2163,236 @@ func TestWorkspace_VirtualSlot_ChainedConnections(t *testing.T) {
 	}
 	if _, err := svc.ConnectVirtualToPhysical(slot2.ID, phys2, model.AssetInterface{}, "instA", "instB"); err != nil {
 		t.Fatalf("liaison 2 : %v", err)
+	}
+}
+
+// ══════════════════════════════════════════════════════════════════════════════
+// Tests — cycle brouillon → soumission des composants (ADR-02, AddRequest.Draft)
+// ══════════════════════════════════════════════════════════════════════════════
+
+// / @brief  AddFull(Draft:true) crée l'asset en local sans transaction blockchain
+// / @input  Service avec DraftStore configuré, AddRequest{Name:"vis", Draft:true}
+// / @expect Retour sans erreur, Status=draft, aucun enregistrement dans mockBC.records
+func TestAddFull_Draft_NoBlockchainWrite(t *testing.T) {
+	bc := newMockBC()
+	svc := model.NewService(bc, &mockFS{}).WithDraftStore(newMockDraftStore())
+
+	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	if err != nil {
+		t.Fatalf("AddFull draft: %v", err)
+	}
+	if m.Status != model.ModuleDraft {
+		t.Errorf("Status: got %q, want draft", m.Status)
+	}
+	if len(bc.records) != 0 {
+		t.Errorf("aucune transaction blockchain attendue pour un brouillon, got %d", len(bc.records))
+	}
+}
+
+// / @brief  AddFull(Draft:true) sans blockchain configurée doit fonctionner (le point du brouillon)
+// / @input  Service sans blockchain (nil), DraftStore configuré, AddRequest{Draft:true}
+// / @expect Retour sans erreur — la blockchain indisponible n'empêche pas de préparer un brouillon
+func TestAddFull_Draft_NilBlockchain_StillWorks(t *testing.T) {
+	svc := model.NewService(nil, &mockFS{}).WithDraftStore(newMockDraftStore())
+
+	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	if err != nil {
+		t.Fatalf("AddFull draft sans blockchain: %v", err)
+	}
+	if m.Status != model.ModuleDraft {
+		t.Errorf("Status: got %q, want draft", m.Status)
+	}
+}
+
+// / @brief  AddFull(Draft:true) sans DraftStore configuré doit être rejeté
+// / @input  Service sans WithDraftStore, AddRequest{Draft:true}
+// / @expect Erreur non nil
+func TestAddFull_Draft_NilDraftStore_Rejected(t *testing.T) {
+	svc := model.NewService(newMockBC(), &mockFS{})
+	if _, err := svc.AddFull(model.AddRequest{Name: "vis", Draft: true}); err == nil {
+		t.Error("AddFull(Draft:true) sans DraftStore doit retourner une erreur")
+	}
+}
+
+// / @brief  AddFull(Draft:false) — comportement nominal inchangé (une transaction immédiate)
+// / @input  Service complet, AddRequest sans Draft
+// / @expect Status vide (pas "draft"), l'asset est présent dans mockBC.records
+func TestAddFull_NoDraft_UnchangedBehavior(t *testing.T) {
+	bc := newMockBC()
+	svc := model.NewService(bc, &mockFS{}).WithDraftStore(newMockDraftStore())
+
+	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
+	if err != nil {
+		t.Fatalf("AddFull: %v", err)
+	}
+	if m.Status != "" {
+		t.Errorf("Status: got %q, want vide (comportement nominal)", m.Status)
+	}
+	if _, ok := bc.records[m.ID]; !ok {
+		t.Error("l'asset non-brouillon doit être immédiatement engagé sur la blockchain")
+	}
+}
+
+// / @brief  Get retrouve un brouillon local avant de chercher sur la blockchain
+// / @input  DraftStore contenant un brouillon, blockchain vide
+// / @expect Get(id) retourne le brouillon (Status=draft)
+func TestGet_FindsDraftBeforeBlockchain(t *testing.T) {
+	svc := newFullSvc(t)
+	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+
+	got, err := svc.Get(m.ID, "")
+	if err != nil {
+		t.Fatalf("Get: %v", err)
+	}
+	if got.Status != model.ModuleDraft {
+		t.Errorf("Status: got %q, want draft", got.Status)
+	}
+}
+
+// / @brief  List fusionne les brouillons locaux et les assets de la blockchain
+// / @input  Un brouillon (DraftStore) + un asset soumis (mockBC), même canal
+// / @expect List retourne les deux assets
+func TestList_MergesDraftsAndBlockchain(t *testing.T) {
+	svc := newFullSvc(t)
+	draft, _ := svc.AddFull(model.AddRequest{Name: "brouillon", ChannelID: "ch1", Draft: true})
+	submitted, _ := svc.AddFull(model.AddRequest{Name: "soumis", ChannelID: "ch1"})
+
+	all, err := svc.List("ch1")
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(all) != 2 {
+		t.Fatalf("attendu 2 assets (1 brouillon + 1 soumis), got %d", len(all))
+	}
+	ids := map[string]bool{}
+	for _, m := range all {
+		ids[m.ID] = true
+	}
+	if !ids[draft.ID] || !ids[submitted.ID] {
+		t.Errorf("List doit contenir le brouillon et l'asset soumis : %v", ids)
+	}
+}
+
+// / @brief  Submit engage un composant brouillon sur la blockchain en une transaction,
+// /         en embarquant ses interfaces locales, puis passe Status à submitted
+// / @input  Composant créé en Draft, une interface ajoutée via AddInterface
+// / @expect Status=submitted, Interfaces contient l'interface ajoutée, l'asset est
+// /         désormais sur la blockchain (mockBC.records) et n'est plus dans DraftStore
+func TestSubmit_CommitsDraftWithInterfaces(t *testing.T) {
+	bc := newMockBC()
+	svc := model.NewService(bc, &mockFS{}).
+		WithIfaceStore(newMockIfaceStore()).
+		WithDraftStore(newMockDraftStore())
+
+	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	if err != nil {
+		t.Fatalf("AddFull draft: %v", err)
+	}
+	if err := svc.AddInterface(&model.AssetInterface{
+		AssetID: m.ID, Category: "MECA", Type: "filetage", Direction: model.IfaceOut,
+	}); err != nil {
+		t.Fatalf("AddInterface: %v", err)
+	}
+
+	submitted, err := svc.Submit(m.ID)
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
+	if submitted.Status != model.ModuleSubmitted {
+		t.Errorf("Status: got %q, want submitted", submitted.Status)
+	}
+	if len(submitted.Interfaces) != 1 {
+		t.Fatalf("attendu 1 interface embarquée, got %d", len(submitted.Interfaces))
+	}
+	if _, ok := bc.records[m.ID]; !ok {
+		t.Error("Submit doit committer l'asset sur la blockchain")
+	}
+
+	// Get doit désormais résoudre via la blockchain, plus via DraftStore.
+	got, err := svc.Get(m.ID, "")
+	if err != nil {
+		t.Fatalf("Get après Submit: %v", err)
+	}
+	if got.Status != model.ModuleSubmitted {
+		t.Errorf("Get après Submit: Status got %q, want submitted", got.Status)
+	}
+}
+
+// / @brief  Submit sur un ID qui n'est pas un brouillon local (inexistant ou déjà soumis) est rejeté
+// / @input  Service avec DraftStore vide, ID inconnu
+// / @expect Erreur non nil
+func TestSubmit_NotADraft_Rejected(t *testing.T) {
+	svc := newFullSvc(t)
+	if _, err := svc.Submit("introuvable"); err == nil {
+		t.Error("Submit sur un ID hors brouillon doit retourner une erreur")
+	}
+}
+
+// / @brief  Submit sans DraftStore configuré est rejeté
+// / @input  Service sans WithDraftStore
+// / @expect Erreur non nil
+func TestSubmit_NilDraftStore_Rejected(t *testing.T) {
+	svc := model.NewService(newMockBC(), &mockFS{})
+	if _, err := svc.Submit("any"); err == nil {
+		t.Error("Submit sans DraftStore doit retourner une erreur")
+	}
+}
+
+// / @brief  Un composant brouillon n'est jamais classé comme module (IsModule) — la
+// /         généralisation de Status aux composants ne doit pas les faire passer pour
+// /         des modules dans ListModules ou GetModuleInterfaces
+// / @input  Un composant Draft (Status=draft, Assemblies nil) + un module réel (CreateModule)
+// / @expect ListModules ne retourne que le module ; le composant draft est absent
+func TestIsModule_DraftComponent_NotMisclassified(t *testing.T) {
+	svc := newFullSvc(t)
+	draftComponent, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	mod, _ := svc.CreateModule(model.ModuleRequest{Name: "module", ChannelID: "ch1"})
+
+	modules, err := svc.ListModules("ch1")
+	if err != nil {
+		t.Fatalf("ListModules: %v", err)
+	}
+	if len(modules) != 1 || modules[0].ID != mod.ID {
+		t.Errorf("ListModules doit ne retourner que le module réel, got %+v", modules)
+	}
+	for _, m := range modules {
+		if m.ID == draftComponent.ID {
+			t.Error("le composant en brouillon ne doit jamais apparaître dans ListModules")
+		}
+	}
+}
+
+// / @brief  UpdateAsset modifie un brouillon local sans jamais toucher la blockchain
+// / @input  Composant Draft, UpdateRequest{Name: nouveau nom}
+// / @expect Le nom est mis à jour, l'asset reste absent de mockBC.records
+func TestUpdateAsset_Draft_StaysLocal(t *testing.T) {
+	bc := newMockBC()
+	svc := model.NewService(bc, &mockFS{}).WithDraftStore(newMockDraftStore())
+
+	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	updated, err := svc.UpdateAsset(model.UpdateRequest{ID: m.ID, Name: "vis M4"})
+	if err != nil {
+		t.Fatalf("UpdateAsset: %v", err)
+	}
+	if updated.Name != "vis M4" {
+		t.Errorf("Name: got %q, want %q", updated.Name, "vis M4")
+	}
+	if len(bc.records) != 0 {
+		t.Error("UpdateAsset sur un brouillon ne doit jamais écrire sur la blockchain")
+	}
+}
+
+// / @brief  Remove supprime un brouillon local sans passer par l'adapter blockchain
+// / @input  Composant Draft
+// / @expect Remove sans erreur, Get(id) échoue ensuite (brouillon supprimé, rien sur la blockchain)
+func TestRemove_Draft_RemovesLocally(t *testing.T) {
+	svc := newFullSvc(t)
+	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+
+	if err := svc.Remove(m.ID); err != nil {
+		t.Fatalf("Remove: %v", err)
+	}
+	if _, err := svc.Get(m.ID, ""); err == nil {
+		t.Error("Get doit échouer après suppression du brouillon")
 	}
 }

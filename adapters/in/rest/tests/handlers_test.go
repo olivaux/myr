@@ -20,6 +20,7 @@ import (
 
 type mockSvc struct {
 	addFull                  func(req model.AddRequest) (*model.Model3D, error)
+	submit                   func(assetID string) (*model.Model3D, error)
 	get                      func(id string) (*model.Model3D, error)
 	list                     func(channelID string) ([]*model.Model3D, error)
 	verify                   func(id string) (bool, error)
@@ -33,6 +34,7 @@ type mockSvc struct {
 	getChildren              func(parentID string) ([]*model.Model3D, error)
 	saveThumbnail            func(assetID, dataURL string) error
 	getThumbnail             func(assetID string) (string, error)
+	regenerateThumbnail      func(assetID string) (string, error)
 	addInterface             func(iface *model.AssetInterface) error
 	updateInterface          func(iface *model.AssetInterface) error
 	removeInterface          func(id string) error
@@ -65,6 +67,12 @@ func (m *mockSvc) AddFull(req model.AddRequest) (*model.Model3D, error) {
 		return m.addFull(req)
 	}
 	return &model.Model3D{ID: "new", Name: req.Name, CreatedAt: time.Now()}, nil
+}
+func (m *mockSvc) Submit(assetID string) (*model.Model3D, error) {
+	if m.submit != nil {
+		return m.submit(assetID)
+	}
+	return &model.Model3D{ID: assetID, Status: model.ModuleSubmitted}, nil
 }
 func (m *mockSvc) Get(id, _ string) (*model.Model3D, error) {
 	if m.get != nil {
@@ -141,6 +149,12 @@ func (m *mockSvc) SaveThumbnail(assetID, dataURL string) error {
 func (m *mockSvc) GetThumbnail(assetID string) (string, error) {
 	if m.getThumbnail != nil {
 		return m.getThumbnail(assetID)
+	}
+	return "", nil
+}
+func (m *mockSvc) RegenerateThumbnail(assetID string) (string, error) {
+	if m.regenerateThumbnail != nil {
+		return m.regenerateThumbnail(assetID)
 	}
 	return "", nil
 }
@@ -469,7 +483,7 @@ func TestComponents_GET_ExcludesModules(t *testing.T) {
 	svc := &mockSvc{list: func(string) ([]*model.Model3D, error) {
 		return []*model.Model3D{
 			{ID: "asset1", Name: "Asset"},
-			{ID: "mod1", Name: "Module", Status: model.ModuleDraft},
+			{ID: "mod1", Name: "Module", Status: model.ModuleDraft, Assemblies: []string{}},
 		}, nil
 	}}
 	w := do(t, newTestMux(t, svc), http.MethodGet, "/api/components", "")
@@ -611,6 +625,131 @@ func TestComponents_POST_Created(t *testing.T) {
 	decodeJSON(t, w, &dto)
 	if dto.Name != "Roulement" {
 		t.Errorf("name: got %q, want %q", dto.Name, "Roulement")
+	}
+}
+
+/// @brief  Vérifie que POST /api/components avec draft=true transmet AddRequest.Draft
+///         et renvoie un componentDTO status="draft"
+/// @input  POST /api/components, multipart avec name="Vis" et draft="true"
+/// @expect HTTP 201, req.Draft=true reçu par AddFull, status="draft" dans la réponse
+func TestComponents_POST_Draft(t *testing.T) {
+	var gotDraft bool
+	svc := &mockSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
+		gotDraft = req.Draft
+		return &model.Model3D{ID: "new1", Name: req.Name, Status: model.ModuleDraft, CreatedAt: time.Now()}, nil
+	}}
+
+	body := &bytes.Buffer{}
+	body.WriteString("--boundary\r\n")
+	body.WriteString("Content-Disposition: form-data; name=\"name\"\r\n\r\n")
+	body.WriteString("Vis\r\n")
+	body.WriteString("--boundary\r\n")
+	body.WriteString("Content-Disposition: form-data; name=\"draft\"\r\n\r\n")
+	body.WriteString("true\r\n")
+	body.WriteString("--boundary--\r\n")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/components", body)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	w := httptest.NewRecorder()
+	mux := newTestMux(t, svc)
+	req.Header.Set("X-Myr-Token", loginToken(t, mux))
+	mux.ServeHTTP(w, req)
+
+	if w.Code != http.StatusCreated {
+		t.Fatalf("got %d, want 201 (body: %s)", w.Code, w.Body.String())
+	}
+	if !gotDraft {
+		t.Error("AddRequest.Draft doit être true quand le formulaire envoie draft=true")
+	}
+	var dto struct {
+		Status string `json:"status"`
+	}
+	decodeJSON(t, w, &dto)
+	if dto.Status != "draft" {
+		t.Errorf("status: got %q, want %q", dto.Status, "draft")
+	}
+}
+
+/// @brief  Vérifie que POST /api/components/{id}/submit engage le composant et
+///         renvoie le componentDTO à jour (status="submitted")
+/// @input  POST /api/components/comp1/submit, mockSvc.submit retourne l'asset soumis
+/// @expect HTTP 200, Submit appelé avec "comp1", status="submitted" dans la réponse
+func TestComponents_POST_Submit(t *testing.T) {
+	var gotID string
+	svc := &mockSvc{submit: func(assetID string) (*model.Model3D, error) {
+		gotID = assetID
+		return &model.Model3D{ID: assetID, Name: "Vis", Status: model.ModuleSubmitted}, nil
+	}}
+	w := do(t, newTestMux(t, svc), http.MethodPost, "/api/components/comp1/submit", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	if gotID != "comp1" {
+		t.Errorf("Submit appelé avec %q, want %q", gotID, "comp1")
+	}
+	var dto struct {
+		Status string `json:"status"`
+	}
+	decodeJSON(t, w, &dto)
+	if dto.Status != "submitted" {
+		t.Errorf("status: got %q, want %q", dto.Status, "submitted")
+	}
+}
+
+/// @brief  Vérifie que POST /api/components/{id}/submit sur un brouillon inexistant
+///         renvoie une erreur (pas 200)
+/// @input  mockSvc.submit retourne une erreur générique
+/// @expect HTTP != 200
+func TestComponents_POST_Submit_Error(t *testing.T) {
+	svc := &mockSvc{submit: func(assetID string) (*model.Model3D, error) {
+		return nil, errors.New("brouillon introuvable")
+	}}
+	w := do(t, newTestMux(t, svc), http.MethodPost, "/api/components/unknown/submit", "")
+	if w.Code == http.StatusOK {
+		t.Errorf("got 200, want une erreur")
+	}
+}
+
+/// @brief  Vérifie qu'une erreur ErrBlockchainUnavailable est distinguée d'une erreur
+///         générique (503, pas 500) — Problème 2 signalé par le dépôt GUI
+/// @input  POST /api/components, mockSvc.addFull retourne model.ErrBlockchainUnavailable
+/// @expect HTTP 503 (pas 500, pas 400)
+func TestComponents_POST_BlockchainUnavailable_Returns503(t *testing.T) {
+	svc := &mockSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
+		return nil, model.ErrBlockchainUnavailable
+	}}
+	body := &bytes.Buffer{}
+	body.WriteString("--boundary\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nVis\r\n--boundary--\r\n")
+	req := httptest.NewRequest(http.MethodPost, "/api/components", body)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	w := httptest.NewRecorder()
+	mux := newTestMux(t, svc)
+	req.Header.Set("X-Myr-Token", loginToken(t, mux))
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusServiceUnavailable {
+		t.Errorf("got %d, want 503", w.Code)
+	}
+}
+
+/// @brief  Vérifie qu'une erreur de service générique (ni ErrBlockchainUnavailable, ni
+///         une 400 de validation pré-domaine) reste un 500 — la distinction 503 ne doit
+///         pas masquer les autres échecs
+/// @input  mockSvc.addFull retourne une erreur générique ("hashing file: ...")
+/// @expect HTTP 500
+func TestComponents_POST_GenericServiceError_Returns500(t *testing.T) {
+	svc := &mockSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
+		return nil, errors.New("hashing file: corrupted")
+	}}
+	body := &bytes.Buffer{}
+	body.WriteString("--boundary\r\nContent-Disposition: form-data; name=\"name\"\r\n\r\nVis\r\n--boundary--\r\n")
+	req := httptest.NewRequest(http.MethodPost, "/api/components", body)
+	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
+	w := httptest.NewRecorder()
+	mux := newTestMux(t, svc)
+	req.Header.Set("X-Myr-Token", loginToken(t, mux))
+	mux.ServeHTTP(w, req)
+	if w.Code != http.StatusInternalServerError {
+		t.Errorf("got %d, want 500", w.Code)
 	}
 }
 
@@ -761,6 +900,77 @@ func TestComponents_POST_WithThumbnail(t *testing.T) {
 	}
 	if thumbSaved != thumb {
 		t.Errorf("thumbnail non sauvegardée: got %q", thumbSaved)
+	}
+}
+
+/// @brief  Vérifie que POST /api/components/{id}/thumbnail/regenerate délègue au service et renvoie la miniature régénérée
+/// @input  POST /api/components/c1/thumbnail/regenerate, RegenerateThumbnail simulé retournant une dataURL fixe
+/// @expect HTTP 200, corps {"thumbnail": dataURL}, RegenerateThumbnail appelé avec l'id du composant
+func TestComponents_RegenerateThumbnail_OK(t *testing.T) {
+	var gotID string
+	svc := &mockSvc{regenerateThumbnail: func(assetID string) (string, error) {
+		gotID = assetID
+		return "data:image/png;base64,regenerated", nil
+	}}
+
+	w := do(t, newTestMux(t, svc), http.MethodPost, "/api/components/c1/thumbnail/regenerate", "")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	if gotID != "c1" {
+		t.Errorf("RegenerateThumbnail appelé avec %q, want c1", gotID)
+	}
+	var resp map[string]string
+	decodeJSON(t, w, &resp)
+	if resp["thumbnail"] != "data:image/png;base64,regenerated" {
+		t.Errorf("thumbnail: got %q", resp["thumbnail"])
+	}
+}
+
+/// @brief  Vérifie que POST /api/components/{id}/thumbnail/regenerate propage l'échec (ex: aucun lien externe) en 500
+/// @input  POST /api/components/c1/thumbnail/regenerate, RegenerateThumbnail simulé retournant model.ErrNoThumbnailSource
+/// @expect HTTP 500
+func TestComponents_RegenerateThumbnail_NoSource_Rejected(t *testing.T) {
+	svc := &mockSvc{regenerateThumbnail: func(assetID string) (string, error) {
+		return "", model.ErrNoThumbnailSource
+	}}
+
+	w := do(t, newTestMux(t, svc), http.MethodPost, "/api/components/c1/thumbnail/regenerate", "")
+
+	if w.Code != http.StatusInternalServerError {
+		t.Fatalf("got %d, want 500 (body: %s)", w.Code, w.Body.String())
+	}
+}
+
+/// @brief  Vérifie que POST /api/modules/{id}/thumbnail/regenerate délègue au même service que les composants
+/// @input  POST /api/modules/m1/thumbnail/regenerate, RegenerateThumbnail simulé retournant une dataURL fixe
+/// @expect HTTP 200, corps {"thumbnail": dataURL}, RegenerateThumbnail appelé avec l'id du module
+func TestModules_RegenerateThumbnail_OK(t *testing.T) {
+	var gotID string
+	svc := &mockSvc{regenerateThumbnail: func(assetID string) (string, error) {
+		gotID = assetID
+		return "data:image/png;base64,regenerated", nil
+	}}
+
+	w := do(t, newTestMux(t, svc), http.MethodPost, "/api/modules/m1/thumbnail/regenerate", "")
+
+	if w.Code != http.StatusOK {
+		t.Fatalf("got %d, want 200 (body: %s)", w.Code, w.Body.String())
+	}
+	if gotID != "m1" {
+		t.Errorf("RegenerateThumbnail appelé avec %q, want m1", gotID)
+	}
+}
+
+/// @brief  Vérifie que GET /api/components/{id}/thumbnail/regenerate est rejeté (action, pas une ressource lisible)
+/// @input  GET /api/components/c1/thumbnail/regenerate
+/// @expect HTTP 405
+func TestComponents_RegenerateThumbnail_WrongMethod_Rejected(t *testing.T) {
+	w := do(t, newTestMux(t, &mockSvc{}), http.MethodGet, "/api/components/c1/thumbnail/regenerate", "")
+
+	if w.Code != http.StatusMethodNotAllowed {
+		t.Fatalf("got %d, want 405 (body: %s)", w.Code, w.Body.String())
 	}
 }
 

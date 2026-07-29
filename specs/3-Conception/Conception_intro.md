@@ -318,6 +318,24 @@ end note
 
 ---
 
+### ADR-10 — Intégration continue par GitHub Actions, accès au serveur distant par clé SSH en secret
+
+**Décision :** Un pipeline GitHub Actions (`.github/workflows/ci.yml`) exécute, sur un runner GitHub hébergé standard (pas de runner self-hosted), les étapes suivantes à chaque push/pull request :
+
+1. **Compilation** — `make build` (cross-compilation Linux amd64, cohérent avec le principe d'exécution distante).
+2. **Tests unitaires** — `make test` (`go test ./...`).
+3. **Analyse statique** — `go vet ./...`. Le standard MISRA évoqué initialement ne s'applique qu'au C/C++ et n'a pas d'équivalent pour ce projet (Go) ; `go vet` est retenu car déjà intégré au toolchain Go standard, sans dépendance supplémentaire (cohérent avec la règle 20 — aucune nouvelle techno à valider pour ce choix précis).
+4. **Vérifications d'isolation hexagonale et de licences** — `make ci` (`scripts/ci/check-domain-imports.sh` + `check-licenses.sh`, déjà existants).
+5. **Tests d'intégration et déploiement** — exécutés depuis le runner via une connexion SSH vers le serveur Ubuntu distant, seule infrastructure exposant un peer Fabric et un daemon IPFS réels (même contrainte que `scripts/test_remote.ps1`, voir `CLAUDE.md` § Tests d'intégration à distance). L'authentification utilise une clé SSH dédiée stockée en secret GitHub Actions (ex. `secrets.MYR_DEPLOY_SSH_KEY`) — pas de runner self-hosted installé sur/à proximité du serveur.
+
+**Justification :** Le développement se fait sur Windows (`CLAUDE.md` § Commandes dev) alors que les tests d'intégration et le déploiement ne peuvent s'exécuter que sur l'infrastructure Linux réelle du serveur — un runner GitHub hébergé classique n'a par nature aucun accès réseau à ce serveur ; l'authentification par clé SSH en secret est le mécanisme le plus direct pour combler cet écart sans opérer d'infrastructure CI supplémentaire (pas de runner self-hosted à maintenir).
+
+**Conséquence — nouvelle surface de risque :** le secret SSH donnant accès au serveur devient détenu par GitHub Actions, en plus du poste de l'administrateur. Une compromission du dépôt (ex. modification du workflow via une pull request, ou compte mainteneur compromis) expose potentiellement le serveur. Ce risque est à mitiger a minima par : restriction du déclenchement des étapes 5 (intégration/déploiement) aux push directs sur `main`/`develop` (jamais aux pull requests provenant de forks externes), et une clé SSH dédiée à la CI, distincte de celle utilisée pour un accès manuel (`scripts/deploy_api.ps1`, `scripts/deploy_cli.ps1`, `scripts/test_remote.ps1`), afin de pouvoir la révoquer indépendamment. Le mot de passe actuellement en dur dans `scripts/deploy.ps1` (non versionné, appelé par `make deploy`) n'est pas repris tel quel par ce pipeline — l'authentification retenue est par clé SSH, cohérente avec le mécanisme déjà utilisé par `deploy_api.ps1`/`deploy_cli.ps1`/`test_remote.ps1`.
+
+**Point ouvert pour le PO :** la gestion précise du secret (rotation, restriction d'IP source si le fournisseur d'hébergement du serveur le permet, compte SSH dédié à la CI avec permissions minimales plutôt que le compte admin existant) reste à définir avant la mise en service du pipeline — non tranché par cet ADR, suivi dans `specs/roadmap_dev.md`.
+
+---
+
 ## 7. Contraintes techniques transversales
 
 | Contrainte | Variable / Mécanisme | Impact |

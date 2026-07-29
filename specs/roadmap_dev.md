@@ -5,14 +5,56 @@
 | Domaine | Service | CLI | REST | État réel |
 |---------|---------|-----|------|-----------|
 | `model` | ✅ | ✅ | ✅ | Bugs : rôle `contributor` au lieu de `reader` (RM21), module `submitted` modifiable sans fork (RM19), anti-plagiat SHA-256 non comparatif |
-| `channel` | ✅ | partiel | ✅ | Commandes `myr network/org/node` **absentes** |
-| `identity` | ✅ | ❌ | ❌ | Service prêt, rien exposé |
-| `network` | ✅ | ❌ | ❌ | Service prêt, rien exposé |
-| `session` | ✅ | ❌ | ❌ | Service prêt, rien exposé |
+| `channel` | ✅ | ✅ | ❌ | `myr channel get/list` + `myr org add`/`myr node add/remove` (AddOrganisation/AddNode/RemoveNode) ; aucune route REST dédiée |
+| `identity` | ✅ | ✅ | ✅ | `myr identity wallets/status/enroll/re-enroll/request/requests/set-role` ; pas de flux d'approbation d'une demande déjà en attente (ni CLI ni REST) |
+| `network` | ✅ | ✅ | partiel | `myr network/org/node` complets ; REST ne couvre que `List`/`GetActive` (pas de create/update/activate/delete/test/addPeer) |
+| `session` | ✅ | ✅ | — | `myr session create/show/logout` ; pas de REST par conception (compte local machine, sans rapport avec les sessions REST) |
 | `auth` | 🔶 | ❌ | partiel | REST basique, bug rôle initial |
 | `payment` | 🔶 | ❌ | ❌ | Entité anémique, pas connectée |
 | Chaincode | ❌ | — | — | Entity seulement (7 champs vs 20+), fonctions manquantes |
 | IPFS | ❌ | — | — | Adapter vide |
+
+---
+
+## Écarts Identité & Session
+
+> Référencé depuis `specs/3-Conception/DC_D1_Auth_Identity.md` (DC-D1-03, § 4 Relations et dépendances, myrSession) et `Conception_intro.md` (ADR-04, ADR-07).
+
+### CRITIQUE — `myr-api` ne construit son client CA que depuis les variables d'environnement, jamais depuis le `NetworkProfile` actif
+
+**Constat (vérifié en direct le 2026-07-17 sur le serveur de production, `net-1783775510080523221`) :** `myr network update <id> --auto-register` modifie correctement `networks.json` et `GET /api/identity/policy` reflète immédiatement `allow_auto_register: true` (pas de cache — `JSONNetworkStore.load()` relit le fichier à chaque appel). Pourtant `POST /api/identity/request` continue de retourner `status: "pending"` sans secret. Confirmé sur le conteneur `ca.ca-org1` (`docker logs`) : **aucune requête `/api/v1/register` n'atteint jamais la CA** — l'appel échoue avant même de partir.
+
+**Cause :** `cmd/api/main.go:83` construit le client CA (`caPort`, utilisé par `identity.NewService(walletDir, caPort)` à la ligne 130) exclusivement via `fabricadapter.ConfigFromEnv()` — variables d'environnement `FABRIC_CA_ENDPOINT`/`FABRIC_CA_ADMIN_CERT_PATH`/`FABRIC_CA_ADMIN_KEY_PATH`/etc., ou un fichier `fabric.env` optionnel auto-détecté (`~/.Myr/data/fabric.env`). **Les champs `CAEndpoint`/`CAAdminCertPath`/`CAAdminKeyPath` du `NetworkProfile` actif — ceux que `myr network update`/`show` exposent et modifient — ne sont jamais lus pour construire ce client CA.** Pourtant `adapters/out/fabric/config.go` définit bien `ConfigFromProfile(np *NetworkProfile) Config`, et cette fonction **est** utilisée ailleurs (`cmd/cli/main.go:63,82` pour le CLI, `adapters/out/fabric/network_pool.go:89` pour le pool blockchain multi-réseau du serveur) — seul le câblage identité/CA de `cmd/api/main.go` en fait l'impasse.
+
+**Conséquence :** Sur un serveur où aucun `fabric.env` n'existe et aucune variable `FABRIC_CA_*` n'a été exportée avant le lancement de `myr-api` (cas vérifié en production le 2026-07-17 : aucune des deux), `caPort` reste `nil` en permanence. `identitySvc.AutoRegister` échoue alors systématiquement avec `"aucun CA configuré"` ([domain/identity/service.go:210-213](../domain/identity/service.go#L210-L213)), quel que soit l'état du `NetworkProfile` — l'auto-enregistrement (UCA01) est silencieusement inopérant même quand la CLI et l'API `/identity/policy` affichent une configuration correcte. Une simple relance du service (`systemctl restart` ou équivalent) **ne corrige rien** tant que les variables d'environnement/`fabric.env` correspondantes n'ont pas été positionnées au préalable.
+
+**Piste de correction (à valider par le PO avant implémentation) :** aligner `cmd/api/main.go` sur le pattern déjà utilisé par le CLI et le `NetworkPool` — construire la config CA via `fabricadapter.ConfigFromProfile(activeProfile)` en base, avec les variables d'environnement en surcharge optionnelle (comportement actuel conservé en repli), plutôt que l'inverse actuel (environnement uniquement, profil réseau ignoré).
+
+### Écart connexe — échec `AutoRegister` avalé sans trace
+
+`adapters/in/rest/handlers_identity.go:250-252` : le commentaire affirme *« logguer l'erreur »* en cas d'échec de `AutoRegister`, mais aucun appel de log n'existe réellement pour `err3` — l'échec est invisible côté serveur (pas de log) et côté client (message générique `pending`, aucun détail). Rend le diagnostic du point précédent impossible sans accès SSH direct aux conteneurs (comme fait manuellement lors de cette investigation). À corriger indépendamment de la cause racine ci-dessus : au minimum `log.Printf("auto-register CA échoué pour %s : %v", req.Pseudo, err3)`.
+
+### Rôle de session figé à la création (`myrSession.Role`)
+
+Voir `handlers_identity.go:375` (annotation `#question` posée sur place) et `specs/2-Analyse/UCA-Compte_et_Acces/UCA02.md` § Écart critique : le rôle de session REST est codé en dur à `"contributor"` à la connexion, jamais lu depuis l'attribut `Myr.role` du certificat CA réellement enrôlé, et jamais resynchronisé après un `myr identity set-role`.
+
+### Registrar CA unique par organisation
+
+Voir `Conception_intro.md` ADR-07 — un seul certificat admin CA par `NetworkProfile` signe tout enregistrement pour une organisation ; risque accepté à l'échelle de cette organisation, mitigation (rotation de clé, HSM, registrar de secours) non entreprise à ce jour.
+
+---
+
+## Écarts Infrastructure — Chaincode
+
+### CRITIQUE — le chaincode `myrcc` référencé par le profil réseau de production n'a jamais été construit ni déployé
+
+**Constat (vérifié en direct le 2026-07-29 sur le serveur de production, réseau `diy-network`, canal `sandbox`) :** `GET /api/components` et `GET /api/modules` retournent 500 côté `myr-api` ; `journalctl --user -u myr` montre `erreur interne : fabric ListModelRecords evaluate : rpc error: code = FailedPrecondition desc = no peers available to evaluate chaincode myrcc in channel sandbox` en continu (une requête par minute). Les logs du peer (`docker logs peer0.org1.diy-network.com`) confirment côté Fabric : `no peers available to evaluate chaincode myrcc in channel sandbox`, et une tentative antérieure de soumission échoue avec `No metadata was found for chaincode myrcc in channel sandbox`.
+
+**Cause racine :** `chaincode/` ne contient à ce jour qu'un `Dockerfile` (image chaincode-as-a-service, non versionné — voir `.gitignore`) qui attend un `go build` sur du code source absent (aucun fichier `.go`, aucun `chaincode/model/`) — voir `install.md` §7, qui documente déjà ce point : « `myr network create` provisionne l'infrastructure Fabric (peers, orderer, CA, canal) mais n'installe, n'approuve ni ne commit aucun chaincode » et « aucune implémentation Go n'est encore présente dans ce dépôt pour être installée telle quelle ». Le profil réseau a malgré tout été mis à jour avec `chaincode_name=myrcc` (`myr network update <id> --contract myrcc`, décrit comme l'étape à faire *après* un déploiement chaincode réel) sans qu'aucun cycle de vie Fabric (`peer lifecycle chaincode install` / `approveformyorg` / `commit`) n'ait jamais été exécuté sur le peer pour ce nom. Recherche exhaustive sur le serveur (`docker ps -a`, `docker images`, arborescence `/home/fabricadmin`, unités systemd, `fabric.env`) : aucune trace d'un chaincode `myrcc` packagé ou installé — cohérent avec une implémentation qui n'a jamais existé, plutôt qu'un artefact supprimé après coup.
+
+**Conséquence :** toute opération passant par la blockchain échoue avec une erreur Fabric brute (500, pas 503 — `internalErr` ne classe cette erreur `FailedPrecondition` ni comme `ErrBlockchainUnavailable` ni comme un cas géré, voir [handlers.go:1893](../adapters/in/rest/handlers.go#L1893)) : listing des composants/modules, soumission, toute lecture/écriture sur le canal `sandbox`. Aucune relance du service `myr-api` ne corrige ce point : le problème est entièrement situé dans l'infrastructure Fabric (chaincode manquant), pas dans le processus `myr-api`.
+
+**Piste de correction (à valider par le PO avant implémentation) :** implémenter le chaincode Go `myrcc` (voir `specs/3-Conception/Chaincode.md` pour le modèle de données attendu), le construire via `chaincode/Dockerfile`, puis exécuter le cycle de vie complet Fabric (package → install sur le(s) peer(s) → approve pour Org1MSP → commit sur le canal `sandbox`) avant de faire pointer `chaincode_name` du profil réseau vers ce nom — dans cet ordre, pas l'inverse.
 
 ---
 
@@ -47,7 +89,8 @@
 - [ ] UCA06 — Consultation des assets possédés
 - [ ] UCA07 — Vérification de rôle
 - [ ] UCA08 — Demande d'un rôle supplémentaire depuis le profil *(RM22)*
-- [ ] Exposition REST : `identity`, `network`, `session` (domaines prêts côté service, aucun handler)
+- [x] Exposition CLI : `identity` (`myr identity ...`), `network` (`myr network/org/node ...`), `session` (`myr session ...`, pas de REST par conception)
+- [ ] Exposition REST : `network` reste partielle (create/update/activate/delete/test/addPeer absents) ; `channel` (org/node) sans route dédiée
 - [ ] UCCL01 — Lecture publique composants sans JWT *(actuellement bloqué par auth)*
 
 ### Composants — Écriture UCCE01–06
@@ -167,12 +210,13 @@
 
 - [ ] UCAUT01 — Fabrication et livraison automatisée via manufactureur agréé (transmission CAO via blockchain, gestion commande en lot)
 - [ ] UCAUT02 — Commande en ligne d'un asset (boutique partenaire ou interface MYR)
+- [ ] UCAUT01 (canal `external_adapter`) — `ManufacturingPort` (out) + un adapter par partenaire industriel externe (`adapters/out/manufacturing/<partenaire>/`, ex. Sculpteo/Xometry/PCBWay), route webhook de confirmation de livraison, champ `OrderItem.FulfillmentChannel` *(`Conception_intro.md` ADR-09, `DC_D7_Payment.md` DC-D7-09)*
 
 ### Rôles complets
 
 - [ ] Rôles `Consommateur` et `Manufactureur` : entités, accès différenciés, intégration dans auth/identity
 - [ ] `ConsumerProfile` : adresse de livraison *(requis UCPI01)*
-- [ ] Agrément manufactureur par l'administrateur (rôle `manufacturer` via `myr org add`)
+- [ ] Agrément manufactureur par l'administrateur (rôle `manufacturer` via `myr org add`) — canal `network_node` uniquement ; le canal `external_adapter` n'utilise pas ce rôle *(ADR-09)*
 
 ### Taux de commission réseau *(RM29)*
 
@@ -212,7 +256,9 @@
 | Output JSON pour CLI (`--output json`) | — | Mode machine-parsable, réservé v2 dans DC_CLI_Admin |
 | Révocation JWT (blacklist access tokens) | — | Sécurité avancée — tokens compromis avant expiration |
 | Rotation de `WALLET_ENCRYPT_KEY` | — | Mécanisme de re-chiffrement des wallets SQLite |
+| Mitigation registrar CA unique par organisation | UCA01 | Aujourd'hui, une seule identité admin CA (`CAAdminCertPath`/`CAAdminKeyPath`) signe tout enregistrement pour une organisation (ADR-07, `Conception_intro.md` §6) — point de défaillance unique à l'échelle de cette organisation. Pistes à évaluer : rotation de clé, HSM, ou registrar de secours par organisation |
 | `ConsumerProfile` multi-adresses | — | Livraison à plusieurs adresses |
+| Taux de commission sur le canal `external_adapter` | UCAUT01, UCPI01 | Un partenaire industriel externe prélève probablement sa propre marge de fabrication en amont, hors du prix suivi par `AssetPrice` — reste à trancher si RM29/RM24 s'appliquent identiquement sur ce canal (voir `Conception_intro.md` ADR-09, point ouvert) |
 | Migration SQLite → PostgreSQL | — | Si scalabilité horizontale requise |
 
 ---

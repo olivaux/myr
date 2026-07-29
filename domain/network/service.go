@@ -12,10 +12,26 @@ type Service struct {
 	tester       ConnectionTester    // nil = fallback TCP
 	provisioner  PeerProvisioner     // nil = fonctionnalité désactivée
 	bootstrapper NetworkBootstrapper // nil = "network create" indisponible
+	poolSync     PoolSync            // nil = pas de resynchronisation (redémarrage requis)
 }
 
 func NewService(repo Repo, tester ConnectionTester) *Service {
 	return &Service{repo: repo, tester: tester}
+}
+
+// WithPoolSync injecte la resynchronisation du pool de connexions blockchain :
+// tout profil créé, activé, modifié ou supprimé après le démarrage du
+// processus est immédiatement répercuté dans le pool, sans redémarrage.
+func (s *Service) WithPoolSync(p PoolSync) *Service {
+	s.poolSync = p
+	return s
+}
+
+// syncPool notifie le pool si un PoolSync est injecté — no-op sinon.
+func (s *Service) syncPool(n *NetworkProfile) {
+	if s.poolSync != nil {
+		s.poolSync.Sync(n)
+	}
 }
 
 // WithProvisioner injecte le provisioner peer (CA adapter).
@@ -67,6 +83,7 @@ func (s *Service) Add(name, peerEndpoint, gatewayPeer, mspID, certPath, keyPath,
 	if err := s.repo.Save(n); err != nil {
 		return nil, fmt.Errorf("add network: %w", err)
 	}
+	s.syncPool(n)
 	return n, nil
 }
 
@@ -111,6 +128,14 @@ func (s *Service) Activate(id string) error {
 	if !found {
 		return fmt.Errorf("réseau introuvable : %s", id)
 	}
+	// Le réseau activé peut ne jamais être entré dans le pool (créé après le
+	// démarrage du processus, ou connexion précédemment en échec) — resynchronise.
+	for _, n := range all {
+		if n.ID == id {
+			s.syncPool(n)
+			break
+		}
+	}
 	return nil
 }
 
@@ -140,6 +165,9 @@ func (s *Service) Update(id, name, peerEndpoint, gatewayPeer, mspID, certPath, k
 			if err := s.repo.Save(n); err != nil {
 				return nil, fmt.Errorf("update network: %w", err)
 			}
+			// Les identifiants de connexion (endpoint, certs, chaincode...) ont pu
+			// changer : reconnecte plutôt que de garder une connexion pool obsolète.
+			s.syncPool(n)
 			return n, nil
 		}
 	}
@@ -154,7 +182,13 @@ func (s *Service) Delete(id string) error {
 	}
 	for _, n := range all {
 		if n.ID == id {
-			return s.repo.Delete(id)
+			if err := s.repo.Delete(id); err != nil {
+				return err
+			}
+			if s.poolSync != nil {
+				s.poolSync.Remove(id)
+			}
+			return nil
 		}
 	}
 	return fmt.Errorf("réseau introuvable : %s", id)
@@ -211,6 +245,7 @@ func (s *Service) Create(req CreateNetworkRequest) (*NetworkProfile, error) {
 	if err := s.repo.Save(result.Profile); err != nil {
 		return nil, fmt.Errorf("enregistrement du profil réseau : %w", err)
 	}
+	s.syncPool(result.Profile)
 	return result.Profile, nil
 }
 

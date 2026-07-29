@@ -86,15 +86,31 @@ func (p *NetworkPool) BlockchainFor(networkID string) model.BlockchainPort {
 // Les échecs sont loggés mais non fatals — le pool démarre avec les réseaux disponibles.
 func (p *NetworkPool) LoadFromProfiles(profiles []*network.NetworkProfile) {
 	for _, np := range profiles {
-		cfg := ConfigFromProfile(np)
-		gw, err := NewGatewayClient(cfg)
-		if err != nil {
-			log.Printf("réseau %s (%s) : connexion impossible : %v", np.Name, np.ID, err)
-			continue
-		}
-		p.Add(np.ID, gw)
-		log.Printf("réseau %s (%s) : connecté → %s", np.Name, np.ID, np.PeerEndpoint)
+		p.connect(np)
 	}
+}
+
+// Sync ouvre (ou réouvre) la connexion pour ce profil réseau. Implémente
+// network.PoolSync — appelé par domain/network.Service à chaque création,
+// activation ou modification d'un profil, pour que le pool reflète l'état
+// courant sans attendre un redémarrage du processus (voir LoadFromProfiles,
+// appelé une seule fois au démarrage).
+func (p *NetworkPool) Sync(np *network.NetworkProfile) {
+	p.connect(np)
+}
+
+// connect tente d'ouvrir la connexion Fabric pour un profil réseau donné et
+// l'ajoute au pool en cas de succès. Échec loggé, jamais fatal — centralise
+// la logique partagée par LoadFromProfiles (démarrage) et Sync (à chaud).
+func (p *NetworkPool) connect(np *network.NetworkProfile) {
+	cfg := ConfigFromProfile(np)
+	gw, err := NewGatewayClient(cfg)
+	if err != nil {
+		log.Printf("réseau %s (%s) : connexion impossible : %v", np.Name, np.ID, err)
+		return
+	}
+	p.Add(np.ID, gw)
+	log.Printf("réseau %s (%s) : connecté → %s", np.Name, np.ID, np.PeerEndpoint)
 }
 
 // ── offlineBlockchain ─────────────────────────────────────────────────────────

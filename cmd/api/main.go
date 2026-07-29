@@ -140,6 +140,7 @@ func main() {
 	networkSvc := network.NewService(networkStore, nil)
 
 	pool := fabricadapter.NewNetworkPool()
+	networkSvc.WithPoolSync(pool)
 	var defaultNetworkID string
 	if profiles, err := networkSvc.List(); err == nil && len(profiles) > 0 {
 		pool.LoadFromProfiles(profiles)

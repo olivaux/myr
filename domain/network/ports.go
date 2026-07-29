@@ -28,3 +28,17 @@ type PeerProvisioner interface {
 type NetworkBootstrapper interface {
 	Bootstrap(req CreateNetworkRequest) (*BootstrapResult, error)
 }
+
+// PoolSync tient à jour, en réaction à chaque changement de profil réseau, un
+// pool de connexions blockchain (une connexion active par réseau) — pour que
+// la disponibilité d'un réseau ne dépende plus uniquement du chargement fait
+// une seule fois au démarrage du processus. Injecté depuis la couche adapter
+// pour éviter que le domaine connaisse Fabric.
+type PoolSync interface {
+	// Sync ouvre (ou réouvre) la connexion pour ce profil réseau. Un échec de
+	// connexion n'est jamais fatal pour l'appelant — le réseau reste
+	// simplement indisponible jusqu'au prochain Sync, comme au démarrage.
+	Sync(n *NetworkProfile)
+	// Remove ferme et retire la connexion associée à networkID du pool.
+	Remove(networkID string)
+}

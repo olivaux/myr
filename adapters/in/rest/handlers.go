@@ -544,7 +544,7 @@ func assetMatchesQuery(m *model.Model3D, q string) bool {
 // createAsset crée un composant à partir d'un formulaire multipart.
 //
 //	@Summary		Créer un composant
-//	@Description	Crée un asset (catégorie par défaut "base"). Le fichier CAO 3D est optionnel (champ "file", ou "stl" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé. Par défaut le composant est engagé immédiatement sur la blockchain (une transaction, "status":"submitted"). Si "draft" vaut true, il est stocké localement ("status":"draft", aucune transaction) — voir POST /components/{id}/submit pour l'engager ensuite.
+//	@Description	Crée un asset (catégorie par défaut "base"). Le fichier CAO 3D est optionnel (champ "file", ou "stl" pour rétrocompatibilité) ; une miniature base64 peut être fournie directement ou est dérivée de l'og:image du premier lien si aucun fichier n'est envoyé. Le composant est toujours créé en brouillon local ("status":"draft", aucune transaction blockchain) — voir POST /components/{id}/submit pour l'engager explicitement sur la blockchain.
 //	@Tags			components
 //	@Accept			multipart/form-data
 //	@Produce		json
@@ -559,10 +559,8 @@ func assetMatchesQuery(m *model.Model3D, q string) bool {
 //	@Param			links		formData	string	false	"liens externes, tableau JSON encodé en chaîne"
 //	@Param			file		formData	file	false	"fichier CAO 3D"
 //	@Param			thumbnail	formData	string	false	"miniature en data URL base64"
-//	@Param			draft		formData	bool	false	"true : crée en brouillon local, sans transaction blockchain (défaut: false)"
 //	@Success		201	{object}	componentDTO
 //	@Failure		400	{object}	map[string]string
-//	@Failure		503	{object}	map[string]string	"blockchain indisponible (composant non-brouillon uniquement)"
 //	@Security		MyrToken
 //	@Router			/components [post]
 func (h *Handler) createAsset(w http.ResponseWriter, r *http.Request) {
@@ -609,7 +607,6 @@ func (h *Handler) createAsset(w http.ResponseWriter, r *http.Request) {
 		ChannelID:   channelID,
 		LicenseID:   strings.TrimSpace(r.FormValue("license_id")),
 		Tags:        parseTags(r.FormValue("tags")),
-		Draft:       r.FormValue("draft") == "true",
 	}
 	if raw := r.FormValue("links"); raw != "" {
 		_ = json.Unmarshal([]byte(raw), &req.Links)

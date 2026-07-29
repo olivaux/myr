@@ -72,18 +72,16 @@ func (s *Service) Add(filePath, name, channelID, ownerID string, tags []string) 
 }
 
 // AddFull crée un asset avec tous ses champs (mode GUI).
-// Si req.Draft, l'asset est stocké dans DraftStore (aucune transaction blockchain) —
-// il ne rejoint la blockchain qu'à un appel explicite à Submit.
+// Toute création est un brouillon (DraftStore, aucune transaction blockchain) —
+// l'asset ne rejoint la blockchain qu'à un appel explicite à Submit.
 func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
-	if !req.Draft && s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
+	if s.draftStore == nil {
+		return nil, fmt.Errorf("stockage de brouillons non configuré")
 	}
-	// Vérification de compatibilité de licence avec le parent (si renseigné).
+	// Vérification de compatibilité de licence avec le parent (si renseigné) —
+	// le parent peut lui-même être encore un brouillon (getAsset couvre les deux).
 	if req.ParentID != "" && req.LicenseID != "" {
-		if s.blockchain == nil {
-			return nil, ErrBlockchainUnavailable
-		}
-		parent, err := s.blockchain.GetModelRecord(req.ParentID, req.ChannelID)
+		parent, _, err := s.getAsset(req.ParentID, req.ChannelID)
 		if err == nil && parent.LicenseID != "" {
 			check := CheckLicenseCompatibility(parent.LicenseID, req.LicenseID)
 			if !check.Compatible {
@@ -119,21 +117,10 @@ func (s *Service) AddFull(req AddRequest) (*Model3D, error) {
 		m.Versions = []Version{{Number: 1, Hash: storageRef, CreatedAt: time.Now()}}
 	}
 
-	if req.Draft {
-		if s.draftStore == nil {
-			return nil, fmt.Errorf("stockage de brouillons non configuré")
-		}
-		m.Status = ModuleDraft
-		if err := s.draftStore.SaveDraft(m); err != nil {
-			return nil, fmt.Errorf("saving draft: %w", err)
-		}
-		return m, nil
+	m.Status = ModuleDraft
+	if err := s.draftStore.SaveDraft(m); err != nil {
+		return nil, fmt.Errorf("saving draft: %w", err)
 	}
-
-	if err := s.blockchain.StoreModelRecord(m); err != nil {
-		return nil, fmt.Errorf("storing on blockchain: %w", err)
-	}
-
 	return m, nil
 }
 
@@ -171,19 +158,52 @@ func (s *Service) Submit(assetID string) (*Model3D, error) {
 	return m, nil
 }
 
+// getAsset récupère un Model3D par son ID : d'abord dans DraftStore (état
+// mutable, pré-soumission), puis sur la blockchain (état immuable, soumis).
+// Généralise le cycle brouillon → soumission (ADR-02) à tout point d'accès du
+// domaine — indique en retour si l'asset provient du brouillon, pour que
+// l'appelant sache où répercuter une mutation (voir saveAsset).
+func (s *Service) getAsset(id, channelID string) (*Model3D, bool, error) {
+	if s.draftStore != nil {
+		if m, err := s.draftStore.GetDraft(id); err == nil {
+			return m, true, nil
+		}
+	}
+	if s.blockchain == nil {
+		return nil, false, ErrBlockchainUnavailable
+	}
+	m, err := s.blockchain.GetModelRecord(id, channelID)
+	return m, false, err
+}
+
+// saveAsset persiste m dans le store dont il provient : DraftStore si isDraft,
+// sinon la blockchain (voir getAsset).
+func (s *Service) saveAsset(m *Model3D, isDraft bool) error {
+	if isDraft {
+		return s.draftStore.SaveDraft(m)
+	}
+	return s.blockchain.StoreModelRecord(m)
+}
+
+// reopenAsDraft marque m comme brouillon et le sauvegarde dans DraftStore, que
+// l'asset provienne déjà d'un brouillon ou de la blockchain — toute
+// modification de la composition d'un module (assemblage, instance, position),
+// y compris d'un module déjà soumis en vue d'une nouvelle ModuleVersion,
+// redevient un brouillon local. Seul SubmitModule écrit sur la blockchain.
+func (s *Service) reopenAsDraft(m *Model3D) error {
+	if s.draftStore == nil {
+		return fmt.Errorf("stockage de brouillons non configuré")
+	}
+	m.Status = ModuleDraft
+	return s.draftStore.SaveDraft(m)
+}
+
 // Get récupère un modèle par son ID sur le canal indiqué.
 // channelID="" utilise le canal par défaut configuré dans l'adapter.
 // Cherche d'abord dans DraftStore (asset pas encore soumis), puis sur la blockchain.
 func (s *Service) Get(id, channelID string) (*Model3D, error) {
-	if s.draftStore != nil {
-		if m, err := s.draftStore.GetDraft(id); err == nil {
-			return m, nil
-		}
-	}
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	return s.blockchain.GetModelRecord(id, channelID)
+	m, _, err := s.getAsset(id, channelID)
+	return m, err
 }
 
 // List retourne les brouillons locaux (DraftStore) suivis des assets de la blockchain.
@@ -568,28 +588,21 @@ func applyAssetPatch(m *Model3D, req UpdateRequest) {
 
 // UpdateAsset applique un patch partiel sur un asset existant (brouillon local ou blockchain).
 func (s *Service) UpdateAsset(req UpdateRequest) (*Model3D, error) {
-	if s.draftStore != nil {
-		if m, err := s.draftStore.GetDraft(req.ID); err == nil {
-			applyAssetPatch(m, req)
-			return m, s.draftStore.SaveDraft(m)
-		}
-	}
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(req.ID, "")
+	m, isDraft, err := s.getAsset(req.ID, "")
 	if err != nil {
 		return nil, fmt.Errorf("asset introuvable: %w", err)
 	}
 	applyAssetPatch(m, req)
-	return m, s.blockchain.StoreModelRecord(m)
+	return m, s.saveAsset(m, isDraft)
 }
 
 // ── Modules ───────────────────────────────────────────────────────────────────
 
+// CreateModule crée un module en brouillon (RM16) : aucune transaction
+// blockchain avant SubmitModule.
 func (s *Service) CreateModule(req ModuleRequest) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
+	if s.draftStore == nil {
+		return nil, fmt.Errorf("stockage de brouillons non configuré")
 	}
 	m := &Model3D{
 		ID:                 generateID(),
@@ -604,21 +617,18 @@ func (s *Service) CreateModule(req ModuleRequest) (*Model3D, error) {
 		WorkspaceInstances: []WorkspaceInstance{},
 		ModuleVersions:     []ModuleVersion{},
 	}
-	return m, s.blockchain.StoreModelRecord(m)
+	if err := s.draftStore.SaveDraft(m); err != nil {
+		return nil, fmt.Errorf("saving draft: %w", err)
+	}
+	return m, nil
 }
 
 func (s *Service) GetModule(id string) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	return s.blockchain.GetModelRecord(id, "")
+	return s.Get(id, "")
 }
 
 func (s *Service) ListModules(channelID string) ([]*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	all, err := s.blockchain.ListModelRecords(channelID)
+	all, err := s.List(channelID)
 	if err != nil {
 		return nil, err
 	}
@@ -632,10 +642,7 @@ func (s *Service) ListModules(channelID string) ([]*Model3D, error) {
 }
 
 func (s *Service) AddAssemblyToModule(moduleID, connID string) error {
-	if s.blockchain == nil {
-		return ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(moduleID, "")
+	m, _, err := s.getAsset(moduleID, "")
 	if err != nil {
 		return err
 	}
@@ -645,15 +652,11 @@ func (s *Service) AddAssemblyToModule(moduleID, connID string) error {
 		}
 	}
 	m.Assemblies = append(m.Assemblies, connID)
-	m.Status = ModuleDraft
-	return s.blockchain.StoreModelRecord(m)
+	return s.reopenAsDraft(m)
 }
 
 func (s *Service) RemoveAssemblyFromModule(moduleID, connID string) error {
-	if s.blockchain == nil {
-		return ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(moduleID, "")
+	m, _, err := s.getAsset(moduleID, "")
 	if err != nil {
 		return err
 	}
@@ -664,18 +667,20 @@ func (s *Service) RemoveAssemblyFromModule(moduleID, connID string) error {
 		}
 	}
 	m.Assemblies = filtered
-	m.Status = ModuleDraft
-	return s.blockchain.StoreModelRecord(m)
+	return s.reopenAsDraft(m)
 }
 
 // SubmitModule soumet le module à la blockchain et crée une version immuable.
+// Le module peut provenir du brouillon (première soumission) ou déjà être sur
+// la blockchain (nouvel assemblage puis re-soumission — nouvelle ModuleVersion
+// sur le même module, distinct du fork RM19).
 func (s *Service) SubmitModule(moduleID, note string) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(moduleID, "")
+	m, isDraft, err := s.getAsset(moduleID, "")
 	if err != nil {
 		return nil, err
+	}
+	if s.blockchain == nil {
+		return nil, ErrBlockchainUnavailable
 	}
 	if len(m.Assemblies) == 0 {
 		return nil, fmt.Errorf("le module ne contient aucun assemblage")
@@ -694,7 +699,13 @@ func (s *Service) SubmitModule(moduleID, note string) (*Model3D, error) {
 	}
 	m.ModuleVersions = append(m.ModuleVersions, v)
 	m.Status = ModuleSubmitted
-	return m, s.blockchain.StoreModelRecord(m)
+	if err := s.blockchain.StoreModelRecord(m); err != nil {
+		return nil, fmt.Errorf("storing on blockchain: %w", err)
+	}
+	if isDraft {
+		_ = s.draftStore.RemoveDraft(moduleID)
+	}
+	return m, nil
 }
 
 // AddAssetToWorkspace ajoute une nouvelle instance de l'asset au module.
@@ -706,16 +717,13 @@ func (s *Service) SubmitModule(moduleID, note string) (*Model3D, error) {
 // cyclique fait récurser indéfiniment GetModuleInterfaces (stack overflow) —
 // voir specs/roadmap_dev.md § Écarts — revue de code, E1.
 func (s *Service) AddAssetToWorkspace(moduleID, assetID string) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(moduleID, "")
+	m, _, err := s.getAsset(moduleID, "")
 	if err != nil {
 		return nil, err
 	}
 	inst := WorkspaceInstance{ID: generateID(), AssetID: assetID}
 	m.WorkspaceInstances = append(m.WorkspaceInstances, inst)
-	if err := s.blockchain.StoreModelRecord(m); err != nil {
+	if err := s.reopenAsDraft(m); err != nil {
 		return nil, err
 	}
 	s.ensureVirtualSlot(assetID)
@@ -750,10 +758,7 @@ func (s *Service) ensureVirtualSlot(assetID string) { s.EnsureVirtualSlot(assetI
 // RemoveAssetFromWorkspace retire une instance spécifique (par instanceID) du module.
 // Supprime en cascade les connexions de cette instance dans le module.
 func (s *Service) RemoveAssetFromWorkspace(moduleID, instanceID string) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(moduleID, "")
+	m, _, err := s.getAsset(moduleID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -790,15 +795,15 @@ func (s *Service) RemoveAssetFromWorkspace(moduleID, instanceID string) (*Model3
 		}
 	}
 	m.WorkspaceInstances = filtered
-	return m, s.blockchain.StoreModelRecord(m)
+	if err := s.reopenAsDraft(m); err != nil {
+		return nil, err
+	}
+	return m, nil
 }
 
 // UpdateInstancePosition met à jour la position persistée d'une instance d'un module.
 func (s *Service) UpdateInstancePosition(moduleID, instanceID string, x, y float64) (*Model3D, error) {
-	if s.blockchain == nil {
-		return nil, ErrBlockchainUnavailable
-	}
-	m, err := s.blockchain.GetModelRecord(moduleID, "")
+	m, _, err := s.getAsset(moduleID, "")
 	if err != nil {
 		return nil, err
 	}
@@ -806,21 +811,19 @@ func (s *Service) UpdateInstancePosition(moduleID, instanceID string, x, y float
 		if inst.ID == instanceID {
 			m.WorkspaceInstances[i].X = x
 			m.WorkspaceInstances[i].Y = y
-			return m, s.blockchain.StoreModelRecord(m)
+			if err := s.reopenAsDraft(m); err != nil {
+				return nil, err
+			}
+			return m, nil
 		}
 	}
 	return nil, fmt.Errorf("instance %s introuvable dans le module %s", instanceID, moduleID)
 }
 
+// RemoveModule supprime un module — délègue à Remove, qui gère brouillon local,
+// suppression en cascade des connexions et suppression blockchain identiquement.
 func (s *Service) RemoveModule(id string) error {
-	if s.blockchain == nil {
-		return ErrBlockchainUnavailable
-	}
-	type remover interface{ RemoveModelRecord(id string) error }
-	if r, ok := s.blockchain.(remover); ok {
-		return r.RemoveModelRecord(id)
-	}
-	return fmt.Errorf("suppression non supportée par cet adapter blockchain")
+	return s.Remove(id)
 }
 
 // GetModuleInterfaces retourne les interfaces d'un composant ou d'un module :
@@ -842,16 +845,10 @@ func (s *Service) getModuleInterfacesInto(moduleID string, cache map[string][]*A
 	if ifaces, ok := cache[moduleID]; ok {
 		return ifaces, nil
 	}
-	var mod *Model3D
-	var err error
-	if s.blockchain != nil {
-		mod, err = s.blockchain.GetModelRecord(moduleID, "")
-	} else {
-		err = ErrBlockchainUnavailable
-	}
+	mod, _, err := s.getAsset(moduleID, "")
 	if err != nil {
-		// L'enregistrement est absent de la blockchain (asset non encore soumis, Fabric
-		// indisponible, ou module local). On suppose un composant simple : on retourne
+		// L'enregistrement est introuvable (brouillon comme blockchain absents,
+		// ou Fabric indisponible). On suppose un composant simple : on retourne
 		// les interfaces locales directes, et on crée un slot virtuel seulement si
 		// l'asset n'a encore aucune interface définie.
 		// Cela permet d'afficher les points d'interface même sans connexion Fabric.

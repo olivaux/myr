@@ -30,22 +30,18 @@ func runModelAdd(w io.Writer, svc model.ModelService, req model.AddRequest) erro
 	if err != nil {
 		return err
 	}
-	if req.Draft {
-		fmt.Fprintf(w, "Modèle ajouté en brouillon : %s  id=%s (myr model submit %s pour l'engager sur la blockchain)\n", m.Name, m.ID, m.ID)
-		return nil
-	}
-	fmt.Fprintf(w, "Modèle ajouté : %s  id=%s\n", m.Name, m.ID)
+	fmt.Fprintf(w, "Modèle ajouté en brouillon : %s  id=%s (myr model submit %s pour l'engager sur la blockchain)\n", m.Name, m.ID, m.ID)
 	return nil
 }
 
 var modelAddCmd = &cobra.Command{
 	Use:   "add <file>",
-	Short: "Publish a 3D model to the blockchain",
-	Long: `Publish a 3D file on the blockchain of the specified channel.
-
-The format is designer-agnostic: .stl, .step, .obj, .3mf and any other
-format are accepted. The file is hashed (SHA-256), stored on the blockchain
-network and indexed with the provided name and tags.
+	Short: "Create a 3D model as a local draft",
+	Long: `Create a 3D file as a local draft (no blockchain transaction). The format is
+designer-agnostic: .stl, .step, .obj, .3mf and any other format are accepted.
+The file is hashed (SHA-256) and stored, and the model is indexed with the
+provided name and tags — but it only joins the blockchain network at an
+explicit "myr model submit" call.
 
 Examples:
   myr model add wheel.stl  --name "Front wheel"  --channel greenchannel --tags "3dprint"
@@ -60,7 +56,6 @@ Examples:
 		licenseID, _ := cmd.Flags().GetString("license")
 		ownerID, _ := cmd.Flags().GetString("owner-id")
 		tagsStr, _ := cmd.Flags().GetString("tags")
-		draft, _ := cmd.Flags().GetBool("draft")
 
 		var tags []string
 		if tagsStr != "" {
@@ -77,7 +72,6 @@ Examples:
 			ParentID:    parentID,
 			LicenseID:   licenseID,
 			Tags:        tags,
-			Draft:       draft,
 		})
 	},
 }
@@ -97,9 +91,8 @@ var modelSubmitCmd = &cobra.Command{
 	Use:   "submit <id>",
 	Short: "Submit a draft component to the blockchain",
 	Long: `Commit the current state of a draft component (metadata and local interfaces)
-to the blockchain in a single transaction, then mark it as submitted. Only
-applies to a component created with "myr model add --draft" — a submitted
-asset becomes immutable (fork to evolve it further).
+to the blockchain in a single transaction, then mark it as submitted. A
+submitted asset becomes immutable (fork to evolve it further).
 
 Example:
   myr model submit abc123def456`,
@@ -400,7 +393,6 @@ func init() {
 	modelAddCmd.Flags().String("license", "", "ID de licence dans le catalogue")
 	modelAddCmd.Flags().String("owner-id", "", "ID de l'identité propriétaire")
 	modelAddCmd.Flags().String("tags", "", "Tags separes par des virgules")
-	modelAddCmd.Flags().Bool("draft", false, "Créer en brouillon local (aucune transaction blockchain) — voir 'myr model submit'")
 	modelAddCmd.MarkFlagRequired("name")
 
 	modelListCmd.Flags().String("channel", "", "ID du canal")

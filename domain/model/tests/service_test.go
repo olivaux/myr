@@ -289,7 +289,7 @@ func newFullSvc(t *testing.T) *model.Service {
 // / @input  mockBC vide, mockFS, fichier temporaire OBJ avec contenu minimal
 // / @expect Retour sans erreur, ID non vide, Hash non vide, Name/ChannelID corrects, 1 version créée
 func TestModelAdd(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	path := tempFile(t, "v 0 0 0\n")
 	m, err := svc.Add(path, "cube", "ch1", "owner1", []string{"3d"})
@@ -315,14 +315,19 @@ func TestModelAdd(t *testing.T) {
 
 // / @brief  Toute opération nécessitant BlockchainPort échoue proprement quand
 // / aucun adapter blockchain n'est configuré, sans repli silencieux vers un
-// / autre stockage.
-// / @input  Service construit avec bc=nil
-// / @expect ErrBlockchainUnavailable pour AddFull, List et GetModule
+// / autre stockage. La création (AddFull) n'en fait plus partie : elle ne
+// / dépend que du DraftStore (voir TestAddFull_NilBlockchain_StillWorks) —
+// / seule la soumission explicite exige la blockchain.
+// / @input  Service construit avec bc=nil, DraftStore configuré (mais vide)
+// / @expect ErrBlockchainUnavailable pour Submit, SubmitModule, List et GetModule
 func TestService_NilBlockchain_ErrBlockchainUnavailable(t *testing.T) {
-	svc := model.NewService(nil, &mockFS{})
+	svc := model.NewService(nil, &mockFS{}).WithDraftStore(newMockDraftStore())
 
-	if _, err := svc.AddFull(model.AddRequest{Name: "cube"}); !errors.Is(err, model.ErrBlockchainUnavailable) {
-		t.Errorf("AddFull: got %v, want ErrBlockchainUnavailable", err)
+	if _, err := svc.Submit("any"); !errors.Is(err, model.ErrBlockchainUnavailable) {
+		t.Errorf("Submit: got %v, want ErrBlockchainUnavailable", err)
+	}
+	if _, err := svc.SubmitModule("mod1", "note"); !errors.Is(err, model.ErrBlockchainUnavailable) {
+		t.Errorf("SubmitModule: got %v, want ErrBlockchainUnavailable", err)
 	}
 	if _, err := svc.List("ch1"); !errors.Is(err, model.ErrBlockchainUnavailable) {
 		t.Errorf("List: got %v, want ErrBlockchainUnavailable", err)
@@ -336,7 +341,7 @@ func TestService_NilBlockchain_ErrBlockchainUnavailable(t *testing.T) {
 // / @input  mockBC vide, mockFS, chemin "/inexistant/fichier.obj"
 // / @expect Retour d'une erreur (fichier introuvable)
 func TestModelAdd_FileMissing(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	_, err := svc.Add("/inexistant/fichier.obj", "cube", "ch1", "o1", nil)
 	if err == nil {
@@ -348,7 +353,7 @@ func TestModelAdd_FileMissing(t *testing.T) {
 // / @input  mockBC vide, mockFS, FilePath vide ("")
 // / @expect Retour sans erreur, Hash vide, Versions vide
 func TestModelAdd_NoFile(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	m, err := svc.Add("", "lien-boutique", "ch1", "o1", []string{"achat"})
 	if err != nil {
@@ -366,7 +371,7 @@ func TestModelAdd_NoFile(t *testing.T) {
 // / @input  AddRequest complet : Name, Description, Category, Tags, Links, ChannelID, OwnerID
 // / @expect Description, Category et Links conservés tels quels dans le modèle retourné
 func TestAddFull_AllFields(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	m, err := svc.AddFull(model.AddRequest{
 		Name:        "vis M3",
@@ -395,7 +400,7 @@ func TestAddFull_AllFields(t *testing.T) {
 // / @input  Asset base créé, puis AddRequest variante avec ParentID = base.ID et CategoryVariation
 // / @expect child.ParentID égal à l'ID du parent
 func TestAddFull_WithParent(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	base, _ := svc.AddFull(model.AddRequest{Name: "base", ChannelID: "ch1", OwnerID: "o1"})
 	child, err := svc.AddFull(model.AddRequest{
@@ -417,7 +422,7 @@ func TestAddFull_WithParent(t *testing.T) {
 // / @input  mockBC avec un asset préalablement ajouté via Add
 // / @expect Retour sans erreur, ID de l'asset correct
 func TestModelGet(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	path := tempFile(t, "data")
 	created, _ := svc.Add(path, "cube", "ch1", "o1", nil)
@@ -435,7 +440,7 @@ func TestModelGet(t *testing.T) {
 // / @input  mockBC vide, ID "inexistant"
 // / @expect Retour d'une erreur
 func TestModelGet_NotFound(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	_, err := svc.Get("inexistant", "")
 	if err == nil {
@@ -447,7 +452,7 @@ func TestModelGet_NotFound(t *testing.T) {
 // / @input  mockBC avec 2 assets sur des channels distincts (ch1 et ch2)
 // / @expect List("") retourne 2 assets, List("ch1") retourne 1 asset
 func TestModelList(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	svc.Add(tempFile(t, "a"), "m1", "ch1", "o1", nil)
 	svc.Add(tempFile(t, "b"), "m2", "ch2", "o1", nil)
@@ -473,7 +478,7 @@ func TestModelList(t *testing.T) {
 // / @input  mockBC avec un asset uploadé, hash non altéré
 // / @expect Verify retourne true sans erreur
 func TestModelVerify(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	path := tempFile(t, "contenu stable")
 	m, _ := svc.Add(path, "cube", "ch1", "o1", nil)
@@ -491,7 +496,7 @@ func TestModelVerify(t *testing.T) {
 // / @input  mockBC vide, ID "inexistant"
 // / @expect Retour d'une erreur
 func TestModelVerify_NotFound(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	_, err := svc.Verify("inexistant", "")
 	if err == nil {
@@ -535,7 +540,7 @@ func TestModelRemove_NotSupported(t *testing.T) {
 	// Sans implémentation de RemoveModelRecord sur la blockchain
 	type minimalBC struct{ *mockBC }
 	// minimalBC n'expose pas RemoveModelRecord — le service doit retourner une erreur
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 	// mockBC implémente RemoveModelRecord — tester l'absence via une struct sans la méthode
 	type noRemoveBC struct {
 		records map[string]*model.Model3D
@@ -599,7 +604,7 @@ func TestConnection_AddListRemove(t *testing.T) {
 // / @input  Service sans WithConnStore (connStore nil)
 // / @expect AddConnection et RemoveConnection retournent chacun une erreur
 func TestConnection_NilStore_ReturnsError(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if _, err := svc.AddConnection("a", "b", "x"); err == nil {
 		t.Error("AddConnection sans connStore doit retourner une erreur")
@@ -613,7 +618,7 @@ func TestConnection_NilStore_ReturnsError(t *testing.T) {
 // / @input  Service sans WithConnStore (connStore nil)
 // / @expect Retour (nil, nil) — pas d'erreur, liste nil
 func TestConnection_ListNilStore_ReturnsNil(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	list, err := svc.ListConnections()
 	if err != nil {
@@ -697,7 +702,7 @@ func TestInterface_IDPreservedIfGiven(t *testing.T) {
 // / @input  Service sans WithIfaceStore (ifaceStore nil)
 // / @expect Chacune des trois opérations retourne une erreur
 func TestInterface_NilStore_ReturnsError(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	iface := &model.AssetInterface{AssetID: "a1", Category: "ELEC", Type: "DIN", Direction: model.IfaceIn}
 	if err := svc.AddInterface(iface); err == nil {
@@ -715,7 +720,7 @@ func TestInterface_NilStore_ReturnsError(t *testing.T) {
 // / @input  Service sans WithIfaceStore (ifaceStore nil)
 // / @expect Retour (nil, nil) — pas d'erreur, liste nil
 func TestInterface_ListNilStore_ReturnsNil(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	list, err := svc.ListInterfacesForAsset("a1")
 	if err != nil {
@@ -762,7 +767,7 @@ func TestAddAssemblyLink(t *testing.T) {
 // / @input  Service sans ifaceStore (cas 1) ; service avec ifaceStore mais sans connStore (cas 2)
 // / @expect Retour d'une erreur dans les deux cas
 func TestAddAssemblyLink_MissingStore(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if _, err := svc.AddAssemblyLink("a", "b", "x", "", "", ""); err == nil {
 		t.Error("AddAssemblyLink sans ifaceStore doit retourner une erreur")
@@ -813,7 +818,7 @@ func TestThumbnail_SaveGet(t *testing.T) {
 }
 
 func TestThumbnail_NilStore_ReturnsError(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if err := svc.SaveThumbnail("a", "data:..."); err == nil {
 		t.Error("SaveThumbnail sans thumbStore doit retourner une erreur")
@@ -821,7 +826,7 @@ func TestThumbnail_NilStore_ReturnsError(t *testing.T) {
 }
 
 func TestThumbnail_NilStore_GetReturnsEmpty(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	got, err := svc.GetThumbnail("a")
 	if err != nil {
@@ -931,7 +936,7 @@ func TestRegenerateThumbnail_FetchError_Propagates(t *testing.T) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 func TestRefs_Default(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	refs, err := svc.GetRefs()
 	if err != nil {
@@ -986,7 +991,7 @@ func TestRefs_AddCategoryTypeUnit(t *testing.T) {
 }
 
 func TestRefs_NilStore_ReturnsError(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if err := svc.AddRefCategory("X"); err == nil {
 		t.Error("AddRefCategory sans ifaceStore doit retourner une erreur")
@@ -1004,7 +1009,7 @@ func TestRefs_NilStore_ReturnsError(t *testing.T) {
 // ══════════════════════════════════════════════════════════════════════════════
 
 func TestModule_CreateGetList(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	p, err := svc.CreateModule(model.ModuleRequest{
 		Name:        "Drone v1",
@@ -1043,7 +1048,7 @@ func TestModule_CreateGetList(t *testing.T) {
 }
 
 func TestModule_ListNilStore_ReturnsNil(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	list, err := svc.ListModules("ch1")
 	if err != nil {
@@ -1055,7 +1060,7 @@ func TestModule_ListNilStore_ReturnsNil(t *testing.T) {
 }
 
 func TestModule_NotFound_ReturnsError(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if _, err := svc.GetModule("x"); err == nil {
 		t.Error("GetModule avec ID inexistant doit retourner une erreur")
@@ -1216,7 +1221,7 @@ func TestWorkspace_AddRemoveInstance(t *testing.T) {
 }
 
 func TestWorkspace_NilStore_ReturnsError(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if _, err := svc.AddAssetToWorkspace("p1", "a1"); err == nil {
 		t.Error("AddAssetToWorkspace avec ID inexistant doit retourner une erreur")
@@ -1351,7 +1356,7 @@ func TestAddFull_UploadFails_ReturnsError(t *testing.T) {
 func TestAddFull_MissingFile_ReturnsError(t *testing.T) {
 	// Si le fichier pointé par FilePath n'existe pas, AddFull doit retourner
 	// une erreur de hash (lecture impossible).
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	_, err := svc.AddFull(model.AddRequest{
 		Name:      "Fantôme",
@@ -1404,7 +1409,7 @@ func TestAddFull_STLAndSTEP_BothAccepted(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			svc := model.NewService(newMockBC(), &mockFS{})
+			svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 			path := tempFile(t, tc.content)
 			m, err := svc.AddFull(model.AddRequest{
 				Name:      tc.name,
@@ -1432,7 +1437,7 @@ func TestAddFull_STLAndSTEP_BothAccepted(t *testing.T) {
 // / @input  mockBC avec parent et 1 enfant (CategoryVariation, ParentID=parent.ID)
 // / @expect liste de 1 enfant avec l'ID correct
 func TestGetChildren_Success(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	parent, _ := svc.AddFull(model.AddRequest{Name: "parent", ChannelID: "ch1", OwnerID: "o1"})
 	child, _ := svc.AddFull(model.AddRequest{
@@ -1456,7 +1461,7 @@ func TestGetChildren_Success(t *testing.T) {
 // / @input  mockBC avec 1 asset sans ParentID pointant sur lui
 // / @expect slice vide (ou nil) sans erreur
 func TestGetChildren_Empty(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	m, _ := svc.AddFull(model.AddRequest{Name: "isolé", ChannelID: "ch1", OwnerID: "o1"})
 
@@ -1499,7 +1504,7 @@ func TestGetModuleInterfaces_SimpleComponent(t *testing.T) {
 // / @input  service sans WithIfaceStore, n'importe quel ID
 // / @expect retourne une erreur (interface store non configuré)
 func TestGetModuleInterfaces_NilStore(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 
 	if _, err := svc.GetModuleInterfaces("quelconque"); err == nil {
 		t.Error("GetModuleInterfaces sans ifaceStore doit retourner une erreur")
@@ -2167,57 +2172,14 @@ func TestWorkspace_VirtualSlot_ChainedConnections(t *testing.T) {
 }
 
 // ══════════════════════════════════════════════════════════════════════════════
-// Tests — cycle brouillon → soumission des composants (ADR-02, AddRequest.Draft)
+// Tests — cycle brouillon → soumission des composants (ADR-02) : toute création
+// est un brouillon, la blockchain n'est engagée que par Submit explicite.
 // ══════════════════════════════════════════════════════════════════════════════
 
-// / @brief  AddFull(Draft:true) crée l'asset en local sans transaction blockchain
-// / @input  Service avec DraftStore configuré, AddRequest{Name:"vis", Draft:true}
+// / @brief  AddFull crée toujours l'asset en local, sans transaction blockchain
+// / @input  Service avec DraftStore configuré, AddRequest{Name:"vis"}
 // / @expect Retour sans erreur, Status=draft, aucun enregistrement dans mockBC.records
-func TestAddFull_Draft_NoBlockchainWrite(t *testing.T) {
-	bc := newMockBC()
-	svc := model.NewService(bc, &mockFS{}).WithDraftStore(newMockDraftStore())
-
-	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
-	if err != nil {
-		t.Fatalf("AddFull draft: %v", err)
-	}
-	if m.Status != model.ModuleDraft {
-		t.Errorf("Status: got %q, want draft", m.Status)
-	}
-	if len(bc.records) != 0 {
-		t.Errorf("aucune transaction blockchain attendue pour un brouillon, got %d", len(bc.records))
-	}
-}
-
-// / @brief  AddFull(Draft:true) sans blockchain configurée doit fonctionner (le point du brouillon)
-// / @input  Service sans blockchain (nil), DraftStore configuré, AddRequest{Draft:true}
-// / @expect Retour sans erreur — la blockchain indisponible n'empêche pas de préparer un brouillon
-func TestAddFull_Draft_NilBlockchain_StillWorks(t *testing.T) {
-	svc := model.NewService(nil, &mockFS{}).WithDraftStore(newMockDraftStore())
-
-	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
-	if err != nil {
-		t.Fatalf("AddFull draft sans blockchain: %v", err)
-	}
-	if m.Status != model.ModuleDraft {
-		t.Errorf("Status: got %q, want draft", m.Status)
-	}
-}
-
-// / @brief  AddFull(Draft:true) sans DraftStore configuré doit être rejeté
-// / @input  Service sans WithDraftStore, AddRequest{Draft:true}
-// / @expect Erreur non nil
-func TestAddFull_Draft_NilDraftStore_Rejected(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
-	if _, err := svc.AddFull(model.AddRequest{Name: "vis", Draft: true}); err == nil {
-		t.Error("AddFull(Draft:true) sans DraftStore doit retourner une erreur")
-	}
-}
-
-// / @brief  AddFull(Draft:false) — comportement nominal inchangé (une transaction immédiate)
-// / @input  Service complet, AddRequest sans Draft
-// / @expect Status vide (pas "draft"), l'asset est présent dans mockBC.records
-func TestAddFull_NoDraft_UnchangedBehavior(t *testing.T) {
+func TestAddFull_AlwaysDraft_NoBlockchainWrite(t *testing.T) {
 	bc := newMockBC()
 	svc := model.NewService(bc, &mockFS{}).WithDraftStore(newMockDraftStore())
 
@@ -2225,11 +2187,36 @@ func TestAddFull_NoDraft_UnchangedBehavior(t *testing.T) {
 	if err != nil {
 		t.Fatalf("AddFull: %v", err)
 	}
-	if m.Status != "" {
-		t.Errorf("Status: got %q, want vide (comportement nominal)", m.Status)
+	if m.Status != model.ModuleDraft {
+		t.Errorf("Status: got %q, want draft", m.Status)
 	}
-	if _, ok := bc.records[m.ID]; !ok {
-		t.Error("l'asset non-brouillon doit être immédiatement engagé sur la blockchain")
+	if len(bc.records) != 0 {
+		t.Errorf("aucune transaction blockchain attendue à la création, got %d", len(bc.records))
+	}
+}
+
+// / @brief  AddFull sans blockchain configurée doit fonctionner (le point du brouillon)
+// / @input  Service sans blockchain (nil), DraftStore configuré
+// / @expect Retour sans erreur — la blockchain indisponible n'empêche pas de préparer un brouillon
+func TestAddFull_NilBlockchain_StillWorks(t *testing.T) {
+	svc := model.NewService(nil, &mockFS{}).WithDraftStore(newMockDraftStore())
+
+	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
+	if err != nil {
+		t.Fatalf("AddFull sans blockchain: %v", err)
+	}
+	if m.Status != model.ModuleDraft {
+		t.Errorf("Status: got %q, want draft", m.Status)
+	}
+}
+
+// / @brief  AddFull sans DraftStore configuré doit être rejeté
+// / @input  Service sans WithDraftStore
+// / @expect Erreur non nil
+func TestAddFull_NilDraftStore_Rejected(t *testing.T) {
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
+	if _, err := svc.AddFull(model.AddRequest{Name: "vis"}); err == nil {
+		t.Error("AddFull sans DraftStore doit retourner une erreur")
 	}
 }
 
@@ -2238,7 +2225,7 @@ func TestAddFull_NoDraft_UnchangedBehavior(t *testing.T) {
 // / @expect Get(id) retourne le brouillon (Status=draft)
 func TestGet_FindsDraftBeforeBlockchain(t *testing.T) {
 	svc := newFullSvc(t)
-	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
 
 	got, err := svc.Get(m.ID, "")
 	if err != nil {
@@ -2249,13 +2236,17 @@ func TestGet_FindsDraftBeforeBlockchain(t *testing.T) {
 	}
 }
 
-// / @brief  List fusionne les brouillons locaux et les assets de la blockchain
-// / @input  Un brouillon (DraftStore) + un asset soumis (mockBC), même canal
+// / @brief  List fusionne les brouillons locaux et les assets déjà soumis sur la blockchain
+// / @input  Un brouillon jamais soumis + un asset créé en brouillon puis soumis (Submit), même canal
 // / @expect List retourne les deux assets
 func TestList_MergesDraftsAndBlockchain(t *testing.T) {
 	svc := newFullSvc(t)
-	draft, _ := svc.AddFull(model.AddRequest{Name: "brouillon", ChannelID: "ch1", Draft: true})
-	submitted, _ := svc.AddFull(model.AddRequest{Name: "soumis", ChannelID: "ch1"})
+	draft, _ := svc.AddFull(model.AddRequest{Name: "brouillon", ChannelID: "ch1"})
+	toSubmit, _ := svc.AddFull(model.AddRequest{Name: "soumis", ChannelID: "ch1"})
+	submitted, err := svc.Submit(toSubmit.ID)
+	if err != nil {
+		t.Fatalf("Submit: %v", err)
+	}
 
 	all, err := svc.List("ch1")
 	if err != nil {
@@ -2284,7 +2275,7 @@ func TestSubmit_CommitsDraftWithInterfaces(t *testing.T) {
 		WithIfaceStore(newMockIfaceStore()).
 		WithDraftStore(newMockDraftStore())
 
-	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	m, err := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
 	if err != nil {
 		t.Fatalf("AddFull draft: %v", err)
 	}
@@ -2332,7 +2323,7 @@ func TestSubmit_NotADraft_Rejected(t *testing.T) {
 // / @input  Service sans WithDraftStore
 // / @expect Erreur non nil
 func TestSubmit_NilDraftStore_Rejected(t *testing.T) {
-	svc := model.NewService(newMockBC(), &mockFS{})
+	svc := model.NewService(newMockBC(), &mockFS{}).WithDraftStore(newMockDraftStore())
 	if _, err := svc.Submit("any"); err == nil {
 		t.Error("Submit sans DraftStore doit retourner une erreur")
 	}
@@ -2345,7 +2336,7 @@ func TestSubmit_NilDraftStore_Rejected(t *testing.T) {
 // / @expect ListModules ne retourne que le module ; le composant draft est absent
 func TestIsModule_DraftComponent_NotMisclassified(t *testing.T) {
 	svc := newFullSvc(t)
-	draftComponent, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	draftComponent, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
 	mod, _ := svc.CreateModule(model.ModuleRequest{Name: "module", ChannelID: "ch1"})
 
 	modules, err := svc.ListModules("ch1")
@@ -2369,7 +2360,7 @@ func TestUpdateAsset_Draft_StaysLocal(t *testing.T) {
 	bc := newMockBC()
 	svc := model.NewService(bc, &mockFS{}).WithDraftStore(newMockDraftStore())
 
-	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
 	updated, err := svc.UpdateAsset(model.UpdateRequest{ID: m.ID, Name: "vis M4"})
 	if err != nil {
 		t.Fatalf("UpdateAsset: %v", err)
@@ -2387,7 +2378,7 @@ func TestUpdateAsset_Draft_StaysLocal(t *testing.T) {
 // / @expect Remove sans erreur, Get(id) échoue ensuite (brouillon supprimé, rien sur la blockchain)
 func TestRemove_Draft_RemovesLocally(t *testing.T) {
 	svc := newFullSvc(t)
-	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1", Draft: true})
+	m, _ := svc.AddFull(model.AddRequest{Name: "vis", ChannelID: "ch1"})
 
 	if err := svc.Remove(m.ID); err != nil {
 		t.Fatalf("Remove: %v", err)

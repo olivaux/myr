@@ -148,8 +148,11 @@ func runModuleAddAssembly(w io.Writer, svc model.ModelService, moduleID, connID 
 
 var moduleAddAssemblyCmd = &cobra.Command{
 	Use:   "add-assembly <id> <connID>",
-	Short: "Attach an assembly link to a module",
-	Args:  cobra.ExactArgs(2),
+	Short: "Attach an assembly link to a module (local draft, no blockchain effect)",
+	Long: `Attach an assembly link to a module. This only updates the local draft — even
+if the module was already submitted before, this reopens it as a draft; the
+change reaches the blockchain only at the next "myr module submit".`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runModuleAddAssembly(cmd.OutOrStdout(), modelSvc, args[0], args[1])
 	},
@@ -165,8 +168,11 @@ func runModuleRemoveAssembly(w io.Writer, svc model.ModelService, moduleID, conn
 
 var moduleRemoveAssemblyCmd = &cobra.Command{
 	Use:   "remove-assembly <id> <connID>",
-	Short: "Detach an assembly link from a module",
-	Args:  cobra.ExactArgs(2),
+	Short: "Detach an assembly link from a module (local draft, no blockchain effect)",
+	Long: `Detach an assembly link from a module. This only updates the local draft —
+even if the module was already submitted before, this reopens it as a draft;
+the change reaches the blockchain only at the next "myr module submit".`,
+	Args: cobra.ExactArgs(2),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		return runModuleRemoveAssembly(cmd.OutOrStdout(), modelSvc, args[0], args[1])
 	},

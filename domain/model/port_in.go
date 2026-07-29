@@ -14,9 +14,10 @@ type ModelService interface {
 	// channelID="" utilise le canal actif de la session ou le canal par défaut.
 	Verify(id, channelID string) (bool, error)
 
-	// Mode GUI — création enrichie
+	// Mode GUI — création enrichie. Toute création est un brouillon local
+	// (DraftStore) : aucune transaction blockchain avant Submit.
 	AddFull(req AddRequest) (*Model3D, error)
-	// Submit engage sur la blockchain un composant créé en brouillon (AddRequest.Draft=true) :
+	// Submit engage sur la blockchain un composant créé en brouillon :
 	// une seule transaction committe les métadonnées et les interfaces locales
 	// (Model3D.Interfaces), puis Status passe à submitted. Généralise SubmitModule
 	// à tout Model3D, sans la vérification d'assemblage (RM17, propre aux modules).
@@ -54,7 +55,8 @@ type ModelService interface {
 	// Modification d'assets et d'interfaces existants
 	UpdateAsset(req UpdateRequest) (*Model3D, error)
 
-	// Modules — assemblages nommés et versionnés
+	// Modules — assemblages nommés et versionnés. CreateModule crée toujours
+	// un brouillon local (RM16) : aucune transaction blockchain avant SubmitModule.
 	CreateModule(req ModuleRequest) (*Model3D, error)
 	GetModule(id string) (*Model3D, error)
 	ListModules(channelID string) ([]*Model3D, error)

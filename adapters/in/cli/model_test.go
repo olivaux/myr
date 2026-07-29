@@ -10,14 +10,15 @@ import (
 	"myr-core/domain/model"
 )
 
-/// @brief  runModelAdd doit appeler AddFull avec la requête construite et afficher l'id créé
-/// @input  AddRequest{Name: "Roue"}, service retournant un Model3D{ID: "abc", Name: "Roue"}
-/// @expect Sortie contient l'id et le nom, pas d'erreur
+/// @brief  runModelAdd doit appeler AddFull avec la requête construite et afficher le
+///         statut brouillon et l'id créé (toute création est un brouillon)
+/// @input  AddRequest{Name: "Roue"}, service retournant un Model3D{ID: "abc", Name: "Roue", Status: draft}
+/// @expect Sortie contient l'id, le nom, "brouillon" et invite à "myr model submit"
 func TestRunModelAdd_NominalCase(t *testing.T) {
 	var captured model.AddRequest
 	svc := &mockModelSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
 		captured = req
-		return &model.Model3D{ID: "abc", Name: req.Name}, nil
+		return &model.Model3D{ID: "abc", Name: req.Name, Status: model.ModuleDraft}, nil
 	}}
 	var buf bytes.Buffer
 	err := runModelAdd(&buf, svc, model.AddRequest{Name: "Roue", ChannelID: "green"})
@@ -27,8 +28,10 @@ func TestRunModelAdd_NominalCase(t *testing.T) {
 	if captured.Name != "Roue" || captured.ChannelID != "green" {
 		t.Fatalf("request not forwarded correctly: %+v", captured)
 	}
-	if !strings.Contains(buf.String(), "abc") || !strings.Contains(buf.String(), "Roue") {
-		t.Fatalf("unexpected output: %q", buf.String())
+	out := buf.String()
+	if !strings.Contains(out, "abc") || !strings.Contains(out, "Roue") ||
+		!strings.Contains(out, "brouillon") || !strings.Contains(out, "submit") {
+		t.Fatalf("unexpected output: %q", out)
 	}
 }
 
@@ -42,24 +45,6 @@ func TestRunModelAdd_ServiceError_Rejected(t *testing.T) {
 	err := runModelAdd(&buf, svc, model.AddRequest{Name: "Roue"})
 	if !errors.Is(err, wantErr) {
 		t.Fatalf("expected %v, got %v", wantErr, err)
-	}
-}
-
-/// @brief  runModelAdd avec Draft:true doit indiquer le statut brouillon et l'id à soumettre
-/// @input  AddRequest{Name: "Vis", Draft: true}, service retournant un Model3D{ID: "d1", Status: draft}
-/// @expect Sortie mentionne "brouillon" et l'id, invite à "myr model submit"
-func TestRunModelAdd_Draft_NominalCase(t *testing.T) {
-	svc := &mockModelSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
-		return &model.Model3D{ID: "d1", Name: req.Name, Status: model.ModuleDraft}, nil
-	}}
-	var buf bytes.Buffer
-	err := runModelAdd(&buf, svc, model.AddRequest{Name: "Vis", Draft: true})
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	out := buf.String()
-	if !strings.Contains(out, "brouillon") || !strings.Contains(out, "d1") || !strings.Contains(out, "submit") {
-		t.Fatalf("unexpected output: %q", out)
 	}
 }
 

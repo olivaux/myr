@@ -590,14 +590,15 @@ func TestComponents_POST_MissingName(t *testing.T) {
 	}
 }
 
-/// @brief  Vérifie que POST /api/components crée un composant et retourne 201
+/// @brief  Vérifie que POST /api/components crée toujours un composant en brouillon
+///         (status="draft") et retourne 201 — aucune transaction blockchain à la création
 /// @input  POST /api/components, multipart avec name="Roulement", mockSvc.addFull retourne l'asset créé
-/// @expect HTTP 201, name="Roulement" dans la réponse, AddFull appelé
+/// @expect HTTP 201, name="Roulement" et status="draft" dans la réponse, AddFull appelé
 func TestComponents_POST_Created(t *testing.T) {
 	called := false
 	svc := &mockSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
 		called = true
-		return &model.Model3D{ID: "new1", Name: req.Name, CreatedAt: time.Now()}, nil
+		return &model.Model3D{ID: "new1", Name: req.Name, Status: model.ModuleDraft, CreatedAt: time.Now()}, nil
 	}}
 
 	body := &bytes.Buffer{}
@@ -620,51 +621,13 @@ func TestComponents_POST_Created(t *testing.T) {
 		t.Error("AddFull not called")
 	}
 	var dto struct {
-		Name string `json:"name"`
+		Name   string `json:"name"`
+		Status string `json:"status"`
 	}
 	decodeJSON(t, w, &dto)
 	if dto.Name != "Roulement" {
 		t.Errorf("name: got %q, want %q", dto.Name, "Roulement")
 	}
-}
-
-/// @brief  Vérifie que POST /api/components avec draft=true transmet AddRequest.Draft
-///         et renvoie un componentDTO status="draft"
-/// @input  POST /api/components, multipart avec name="Vis" et draft="true"
-/// @expect HTTP 201, req.Draft=true reçu par AddFull, status="draft" dans la réponse
-func TestComponents_POST_Draft(t *testing.T) {
-	var gotDraft bool
-	svc := &mockSvc{addFull: func(req model.AddRequest) (*model.Model3D, error) {
-		gotDraft = req.Draft
-		return &model.Model3D{ID: "new1", Name: req.Name, Status: model.ModuleDraft, CreatedAt: time.Now()}, nil
-	}}
-
-	body := &bytes.Buffer{}
-	body.WriteString("--boundary\r\n")
-	body.WriteString("Content-Disposition: form-data; name=\"name\"\r\n\r\n")
-	body.WriteString("Vis\r\n")
-	body.WriteString("--boundary\r\n")
-	body.WriteString("Content-Disposition: form-data; name=\"draft\"\r\n\r\n")
-	body.WriteString("true\r\n")
-	body.WriteString("--boundary--\r\n")
-
-	req := httptest.NewRequest(http.MethodPost, "/api/components", body)
-	req.Header.Set("Content-Type", "multipart/form-data; boundary=boundary")
-	w := httptest.NewRecorder()
-	mux := newTestMux(t, svc)
-	req.Header.Set("X-Myr-Token", loginToken(t, mux))
-	mux.ServeHTTP(w, req)
-
-	if w.Code != http.StatusCreated {
-		t.Fatalf("got %d, want 201 (body: %s)", w.Code, w.Body.String())
-	}
-	if !gotDraft {
-		t.Error("AddRequest.Draft doit être true quand le formulaire envoie draft=true")
-	}
-	var dto struct {
-		Status string `json:"status"`
-	}
-	decodeJSON(t, w, &dto)
 	if dto.Status != "draft" {
 		t.Errorf("status: got %q, want %q", dto.Status, "draft")
 	}

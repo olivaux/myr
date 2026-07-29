@@ -46,10 +46,10 @@ type OGImageFetcher interface {
 	FetchOGImage(pageURL string) (dataURL string, err error)
 }
 
-// DraftStore persiste les Model3D créés en brouillon (AddRequest.Draft=true) avant
-// leur soumission à la blockchain — cycle brouillon → soumission généralisé à tout
-// asset (composant ou module). Non requis par Fabric ou NoOpBlockchain — activé
-// uniquement quand des composants sont créés en brouillon.
+// DraftStore persiste les Model3D en brouillon avant leur soumission à la
+// blockchain — cycle brouillon → soumission généralisé à toute création ou
+// modification (composant, module, interface). Requis dès qu'un composant ou
+// module peut être créé : AddFull/CreateModule échouent sans lui.
 type DraftStore interface {
 	SaveDraft(m *Model3D) error
 	GetDraft(id string) (*Model3D, error)

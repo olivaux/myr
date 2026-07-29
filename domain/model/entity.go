@@ -108,11 +108,6 @@ type AddRequest struct {
 	LicenseID   string // ID dans le catalogue de licences (optionnel)
 	Tags        []string
 	Links       []string // URLs boutique / sources web
-	// Draft, si vrai, crée le composant en Status=draft sans transaction blockchain
-	// (Service.AddFull le stocke dans DraftStore) — il ne rejoint la blockchain
-	// qu'à un appel explicite à Service.Submit. Faux par défaut : comportement
-	// nominal inchangé, une seule transaction Fabric immédiate.
-	Draft bool
 }
 
 // ── Interfaces physiques ─────────────────────────────────────────────────────

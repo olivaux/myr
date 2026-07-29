@@ -4,6 +4,7 @@ package fabric
 import (
 	"crypto/tls"
 	"crypto/x509"
+	"encoding/pem"
 	"fmt"
 	"os"
 	"time"
@@ -140,7 +141,34 @@ func newSign(cfg Config) (identity.Sign, error) {
 	}
 	pk, err := identity.PrivateKeyFromPEM(keyPEM)
 	if err != nil {
+		// identity.PrivateKeyFromPEM ne sait lire que le format PKCS8
+		// ("BEGIN PRIVATE KEY"). Les clés EC générées au format SEC1
+		// ("BEGIN EC PRIVATE KEY", ex. sortie par défaut d'openssl ecparam)
+		// échouent silencieusement à ce parsing — on les reconvertit en PKCS8
+		// avant de retenter, plutôt que d'échouer sur un format pourtant valide.
+		if converted, convErr := pkcs8FromECPEM(keyPEM); convErr == nil {
+			pk, err = identity.PrivateKeyFromPEM(converted)
+		}
+	}
+	if err != nil {
 		return nil, fmt.Errorf("parse clé privée : %w", err)
 	}
 	return identity.NewPrivateKeySign(pk)
+}
+
+// pkcs8FromECPEM reconvertit une clé privée EC au format SEC1 en PKCS8.
+func pkcs8FromECPEM(keyPEM []byte) ([]byte, error) {
+	block, _ := pem.Decode(keyPEM)
+	if block == nil {
+		return nil, fmt.Errorf("bloc PEM invalide")
+	}
+	ecKey, err := x509.ParseECPrivateKey(block.Bytes)
+	if err != nil {
+		return nil, err
+	}
+	der, err := x509.MarshalPKCS8PrivateKey(ecKey)
+	if err != nil {
+		return nil, err
+	}
+	return pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: der}), nil
 }

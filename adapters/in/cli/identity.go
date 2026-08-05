@@ -173,7 +173,7 @@ func runIdentityRequest(w io.Writer, isvc identity.IdentityService, nsvc network
 
 	if nsvc != nil {
 		if profile, err2 := nsvc.GetActive(); err2 == nil && profile != nil && profile.AllowAutoRegister {
-			secret, err3 := isvc.AutoRegister(context.Background(), req, profile.AutoRegisterRole)
+			secret, err3 := isvc.AutoRegister(context.Background(), saved, profile.AutoRegisterRole)
 			if err3 == nil {
 				fmt.Fprintf(w, "Identité créée automatiquement : %s\nSecret d'enrôlement : %s\n", saved.Pseudo, secret)
 				return nil

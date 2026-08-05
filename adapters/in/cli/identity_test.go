@@ -162,7 +162,7 @@ func TestRunIdentityRequest_NoAutoRegister_Pending(t *testing.T) {
 			req.Status = identity.RequestPending
 			return &req, nil
 		},
-		autoRegister: func(context.Context, identity.AccountRequest, string) (string, error) {
+		autoRegister: func(context.Context, *identity.AccountRequest, string) (string, error) {
 			autoCalled = true
 			return "", nil
 		},
@@ -190,7 +190,7 @@ func TestRunIdentityRequest_AutoRegister_Approved(t *testing.T) {
 			req.Status = identity.RequestPending
 			return &req, nil
 		},
-		autoRegister: func(_ context.Context, req identity.AccountRequest, role string) (string, error) {
+		autoRegister: func(_ context.Context, req *identity.AccountRequest, role string) (string, error) {
 			return "generated-secret", nil
 		},
 	}

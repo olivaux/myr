@@ -214,7 +214,10 @@ func (s *Service) SubmitRequest(req AccountRequest) (*AccountRequest, error) {
 // AutoRegister enregistre automatiquement l'identité dans la CA Fabric et retourne
 // le secret d'enrollment. L'identité est créée avec Myr.status=pending, Myr.role=reader.
 // L'admin peut ensuite passer le statut à "active" via la CA pour activer le compte.
-func (s *Service) AutoRegister(ctx context.Context, req AccountRequest, role string) (string, error) {
+// req doit être la demande déjà persistée par SubmitRequest (ID renseigné) : en cas de
+// succès, son statut est mis à jour en RequestApproved et réécrit via le requestStore,
+// pour que la demande n'apparaisse plus comme "pending" alors que l'identité est active.
+func (s *Service) AutoRegister(ctx context.Context, req *AccountRequest, role string) (string, error) {
 	if s.ca == nil {
 		return "", fmt.Errorf("aucun CA configuré — impossible d'enregistrer automatiquement")
 	}
@@ -226,7 +229,17 @@ func (s *Service) AutoRegister(ctx context.Context, req AccountRequest, role str
 		DisplayName: req.DisplayName,
 		Email:       req.Email,
 	}
-	return s.ca.Register(ctx, regReq)
+	secret, err := s.ca.Register(ctx, regReq)
+	if err != nil {
+		return "", err
+	}
+	req.Status = RequestApproved
+	if s.requestStore != nil {
+		if err := s.requestStore.Save(req); err != nil {
+			return "", fmt.Errorf("persistance statut demande : %w", err)
+		}
+	}
+	return secret, nil
 }
 
 // SetRole change le rôle enregistré d'une identité existante auprès de la CA

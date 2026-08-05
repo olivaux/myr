@@ -88,7 +88,7 @@ func (s *Server) buildMux() (http.Handler, error) {
 	mux.HandleFunc("/api/identity/request", s.handler.handleIdentityRequest)
 
 	// Routes d'identité — protégées
-	mux.HandleFunc("/api/identity/requests", s.handler.requireAuth(s.handler.handleIdentityRequests))
+	mux.HandleFunc("/api/identity/requests", s.handler.requireRole(rbac.PermIdentityAdmin, s.handler.handleIdentityRequests))
 	mux.HandleFunc("/api/identity/wallets", s.handler.requireAuth(s.handler.handleIdentityWallets))
 	mux.HandleFunc("/api/identity/status", s.handler.requireAuth(s.handler.handleIdentityStatus))
 

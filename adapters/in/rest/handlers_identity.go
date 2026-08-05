@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"myr-core/domain/identity"
+	rbac "myr-core/domain/role"
 )
 
 // GuestHandle est le nom réservé pour l'identité invité partagée.
@@ -50,7 +51,11 @@ func toWalletDTO(w identity.WalletEntry) walletDTO {
 	}
 }
 
-// handleIdentityWallets liste les wallets présents localement (~/.Myr/wallets/).
+// handleIdentityWallets liste les wallets présents localement (~/.Myr/wallets/) sur le
+// serveur. Ce répertoire est partagé par tous les utilisateurs enrôlés sur ce nœud (pas
+// seulement par l'appelant) : une session sans la permission identity.admin ne voit donc
+// que le ou les wallets correspondant à son propre pseudo (Handle "<pseudo>@<org>"), jamais
+// ceux des autres utilisateurs.
 //
 //	@Summary	Lister les wallets locaux
 //	@Tags		identity
@@ -73,8 +78,13 @@ func (h *Handler) handleIdentityWallets(w http.ResponseWriter, r *http.Request) 
 		internalErr(w, err)
 		return
 	}
+	sess := sessionFromCtx(r)
+	self := !h.hasPermission(sess, rbac.PermIdentityAdmin)
 	dtos := make([]walletDTO, 0, len(wallets))
 	for _, we := range wallets {
+		if self && we.Name != sess.Pseudo {
+			continue
+		}
 		dtos = append(dtos, toWalletDTO(we))
 	}
 	jsonOK(w, dtos)
@@ -235,9 +245,8 @@ func (h *Handler) handleIdentityRequest(w http.ResponseWriter, r *http.Request) 
 	// et retourner le secret d'enrollment directement.
 	if h.networkSvc != nil {
 		if profile, err2 := h.networkSvc.GetActive(); err2 == nil && profile != nil && profile.AllowAutoRegister {
-			secret, err3 := h.identitySvc.AutoRegister(r.Context(), req, profile.AutoRegisterRole)
+			secret, err3 := h.identitySvc.AutoRegister(r.Context(), saved, profile.AutoRegisterRole)
 			if err3 == nil {
-				saved.Status = identity.RequestApproved
 				w.WriteHeader(http.StatusCreated)
 				jsonOK(w, map[string]string{
 					"id":      saved.ID,
@@ -257,12 +266,16 @@ func (h *Handler) handleIdentityRequest(w http.ResponseWriter, r *http.Request) 
 	jsonOK(w, saved)
 }
 
-// handleIdentityRequests liste les demandes de compte en attente (usage admin).
+// handleIdentityRequests liste les demandes de compte en attente — réservé aux
+// identités portant la permission identity.admin (voir domain/role) : les
+// demandes exposent des données personnelles (email, message libre) de tous
+// les utilisateurs, jamais accessible à un compte non-admin.
 //
 //	@Summary	Lister les demandes de compte
 //	@Tags		identity
 //	@Produce	json
 //	@Success	200	{array}		identity.AccountRequest
+//	@Failure	403	{object}	map[string]string
 //	@Failure	503	{object}	map[string]string
 //	@Security	MyrToken
 //	@Router		/identity/requests [get]

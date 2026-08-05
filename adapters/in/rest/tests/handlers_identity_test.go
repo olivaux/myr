@@ -14,6 +14,7 @@ import (
 	"myr-core/adapters/in/rest"
 	"myr-core/domain/identity"
 	"myr-core/domain/network"
+	rbac "myr-core/domain/role"
 )
 
 // ── Mock IdentityService ──────────────────────────────────────────────────────
@@ -24,7 +25,7 @@ type mockIdentitySvc struct {
 	getStatus       func(ctx context.Context, wallet identity.WalletEntry) (string, error)
 	reEnroll        func(ctx context.Context, wallet identity.WalletEntry) (identity.WalletEntry, error)
 	register        func(ctx context.Context, req identity.RegisterRequest) (string, error)
-	autoRegister    func(ctx context.Context, req identity.AccountRequest, role string) (string, error)
+	autoRegister    func(ctx context.Context, req *identity.AccountRequest, role string) (string, error)
 	loadGuestWallet func(certPath, keyPath, caCertPath, orgID string) (identity.WalletEntry, error)
 	submitRequest   func(req identity.AccountRequest) (*identity.AccountRequest, error)
 	listRequests    func() ([]*identity.AccountRequest, error)
@@ -62,7 +63,7 @@ func (m *mockIdentitySvc) Register(ctx context.Context, req identity.RegisterReq
 	}
 	return "secret", nil
 }
-func (m *mockIdentitySvc) AutoRegister(ctx context.Context, req identity.AccountRequest, role string) (string, error) {
+func (m *mockIdentitySvc) AutoRegister(ctx context.Context, req *identity.AccountRequest, role string) (string, error) {
 	if m.autoRegister != nil {
 		return m.autoRegister(ctx, req, role)
 	}
@@ -151,6 +152,47 @@ func newIdentityMux(t *testing.T, idSvc identity.IdentityService) http.Handler {
 	return mux
 }
 
+// mockRoleSvc is a minimal rbac.RoleService stub for tests that need to control
+// HasPermission independently of the legacy role-rank fallback. Only HasPermission
+// is exercised by requireRole; the other methods are unused CRUD surface.
+type mockRoleSvc struct {
+	hasPermission func(roleName string, p rbac.Permission) bool
+}
+
+func (m *mockRoleSvc) Create(name string, permissions []rbac.Permission) (*rbac.Role, error) {
+	return nil, nil
+}
+func (m *mockRoleSvc) Update(name string, permissions []rbac.Permission) (*rbac.Role, error) {
+	return nil, nil
+}
+func (m *mockRoleSvc) Delete(name string) error       { return nil }
+func (m *mockRoleSvc) Get(name string) (*rbac.Role, error) { return nil, nil }
+func (m *mockRoleSvc) List() ([]*rbac.Role, error)    { return nil, nil }
+func (m *mockRoleSvc) HasPermission(roleName string, p rbac.Permission) bool {
+	if m.hasPermission != nil {
+		return m.hasPermission(roleName, p)
+	}
+	return false
+}
+
+// newIdentityMuxWithRole is like newIdentityMux but injects a rbac.RoleService,
+// letting a test grant a permission to whatever role loginToken's session ends up
+// with (currently hardcoded to "contributor" — see #question at
+// handlers_identity.go:378) without depending on that hardcoding directly.
+func newIdentityMuxWithRole(t *testing.T, idSvc identity.IdentityService, roleSvc rbac.RoleService) http.Handler {
+	t.Helper()
+	store := &mockStore{}
+	h := rest.NewHandler(&mockSvc{}, store, store)
+	h.WithIdentityService(idSvc)
+	h.WithRoleService(roleSvc)
+	srv := rest.NewServer(h, "localhost:0")
+	mux, err := srv.Handler()
+	if err != nil {
+		t.Fatalf("Handler(): %v", err)
+	}
+	return mux
+}
+
 // newBothMux builds a REST mux with identity + network services (blockchain mode).
 func newBothMux(t *testing.T, idSvc identity.IdentityService, netSvc network.NetworkService) http.Handler {
 	t.Helper()
@@ -168,11 +210,16 @@ func newBothMux(t *testing.T, idSvc identity.IdentityService, netSvc network.Net
 
 // ── GET /api/identity/wallets ─────────────────────────────────────────────────
 
-func TestHandleIdentityWallets_Success(t *testing.T) {
+// / @brief  GET /api/identity/wallets ne renvoie que le wallet de l'appelant, jamais
+// / celui des autres utilisateurs enrôlés sur le même serveur (walletDir est partagé)
+// / @input  session "test" (pseudo fixé par loginToken), 3 wallets dont un seul "test"
+// / @expect seul le wallet dont Name == "test" est renvoyé
+func TestHandleIdentityWallets_ScopedToCaller(t *testing.T) {
 	svc := &mockIdentitySvc{
 		listWallets: func() ([]identity.WalletEntry, error) {
 			return []identity.WalletEntry{
 				{Handle: "alice@Org1", Name: "alice", OrgID: "Org1MSP", Status: identity.StatusActive},
+				{Handle: "test@Org1", Name: "test", OrgID: "Org1MSP", Status: identity.StatusActive},
 				{Handle: "bob@Org2", Name: "bob", OrgID: "Org2MSP", Status: identity.StatusPending},
 			}, nil
 		},
@@ -188,11 +235,37 @@ func TestHandleIdentityWallets_Success(t *testing.T) {
 	if err := json.NewDecoder(w.Body).Decode(&dtos); err != nil {
 		t.Fatalf("JSON invalide : %v", err)
 	}
-	if len(dtos) != 2 {
-		t.Fatalf("2 wallets attendus, obtenu %d", len(dtos))
+	if len(dtos) != 1 {
+		t.Fatalf("1 wallet attendu (le sien), obtenu %d", len(dtos))
 	}
-	if dtos[0].Handle != "alice@Org1" {
-		t.Errorf("handle attendu %q, obtenu %q", "alice@Org1", dtos[0].Handle)
+	if dtos[0].Handle != "test@Org1" {
+		t.Errorf("handle attendu %q, obtenu %q", "test@Org1", dtos[0].Handle)
+	}
+}
+
+// / @brief  GET /api/identity/wallets renvoie tous les wallets à une session identity.admin
+// / @input  RoleService accordant rbac.PermIdentityAdmin, 3 wallets appartenant à des pseudos différents
+// / @expect les 3 wallets sont renvoyés, pas seulement celui de l'appelant
+func TestHandleIdentityWallets_Admin_ReturnsAll(t *testing.T) {
+	svc := &mockIdentitySvc{
+		listWallets: func() ([]identity.WalletEntry, error) {
+			return []identity.WalletEntry{
+				{Handle: "alice@Org1", Name: "alice", OrgID: "Org1MSP", Status: identity.StatusActive},
+				{Handle: "bob@Org2", Name: "bob", OrgID: "Org2MSP", Status: identity.StatusPending},
+			}, nil
+		},
+	}
+	roleSvc := &mockRoleSvc{hasPermission: func(string, rbac.Permission) bool { return true }}
+	w := do(t, newIdentityMuxWithRole(t, svc, roleSvc), http.MethodGet, "/api/identity/wallets", "")
+	if w.Code != http.StatusOK {
+		t.Fatalf("code attendu 200, obtenu %d", w.Code)
+	}
+	var dtos []struct{ Handle string `json:"handle"` }
+	if err := json.NewDecoder(w.Body).Decode(&dtos); err != nil {
+		t.Fatalf("JSON invalide : %v", err)
+	}
+	if len(dtos) != 2 {
+		t.Fatalf("2 wallets attendus (admin voit tout), obtenu %d", len(dtos))
 	}
 }
 
@@ -629,7 +702,28 @@ func TestHandleIdentityRequest_ServiceError(t *testing.T) {
 
 // ── GET /api/identity/requests ────────────────────────────────────────────────
 
-func TestHandleIdentityRequests_ReturnsList(t *testing.T) {
+// / @brief  GET /api/identity/requests expose des données personnelles (email, message) de
+// / toutes les demandes de compte — réservé à identity.admin, jamais à un simple contributor.
+// / @input  session "contributor" (rôle obtenu via loginToken, pas de RoleService injecté)
+// / @expect 403 : requireRole retombe sur legacyRoleRank, qui place contributor sous admin
+func TestHandleIdentityRequests_NonAdmin_Forbidden(t *testing.T) {
+	svc := &mockIdentitySvc{
+		listRequests: func() ([]*identity.AccountRequest, error) {
+			return []*identity.AccountRequest{
+				{ID: "req-1", Pseudo: "alice", Status: identity.RequestPending},
+			}, nil
+		},
+	}
+	w := do(t, newIdentityMux(t, svc), http.MethodGet, "/api/identity/requests", "")
+	if w.Code != http.StatusForbidden {
+		t.Fatalf("code 403 attendu (permission identity.admin manquante), obtenu %d", w.Code)
+	}
+}
+
+// / @brief  GET /api/identity/requests retourne la liste quand le rôle porte identity.admin
+// / @input  RoleService accordant rbac.PermIdentityAdmin à toute session authentifiée
+// / @expect 200, liste des demandes renvoyée telle quelle
+func TestHandleIdentityRequests_Admin_ReturnsList(t *testing.T) {
 	svc := &mockIdentitySvc{
 		listRequests: func() ([]*identity.AccountRequest, error) {
 			return []*identity.AccountRequest{
@@ -638,7 +732,8 @@ func TestHandleIdentityRequests_ReturnsList(t *testing.T) {
 			}, nil
 		},
 	}
-	w := do(t, newIdentityMux(t, svc), http.MethodGet, "/api/identity/requests", "")
+	roleSvc := &mockRoleSvc{hasPermission: func(string, rbac.Permission) bool { return true }}
+	w := do(t, newIdentityMuxWithRole(t, svc, roleSvc), http.MethodGet, "/api/identity/requests", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("code 200 attendu, obtenu %d", w.Code)
 	}
@@ -649,8 +744,12 @@ func TestHandleIdentityRequests_ReturnsList(t *testing.T) {
 	}
 }
 
-func TestHandleIdentityRequests_EmptyList(t *testing.T) {
-	w := do(t, newIdentityMux(t, &mockIdentitySvc{}), http.MethodGet, "/api/identity/requests", "")
+// / @brief  GET /api/identity/requests renvoie [] et non null quand aucune demande n'existe
+// / @input  RoleService accordant identity.admin, ListRequests retourne (nil, nil)
+// / @expect 200, tableau JSON vide
+func TestHandleIdentityRequests_Admin_EmptyList(t *testing.T) {
+	roleSvc := &mockRoleSvc{hasPermission: func(string, rbac.Permission) bool { return true }}
+	w := do(t, newIdentityMuxWithRole(t, &mockIdentitySvc{}, roleSvc), http.MethodGet, "/api/identity/requests", "")
 	if w.Code != http.StatusOK {
 		t.Fatalf("code 200 attendu, obtenu %d", w.Code)
 	}

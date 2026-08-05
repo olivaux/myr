@@ -296,23 +296,26 @@ var legacyPermRank = map[rbac.Permission]int{
 	rbac.PermAdmin: 3, rbac.PermNetworkAdmin: 3, rbac.PermRoleAdmin: 3, rbac.PermIdentityAdmin: 3,
 }
 
+// hasPermission indique si le rôle porté par la session donne droit à la permission
+// demandée. Consulte le rbac.RoleService injecté (WithRoleService) ; à défaut, retombe
+// sur la hiérarchie de rang historique (reader < contributor < admin). Partagé entre
+// requireRole (gate de route, échoue par 403) et les handlers qui doivent nuancer leur
+// réponse selon le rôle plutôt que bloquer la requête entière (ex. handleIdentityWallets).
+func (h *Handler) hasPermission(sess *myrSession, perm rbac.Permission) bool {
+	if sess == nil {
+		return false
+	}
+	if h.roleSvc != nil {
+		return h.roleSvc.HasPermission(sess.Role, perm)
+	}
+	return legacyRoleRank[sess.Role] >= legacyPermRank[perm]
+}
+
 // requireRole est un middleware qui vérifie que la session porte la permission requise.
-// Consulte le rbac.RoleService injecté (WithRoleService) ; à défaut, retombe sur la
-// hiérarchie de rang historique (reader < contributor < admin).
 func (h *Handler) requireRole(perm rbac.Permission, next http.HandlerFunc) http.HandlerFunc {
 	return h.requireAuth(func(w http.ResponseWriter, r *http.Request) {
 		sess := sessionFromCtx(r)
-		if sess == nil {
-			jsonError(w, "droits insuffisants", http.StatusForbidden)
-			return
-		}
-		var allowed bool
-		if h.roleSvc != nil {
-			allowed = h.roleSvc.HasPermission(sess.Role, perm)
-		} else {
-			allowed = legacyRoleRank[sess.Role] >= legacyPermRank[perm]
-		}
-		if !allowed {
+		if !h.hasPermission(sess, perm) {
 			jsonError(w, "droits insuffisants", http.StatusForbidden)
 			return
 		}

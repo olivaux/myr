@@ -21,7 +21,9 @@ type IdentityService interface {
 	// (requiert des credentials admin dans la config) et retourne le secret d'enrollment.
 	// role définit les droits attribués (ex: RoleContributor) ; vide = RoleReader.
 	// Utilisé quand AllowAutoRegister=true dans le profil réseau actif.
-	AutoRegister(ctx context.Context, req AccountRequest, role string) (secret string, err error)
+	// req doit être la demande déjà persistée par SubmitRequest (ID renseigné) : en cas
+	// de succès, son statut est mis à jour en RequestApproved et réécrit sur disque.
+	AutoRegister(ctx context.Context, req *AccountRequest, role string) (secret string, err error)
 	// ListRequests retourne toutes les demandes en attente (usage admin).
 	ListRequests() ([]*AccountRequest, error)
 	WalletDir() string

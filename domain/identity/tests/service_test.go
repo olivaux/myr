@@ -547,7 +547,7 @@ func TestSubmitRequest_WithoutStore(t *testing.T) {
 func TestAutoRegister_Success(t *testing.T) {
 	ca := &stubCA{}
 	svc := identity.NewService(t.TempDir(), ca)
-	req := identity.AccountRequest{Pseudo: "dave", OrgID: "Org1MSP", DisplayName: "Dave", Email: "dave@example.com"}
+	req := &identity.AccountRequest{Pseudo: "dave", OrgID: "Org1MSP", DisplayName: "Dave", Email: "dave@example.com"}
 	secret, err := svc.AutoRegister(context.Background(), req, identity.RoleContributor)
 	if err != nil {
 		t.Fatalf("AutoRegister : %v", err)
@@ -566,7 +566,7 @@ func TestAutoRegister_Success(t *testing.T) {
 func TestAutoRegister_NoCA(t *testing.T) {
 	svc := identity.NewService(t.TempDir(), nil)
 	_, err := svc.AutoRegister(context.Background(),
-		identity.AccountRequest{Pseudo: "dave", OrgID: "Org1MSP"}, "")
+		&identity.AccountRequest{Pseudo: "dave", OrgID: "Org1MSP"}, "")
 	if err == nil {
 		t.Fatal("erreur attendue sans CA")
 	}
@@ -579,7 +579,7 @@ func TestAutoRegister_RoleForwarded(t *testing.T) {
 	ca := &stubCA{}
 	svc := identity.NewService(t.TempDir(), ca)
 	svc.AutoRegister(context.Background(),
-		identity.AccountRequest{Pseudo: "eve", OrgID: "Org1MSP"}, identity.RoleContributor)
+		&identity.AccountRequest{Pseudo: "eve", OrgID: "Org1MSP"}, identity.RoleContributor)
 	if ca.lastRegisterReq.Role != identity.RoleContributor {
 		t.Errorf("rôle: got %q, want %q", ca.lastRegisterReq.Role, identity.RoleContributor)
 	}

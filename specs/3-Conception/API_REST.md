@@ -43,9 +43,9 @@
 | POST | `/api/identity/session` | Public | (Ré-)enrôlement + création d'une session REST (token opaque) |
 | POST | `/api/identity/guest` | Public | Token `reader` automatique (si `AllowAutoGuest=true`) |
 | POST | `/api/identity/request` | Public | Demande d'accès (auto-enregistrement si `AllowAutoRegister=true`, sinon mise en attente `pending` jusqu'à `POST /api/identity/requests/{id}/approve`) |
-| GET | `/api/identity/requests` | Auth | Liste des demandes de compte en attente |
+| GET | `/api/identity/requests` | Admin | Liste des demandes de compte en attente — expose des données personnelles (email, message libre), réservée à `identity.admin` |
 | POST | `/api/identity/requests/{id}/approve` | Admin | Approuver une demande `pending` — transforme la demande en identité CA active (UCA01) |
-| GET | `/api/identity/wallets` | Auth | Wallets locaux |
+| GET | `/api/identity/wallets` | Auth | Wallets locaux — le répertoire de wallets est partagé par tous les utilisateurs enrôlés sur le nœud : une session sans `identity.admin` ne voit que son propre wallet (filtré par pseudo), jamais celui des autres |
 | GET | `/api/identity/status` | Auth | Statut CA d'un wallet (`?handle=pseudo@org`) |
 
 > Pas de CRUD REST pour le RBAC (`domain/role`) — gestion des rôles CLI uniquement (`myr role ...`). Le REST ne fait que consulter les permissions via `requireRole`.

@@ -15,7 +15,7 @@ type mockIdentitySvc struct {
 	reEnroll         func(ctx context.Context, wallet identity.WalletEntry) (identity.WalletEntry, error)
 	loadGuestWallet  func(certPath, keyPath, caCertPath, orgID string) (identity.WalletEntry, error)
 	submitRequest    func(req identity.AccountRequest) (*identity.AccountRequest, error)
-	autoRegister     func(ctx context.Context, req identity.AccountRequest, role string) (string, error)
+	autoRegister     func(ctx context.Context, req *identity.AccountRequest, role string) (string, error)
 	listRequests     func() ([]*identity.AccountRequest, error)
 	walletDir        func() string
 	setRole          func(ctx context.Context, name, newRole string) error
@@ -65,7 +65,7 @@ func (m *mockIdentitySvc) SubmitRequest(req identity.AccountRequest) (*identity.
 	req.Status = identity.RequestPending
 	return &req, nil
 }
-func (m *mockIdentitySvc) AutoRegister(ctx context.Context, req identity.AccountRequest, role string) (string, error) {
+func (m *mockIdentitySvc) AutoRegister(ctx context.Context, req *identity.AccountRequest, role string) (string, error) {
 	if m.autoRegister != nil {
 		return m.autoRegister(ctx, req, role)
 	}
